@@ -14,7 +14,305 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      employees: {
+        Row: {
+          created_at: string
+          department: string
+          email: string
+          id: string
+          is_active: boolean
+          name: string
+          notify_announcements: boolean | null
+          notify_in_app: boolean | null
+          notify_reminders: boolean | null
+          notify_tasks: boolean | null
+          notify_time_tracking: boolean | null
+          notify_whatsapp: boolean | null
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          role: Database["public"]["Enums"]["employee_role"]
+          updated_at: string
+          user_id: string | null
+          whatsapp_last_seen: string | null
+          whatsapp_number: string | null
+          whatsapp_profile_pic: string | null
+          whatsapp_verified: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          department?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notify_announcements?: boolean | null
+          notify_in_app?: boolean | null
+          notify_reminders?: boolean | null
+          notify_tasks?: boolean | null
+          notify_time_tracking?: boolean | null
+          notify_whatsapp?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          role?: Database["public"]["Enums"]["employee_role"]
+          updated_at?: string
+          user_id?: string | null
+          whatsapp_last_seen?: string | null
+          whatsapp_number?: string | null
+          whatsapp_profile_pic?: string | null
+          whatsapp_verified?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notify_announcements?: boolean | null
+          notify_in_app?: boolean | null
+          notify_reminders?: boolean | null
+          notify_tasks?: boolean | null
+          notify_time_tracking?: boolean | null
+          notify_whatsapp?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          role?: Database["public"]["Enums"]["employee_role"]
+          updated_at?: string
+          user_id?: string | null
+          whatsapp_last_seen?: string | null
+          whatsapp_number?: string | null
+          whatsapp_profile_pic?: string | null
+          whatsapp_verified?: boolean | null
+        }
+        Relationships: []
+      }
+      notification_queue: {
+        Row: {
+          attempts: number | null
+          created_at: string
+          id: string
+          max_attempts: number | null
+          next_retry_at: string | null
+          notification_id: string
+          payload: Json
+          processed_at: string | null
+          response_error: string | null
+          response_message_id: string | null
+          response_success: boolean | null
+          response_timestamp: string | null
+          status: Database["public"]["Enums"]["queue_status"] | null
+          webhook_url: string
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string
+          id?: string
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          notification_id: string
+          payload: Json
+          processed_at?: string | null
+          response_error?: string | null
+          response_message_id?: string | null
+          response_success?: boolean | null
+          response_timestamp?: string | null
+          status?: Database["public"]["Enums"]["queue_status"] | null
+          webhook_url: string
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string
+          id?: string
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          notification_id?: string
+          payload?: Json
+          processed_at?: string | null
+          response_error?: string | null
+          response_message_id?: string | null
+          response_success?: boolean | null
+          response_timestamp?: string | null
+          status?: Database["public"]["Enums"]["queue_status"] | null
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_queue_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          channels: string[] | null
+          created_at: string
+          id: string
+          in_app_delivered_at: string | null
+          in_app_read_at: string | null
+          in_app_status: string | null
+          message: string
+          priority: Database["public"]["Enums"]["notification_priority"] | null
+          read_at: string | null
+          recipient_id: string
+          recipient_phone: string | null
+          related_entity_id: string | null
+          related_entity_type: string | null
+          scheduled_for: string | null
+          sender_id: string | null
+          sender_name: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["notification_status"] | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          whatsapp_delivered_at: string | null
+          whatsapp_error: string | null
+          whatsapp_instance: string | null
+          whatsapp_message_id: string | null
+          whatsapp_read_at: string | null
+          whatsapp_sent_at: string | null
+          whatsapp_status: string | null
+        }
+        Insert: {
+          channels?: string[] | null
+          created_at?: string
+          id?: string
+          in_app_delivered_at?: string | null
+          in_app_read_at?: string | null
+          in_app_status?: string | null
+          message: string
+          priority?: Database["public"]["Enums"]["notification_priority"] | null
+          read_at?: string | null
+          recipient_id: string
+          recipient_phone?: string | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          scheduled_for?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"] | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          whatsapp_delivered_at?: string | null
+          whatsapp_error?: string | null
+          whatsapp_instance?: string | null
+          whatsapp_message_id?: string | null
+          whatsapp_read_at?: string | null
+          whatsapp_sent_at?: string | null
+          whatsapp_status?: string | null
+        }
+        Update: {
+          channels?: string[] | null
+          created_at?: string
+          id?: string
+          in_app_delivered_at?: string | null
+          in_app_read_at?: string | null
+          in_app_status?: string | null
+          message?: string
+          priority?: Database["public"]["Enums"]["notification_priority"] | null
+          read_at?: string | null
+          recipient_id?: string
+          recipient_phone?: string | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          scheduled_for?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"] | null
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          whatsapp_delivered_at?: string | null
+          whatsapp_error?: string | null
+          whatsapp_instance?: string | null
+          whatsapp_message_id?: string | null
+          whatsapp_read_at?: string | null
+          whatsapp_sent_at?: string | null
+          whatsapp_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_responses: {
+        Row: {
+          created_at: string
+          employee_id: string | null
+          id: string
+          instance: string | null
+          message_id: string | null
+          notification_id: string | null
+          phone: string
+          processed: boolean | null
+          processed_at: string | null
+          push_name: string | null
+          raw_message: Json | null
+          response_type: string
+          response_value: string | null
+        }
+        Insert: {
+          created_at?: string
+          employee_id?: string | null
+          id?: string
+          instance?: string | null
+          message_id?: string | null
+          notification_id?: string | null
+          phone: string
+          processed?: boolean | null
+          processed_at?: string | null
+          push_name?: string | null
+          raw_message?: Json | null
+          response_type: string
+          response_value?: string | null
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string | null
+          id?: string
+          instance?: string | null
+          message_id?: string | null
+          notification_id?: string | null
+          phone?: string
+          processed?: boolean | null
+          processed_at?: string | null
+          push_name?: string | null
+          raw_message?: Json | null
+          response_type?: string
+          response_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_responses_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_responses_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +321,28 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      employee_role: "colaborador" | "gestor" | "admin"
+      notification_priority: "low" | "normal" | "high" | "urgent"
+      notification_status:
+        | "pending"
+        | "queued"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "failed"
+      notification_type:
+        | "task_assigned"
+        | "task_due_reminder"
+        | "task_overdue"
+        | "task_completed"
+        | "task_comment"
+        | "clock_reminder"
+        | "clock_anomaly"
+        | "justification_required"
+        | "justification_response"
+        | "announcement"
+        | "gamification_badge"
+      queue_status: "queued" | "processing" | "completed" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +469,31 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      employee_role: ["colaborador", "gestor", "admin"],
+      notification_priority: ["low", "normal", "high", "urgent"],
+      notification_status: [
+        "pending",
+        "queued",
+        "sent",
+        "delivered",
+        "read",
+        "failed",
+      ],
+      notification_type: [
+        "task_assigned",
+        "task_due_reminder",
+        "task_overdue",
+        "task_completed",
+        "task_comment",
+        "clock_reminder",
+        "clock_anomaly",
+        "justification_required",
+        "justification_response",
+        "announcement",
+        "gamification_badge",
+      ],
+      queue_status: ["queued", "processing", "completed", "failed"],
+    },
   },
 } as const
