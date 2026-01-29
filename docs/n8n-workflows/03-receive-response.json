@@ -1,0 +1,133 @@
+{
+  "name": "OpsControl - Receber Respostas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "opscontrol-response",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Evolution Response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "filter-upsert",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "messages.upsert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "filter-not-from-me",
+              "leftValue": "={{ $json.data?.key?.fromMe }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-incoming",
+      "name": "Filtrar Mensagens Recebidas",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai informações da mensagem recebida\nconst data = $json.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extrai texto ou resposta de botão\nlet responseType = 'text';\nlet responseValue = '';\n\nif (message.buttonsResponseMessage) {\n  responseType = 'button';\n  responseValue = message.buttonsResponseMessage.selectedButtonId;\n} else if (message.listResponseMessage) {\n  responseType = 'list';\n  responseValue = message.listResponseMessage.singleSelectReply?.selectedRowId;\n} else if (message.conversation) {\n  responseValue = message.conversation;\n} else if (message.extendedTextMessage) {\n  responseValue = message.extendedTextMessage.text;\n}\n\nreturn {\n  messageId: key.id,\n  phone: key.remoteJid?.replace('@s.whatsapp.net', '').replace('@c.us', ''),\n  pushName: data.pushName,\n  responseType,\n  responseValue,\n  timestamp: new Date(data.messageTimestamp * 1000).toISOString(),\n  instance: $json.instance,\n  rawMessage: message\n};"
+      },
+      "id": "process-response",
+      "name": "Processar Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPSCONTROL_URL }}/functions/v1/webhook-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPSCONTROL_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "send-to-opscontrol",
+      "name": "Enviar para OpsControl",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Evolution Response": {
+      "main": [
+        [
+          {
+            "node": "Filtrar Mensagens Recebidas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar Mensagens Recebidas": {
+      "main": [
+        [
+          {
+            "node": "Processar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Enviar para OpsControl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["opscontrol", "whatsapp", "evolution", "response"]
+}
