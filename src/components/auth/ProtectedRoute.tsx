@@ -24,6 +24,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
+  // User has no roles - redirect to auth with error state
+  if (userRoles.length === 0) {
+    return <Navigate to="/auth" state={{ error: "Usuário sem permissões" }} replace />;
+  }
+
   // Check if user has any allowed role
   if (allowedRoles && allowedRoles.length > 0) {
     const hasAllowedRole = userRoles.some((r) => allowedRoles.includes(r.role));
@@ -34,8 +39,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         return <Navigate to="/admin-master" replace />;
       } else if (currentRole === "colaborador") {
         return <Navigate to="/app" replace />;
-      } else {
+      } else if (currentRole === "admin" || currentRole === "gestor") {
         return <Navigate to="/" replace />;
+      } else {
+        return <Navigate to="/auth" replace />;
       }
     }
   }

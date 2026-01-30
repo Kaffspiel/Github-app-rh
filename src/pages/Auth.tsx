@@ -19,14 +19,26 @@ export default function Auth() {
 
   // Redirect authenticated users based on role
   useEffect(() => {
-    if (!isLoading && user && userRoles.length > 0) {
-      if (currentRole === "admin_master") {
-        navigate("/admin-master", { replace: true });
-      } else if (currentRole === "colaborador") {
-        navigate("/app", { replace: true });
-      } else {
-        navigate(from, { replace: true });
-      }
+    if (!isLoading && user) {
+      // Wait a moment for roles to load
+      const timeout = setTimeout(() => {
+        if (userRoles.length > 0) {
+          if (currentRole === "admin_master") {
+            navigate("/admin-master", { replace: true });
+          } else if (currentRole === "colaborador") {
+            navigate("/app", { replace: true });
+          } else if (currentRole === "admin" || currentRole === "gestor") {
+            navigate("/", { replace: true });
+          } else {
+            navigate(from, { replace: true });
+          }
+        } else {
+          // User has no roles - show error
+          setError("Seu usuário não possui permissões configuradas. Entre em contato com o administrador.");
+        }
+      }, 500);
+      
+      return () => clearTimeout(timeout);
     }
   }, [user, userRoles, isLoading, currentRole, navigate, from]);
 
