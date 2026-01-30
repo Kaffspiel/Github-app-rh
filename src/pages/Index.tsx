@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut } from "lucide-react";
 import { Dashboard } from "@/components/Dashboard";
 import { TaskManagement } from "@/components/TaskManagement";
-import { CollaboratorApp } from "@/components/CollaboratorApp";
+import { CollaboratorAppAdmin } from "@/components/CollaboratorAppAdmin";
 import { TimeTracking } from "@/components/TimeTracking";
 import { Gamification } from "@/components/Gamification";
 import { Reports } from "@/components/Reports";
@@ -34,7 +34,7 @@ const Index = () => {
       case "dashboard": return <Dashboard />;
       case "tasks": return <TaskManagement />;
       case "employees": return <EmployeeManagement />;
-      case "collaborator": return <CollaboratorApp />;
+      case "collaborator": return <CollaboratorAppAdmin />;
       case "timetracking": return <TimeTracking />;
       case "gamification": return <Gamification />;
       case "reports": return <Reports />;
