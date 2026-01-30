@@ -14,7 +14,7 @@ import { useCompany } from "@/context/CompanyContext";
 import { 
   Users, Plus, Search, Phone, Mail, Building2, Shield, 
   MessageSquare, Bell, Clock, CheckCircle2, XCircle,
-  Pencil, Trash2, MoreVertical, Send, UserPlus, Key, Loader2
+  Pencil, Trash2, MoreVertical, Send, UserPlus, Key, Loader2, KeyRound
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,6 +36,10 @@ export function EmployeeManagement() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [sendingTest, setSendingTest] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
+  const [resetPasswordEmployee, setResetPasswordEmployee] = useState<Employee | null>(null);
+  const [resetPasswordForm, setResetPasswordForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [resettingPassword, setResettingPassword] = useState(false);
   const { toast } = useToast();
   const { companyId, company } = useCompany();
 
@@ -321,6 +325,70 @@ export function EmployeeManagement() {
       department: "Geral",
       role: "colaborador",
     });
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordEmployee?.user_id) return;
+
+    if (!resetPasswordForm.newPassword) {
+      toast({
+        title: "Senha obrigatória",
+        description: "Digite a nova senha",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (resetPasswordForm.newPassword.length < 6) {
+      toast({
+        title: "Senha muito curta",
+        description: "A senha deve ter pelo menos 6 caracteres",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
+      toast({
+        title: "Senhas não conferem",
+        description: "A senha e confirmação devem ser iguais",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResettingPassword(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("reset-user-password", {
+        body: {
+          userId: resetPasswordEmployee.user_id,
+          newPassword: resetPasswordForm.newPassword,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Senha redefinida com sucesso!",
+          description: `A nova senha de ${resetPasswordEmployee.name} foi configurada`,
+        });
+        setIsResetPasswordDialogOpen(false);
+        setResetPasswordEmployee(null);
+        setResetPasswordForm({ newPassword: "", confirmPassword: "" });
+      } else {
+        throw new Error(data?.error || "Erro ao redefinir senha");
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erro ao redefinir senha",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setResettingPassword(false);
+    }
   };
 
   const departments = [...new Set(employees.map((e) => e.department))];
@@ -804,6 +872,17 @@ export function EmployeeManagement() {
                         <Send className="w-4 h-4 mr-2" />
                         {sendingTest === employee.id ? "Enviando..." : "Enviar Teste"}
                       </DropdownMenuItem>
+                      {employee.user_id && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setResetPasswordEmployee(employee);
+                            setIsResetPasswordDialogOpen(true);
+                          }}
+                        >
+                          <KeyRound className="w-4 h-4 mr-2" />
+                          Redefinir Senha
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() => handleDelete(employee.id)}
                         className="text-red-600"
@@ -856,6 +935,69 @@ export function EmployeeManagement() {
           ))}
         </div>
       )}
+
+      {/* Reset Password Dialog */}
+      <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5" />
+              Redefinir Senha
+            </DialogTitle>
+            <DialogDescription>
+              Defina uma nova senha para <strong>{resetPasswordEmployee?.name}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">Nova Senha *</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={resetPasswordForm.newPassword}
+                onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, newPassword: e.target.value })}
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmar Senha *</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={resetPasswordForm.confirmPassword}
+                onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, confirmPassword: e.target.value })}
+                placeholder="Repita a senha"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsResetPasswordDialogOpen(false);
+                setResetPasswordEmployee(null);
+                setResetPasswordForm({ newPassword: "", confirmPassword: "" });
+              }}
+              disabled={resettingPassword}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleResetPassword} disabled={resettingPassword}>
+              {resettingPassword ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Redefinindo...
+                </>
+              ) : (
+                "Redefinir Senha"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
