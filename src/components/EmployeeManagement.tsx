@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ import { useCompany } from "@/context/CompanyContext";
 import { 
   Users, Plus, Search, Phone, Mail, Building2, Shield, 
   MessageSquare, Bell, Clock, CheckCircle2, XCircle,
-  Pencil, Trash2, MoreVertical, Send
+  Pencil, Trash2, MoreVertical, Send, UserPlus, Key, Loader2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,11 +32,14 @@ export function EmployeeManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [sendingTest, setSendingTest] = useState<string | null>(null);
+  const [creatingUser, setCreatingUser] = useState(false);
   const { toast } = useToast();
   const { companyId, company } = useCompany();
-  // Form state
+
+  // Form state for regular employee
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -53,6 +56,16 @@ export function EmployeeManagement() {
     quiet_hours_start: "",
     quiet_hours_end: "",
     is_active: true,
+  });
+
+  // Form state for user with system access
+  const [userForm, setUserForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    department: "Geral",
+    role: "colaborador" as "colaborador" | "gestor" | "admin",
   });
 
   useEffect(() => {
@@ -136,6 +149,72 @@ export function EmployeeManagement() {
     setIsDialogOpen(false);
     resetForm();
     fetchEmployees();
+  };
+
+  const handleCreateUserWithAccess = async () => {
+    if (!userForm.name || !userForm.email || !userForm.password) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Nome, e-mail e senha são obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (userForm.password.length < 6) {
+      toast({
+        title: "Senha muito curta",
+        description: "A senha deve ter pelo menos 6 caracteres",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (userForm.password !== userForm.confirmPassword) {
+      toast({
+        title: "Senhas não conferem",
+        description: "A senha e confirmação devem ser iguais",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingUser(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: {
+          email: userForm.email,
+          password: userForm.password,
+          name: userForm.name,
+          role: userForm.role,
+          department: userForm.department,
+          companyId: companyId,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Usuário criado com sucesso!",
+          description: `${userForm.name} pode fazer login com ${userForm.email}`,
+        });
+        setIsCreateUserDialogOpen(false);
+        resetUserForm();
+        fetchEmployees();
+      } else {
+        throw new Error(data?.error || "Erro ao criar usuário");
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erro ao criar usuário",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingUser(false);
+    }
   };
 
   const handleEdit = (employee: Employee) => {
@@ -233,6 +312,17 @@ export function EmployeeManagement() {
     });
   };
 
+  const resetUserForm = () => {
+    setUserForm({
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      department: "Geral",
+      role: "colaborador",
+    });
+  };
+
   const departments = [...new Set(employees.map((e) => e.department))];
 
   const filteredEmployees = employees.filter((emp) => {
@@ -269,47 +359,66 @@ export function EmployeeManagement() {
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Novo Colaborador
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingEmployee ? "Editar Colaborador" : "Novo Colaborador"}
-              </DialogTitle>
-            </DialogHeader>
+        <div className="flex gap-2">
+          {/* Create User with System Access */}
+          <Dialog open={isCreateUserDialogOpen} onOpenChange={(open) => {
+            setIsCreateUserDialogOpen(open);
+            if (!open) resetUserForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <UserPlus className="w-4 h-4" />
+                Criar Usuário com Acesso
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  Criar Usuário com Acesso ao Sistema
+                </DialogTitle>
+                <DialogDescription>
+                  Crie um usuário que poderá fazer login no sistema. Ideal para gestores e administradores.
+                </DialogDescription>
+              </DialogHeader>
 
-            <Tabs defaultValue="info" className="mt-4">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="info">Informações</TabsTrigger>
-                <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-                <TabsTrigger value="preferences">Preferências</TabsTrigger>
-              </TabsList>
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label>Nome completo *</Label>
+                  <Input
+                    value={userForm.name}
+                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                    placeholder="Nome do colaborador"
+                  />
+                </div>
 
-              <TabsContent value="info" className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label>E-mail (será usado para login) *</Label>
+                  <Input
+                    type="email"
+                    value={userForm.email}
+                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                    placeholder="email@empresa.com"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Nome *</Label>
+                    <Label>Senha *</Label>
                     <Input
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Nome completo"
+                      type="password"
+                      value={userForm.password}
+                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                      placeholder="Mínimo 6 caracteres"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>E-mail *</Label>
+                    <Label>Confirmar senha *</Label>
                     <Input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="email@empresa.com"
+                      type="password"
+                      value={userForm.confirmPassword}
+                      onChange={(e) => setUserForm({ ...userForm, confirmPassword: e.target.value })}
+                      placeholder="Repita a senha"
                     />
                   </div>
                 </div>
@@ -318,174 +427,289 @@ export function EmployeeManagement() {
                   <div className="space-y-2">
                     <Label>Departamento</Label>
                     <Input
-                      value={formData.department}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                      placeholder="Ex: Vendas, TI, RH"
+                      value={userForm.department}
+                      onChange={(e) => setUserForm({ ...userForm, department: e.target.value })}
+                      placeholder="Ex: Vendas"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Função</Label>
+                    <Label>Permissão</Label>
                     <Select
-                      value={formData.role}
+                      value={userForm.role}
                       onValueChange={(value: "colaborador" | "gestor" | "admin") =>
-                        setFormData({ ...formData, role: value })
+                        setUserForm({ ...userForm, role: value })
                       }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="colaborador">Colaborador</SelectItem>
-                        <SelectItem value="gestor">Gestor</SelectItem>
-                        <SelectItem value="admin">Administrador</SelectItem>
+                        <SelectItem value="colaborador">Colaborador (App Mobile)</SelectItem>
+                        <SelectItem value="gestor">Gestor (Dashboard)</SelectItem>
+                        <SelectItem value="admin">Administrador (Completo)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-2">
-                  <Switch
-                    checked={formData.is_active}
-                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                  />
-                  <Label>Colaborador ativo</Label>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="whatsapp" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label>Número WhatsApp</Label>
-                  <Input
-                    value={formData.whatsapp_number}
-                    onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
-                    placeholder="5511999999999 (apenas números)"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Formato: código do país + DDD + número, sem espaços ou símbolos
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 pt-2">
-                  <Switch
-                    checked={formData.whatsapp_verified}
-                    onCheckedChange={(checked) =>
-                      setFormData({ ...formData, whatsapp_verified: checked })
-                    }
-                  />
-                  <Label>Número verificado</Label>
-                </div>
-
-                <Card className="bg-blue-50 border-blue-100">
-                  <CardContent className="p-4 text-sm text-blue-800">
-                    <p className="font-medium mb-1">💡 Dica</p>
-                    <p>
-                      Após cadastrar, envie uma mensagem de teste para verificar se o número
-                      está correto e o colaborador recebeu.
-                    </p>
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-3 text-sm text-blue-800">
+                    <p className="font-medium">💡 Permissões:</p>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      <li><strong>Colaborador:</strong> Acessa apenas o app mobile (/app)</li>
+                      <li><strong>Gestor:</strong> Dashboard + Tarefas + Ponto</li>
+                      <li><strong>Admin:</strong> Acesso completo à empresa</li>
+                    </ul>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </div>
 
-              <TabsContent value="preferences" className="space-y-4 mt-4">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Canais de Notificação</Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-green-600" />
-                        <span>WhatsApp</span>
-                      </div>
-                      <Switch
-                        checked={formData.notify_whatsapp}
-                        onCheckedChange={(checked) =>
-                          setFormData({ ...formData, notify_whatsapp: checked })
-                        }
+              <DialogFooter className="mt-6">
+                <Button variant="outline" onClick={() => setIsCreateUserDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCreateUserWithAccess} disabled={creatingUser}>
+                  {creatingUser ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Criar Usuário
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Regular Employee Dialog */}
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" />
+                Novo Colaborador
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingEmployee ? "Editar Colaborador" : "Novo Colaborador"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingEmployee 
+                    ? "Atualize as informações do colaborador"
+                    : "Cadastre um colaborador (sem acesso ao sistema). Para dar acesso, use 'Criar Usuário com Acesso'."
+                  }
+                </DialogDescription>
+              </DialogHeader>
+
+              <Tabs defaultValue="info" className="mt-4">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="info">Informações</TabsTrigger>
+                  <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+                  <TabsTrigger value="preferences">Preferências</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="info" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nome *</Label>
+                      <Input
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="Nome completo"
                       />
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                      <div className="flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-blue-600" />
-                        <span>Notificações In-App</span>
-                      </div>
-                      <Switch
-                        checked={formData.notify_in_app}
-                        onCheckedChange={(checked) =>
-                          setFormData({ ...formData, notify_in_app: checked })
-                        }
+                    <div className="space-y-2">
+                      <Label>E-mail *</Label>
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="email@empresa.com"
                       />
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Tipos de Notificação</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { key: "notify_tasks", label: "Tarefas" },
-                      { key: "notify_time_tracking", label: "Controle de Ponto" },
-                      { key: "notify_reminders", label: "Lembretes" },
-                      { key: "notify_announcements", label: "Comunicados" },
-                    ].map(({ key, label }) => (
-                      <div
-                        key={key}
-                        className="flex items-center justify-between p-2 bg-white rounded border"
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Departamento</Label>
+                      <Input
+                        value={formData.department}
+                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                        placeholder="Ex: Vendas, TI, RH"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Função</Label>
+                      <Select
+                        value={formData.role}
+                        onValueChange={(value: "colaborador" | "gestor" | "admin") =>
+                          setFormData({ ...formData, role: value })
+                        }
                       >
-                        <span className="text-sm">{label}</span>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="colaborador">Colaborador</SelectItem>
+                          <SelectItem value="gestor">Gestor</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <Switch
+                      checked={formData.is_active}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                    />
+                    <Label>Colaborador ativo</Label>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="whatsapp" className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label>Número WhatsApp</Label>
+                    <Input
+                      value={formData.whatsapp_number}
+                      onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
+                      placeholder="5511999999999 (apenas números)"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Formato: código do país + DDD + número, sem espaços ou símbolos
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <Switch
+                      checked={formData.whatsapp_verified}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, whatsapp_verified: checked })
+                      }
+                    />
+                    <Label>Número verificado</Label>
+                  </div>
+
+                  <Card className="bg-blue-50 border-blue-100">
+                    <CardContent className="p-4 text-sm text-blue-800">
+                      <p className="font-medium mb-1">💡 Dica</p>
+                      <p>
+                        Após cadastrar, envie uma mensagem de teste para verificar se o número
+                        está correto e o colaborador recebeu.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="preferences" className="space-y-4 mt-4">
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium">Canais de Notificação</Label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4 text-green-600" />
+                          <span>WhatsApp</span>
+                        </div>
                         <Switch
-                          checked={formData[key as keyof typeof formData] as boolean}
+                          checked={formData.notify_whatsapp}
                           onCheckedChange={(checked) =>
-                            setFormData({ ...formData, [key]: checked })
+                            setFormData({ ...formData, notify_whatsapp: checked })
                           }
                         />
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Horário Silencioso
-                  </Label>
-                  <p className="text-xs text-gray-500">
-                    Durante este período, notificações WhatsApp não serão enviadas
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm">Início</Label>
-                      <Input
-                        type="time"
-                        value={formData.quiet_hours_start}
-                        onChange={(e) =>
-                          setFormData({ ...formData, quiet_hours_start: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Fim</Label>
-                      <Input
-                        type="time"
-                        value={formData.quiet_hours_end}
-                        onChange={(e) =>
-                          setFormData({ ...formData, quiet_hours_end: e.target.value })
-                        }
-                      />
+                      <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <Bell className="w-4 h-4 text-blue-600" />
+                          <span>Notificações In-App</span>
+                        </div>
+                        <Switch
+                          checked={formData.notify_in_app}
+                          onCheckedChange={(checked) =>
+                            setFormData({ ...formData, notify_in_app: checked })
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </TabsContent>
-            </Tabs>
 
-            <DialogFooter className="mt-6">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave}>
-                {editingEmployee ? "Salvar Alterações" : "Criar Colaborador"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium">Tipos de Notificação</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { key: "notify_tasks", label: "Tarefas" },
+                        { key: "notify_time_tracking", label: "Controle de Ponto" },
+                        { key: "notify_reminders", label: "Lembretes" },
+                        { key: "notify_announcements", label: "Comunicados" },
+                      ].map(({ key, label }) => (
+                        <div
+                          key={key}
+                          className="flex items-center justify-between p-2 bg-white rounded border"
+                        >
+                          <span className="text-sm">{label}</span>
+                          <Switch
+                            checked={formData[key as keyof typeof formData] as boolean}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, [key]: checked })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Horário Silencioso
+                    </Label>
+                    <p className="text-xs text-gray-500">
+                      Durante este período, notificações WhatsApp não serão enviadas
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Início</Label>
+                        <Input
+                          type="time"
+                          value={formData.quiet_hours_start}
+                          onChange={(e) =>
+                            setFormData({ ...formData, quiet_hours_start: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Fim</Label>
+                        <Input
+                          type="time"
+                          value={formData.quiet_hours_end}
+                          onChange={(e) =>
+                            setFormData({ ...formData, quiet_hours_end: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <DialogFooter className="mt-6">
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave}>
+                  {editingEmployee ? "Salvar Alterações" : "Criar Colaborador"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
@@ -548,7 +772,14 @@ export function EmployeeManagement() {
                         .join("")}
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{employee.name}</h3>
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                        {employee.name}
+                        {employee.user_id && (
+                          <span title="Tem acesso ao sistema">
+                            <Key className="w-3 h-3 text-green-600" />
+                          </span>
+                        )}
+                      </h3>
                       <p className="text-sm text-gray-500 flex items-center gap-1">
                         <Building2 className="w-3 h-3" />
                         {employee.department}
