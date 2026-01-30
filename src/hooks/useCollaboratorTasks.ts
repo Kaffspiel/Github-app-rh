@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useTaskNotifications } from '@/hooks/useTaskNotifications';
 
 export interface ChecklistItem {
   id: string;
@@ -21,15 +22,18 @@ export interface CollaboratorTask {
   is_daily_routine: boolean;
   created_at: string;
   checklist: ChecklistItem[];
+  company_id?: string;
 }
 
 export function useCollaboratorTasks() {
   const [tasks, setTasks] = useState<CollaboratorTask[]>([]);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [employeeName, setEmployeeName] = useState<string>('');
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  const { logTaskProgress, notifyTaskCompleted } = useTaskNotifications();
 
   const fetchMyTasks = useCallback(async () => {
     if (!user?.id) {
@@ -58,6 +62,7 @@ export function useCollaboratorTasks() {
 
       setEmployeeId(employee.id);
       setEmployeeName(employee.name);
+      setCompanyId(employee.company_id);
 
       // Fetch tasks assigned to this employee
       const { data: tasksData, error: tasksError } = await supabase
@@ -98,6 +103,7 @@ export function useCollaboratorTasks() {
           progress: task.progress,
           is_daily_routine: task.is_daily_routine,
           created_at: task.created_at,
+          company_id: task.company_id,
           checklist: taskChecklists.map(c => ({
             id: c.id,
             text: c.text,
@@ -129,8 +135,22 @@ export function useCollaboratorTasks() {
 
       if (error) throw error;
 
-      // Recalculate task progress
+      // Find the task and checklist item for logging
       const task = tasks.find(t => t.checklist.some(c => c.id === itemId));
+      const checklistItem = task?.checklist.find(c => c.id === itemId);
+      
+      // Log the progress
+      if (task && employeeId && completed) {
+        logTaskProgress({
+          taskId: task.id,
+          employeeId,
+          actionType: 'checklist_completed',
+          checklistItemId: itemId,
+          checklistItemText: checklistItem?.text,
+        });
+      }
+
+      // Recalculate task progress
       if (task && task.checklist.length > 0) {
         const updatedChecklist = task.checklist.map(c => 
           c.id === itemId ? { ...c, completed } : c
@@ -155,7 +175,7 @@ export function useCollaboratorTasks() {
       });
       return false;
     }
-  }, [tasks, fetchMyTasks, toast]);
+  }, [tasks, employeeId, fetchMyTasks, toast, logTaskProgress]);
 
   const updateTaskStatus = useCallback(async (taskId: string, status: string): Promise<boolean> => {
     try {
@@ -165,6 +185,36 @@ export function useCollaboratorTasks() {
         .eq('id', taskId);
 
       if (error) throw error;
+
+      const task = tasks.find(t => t.id === taskId);
+
+      // Log progress
+      if (employeeId) {
+        if (status === 'andamento') {
+          logTaskProgress({
+            taskId,
+            employeeId,
+            actionType: 'task_started',
+          });
+        } else if (status === 'concluido') {
+          logTaskProgress({
+            taskId,
+            employeeId,
+            actionType: 'task_completed',
+          });
+
+          // Notify manager when task is completed
+          if (task && companyId) {
+            notifyTaskCompleted({
+              taskId,
+              taskTitle: task.title,
+              employeeId,
+              employeeName,
+              companyId,
+            });
+          }
+        }
+      }
 
       toast({
         title: 'Status atualizado',
@@ -182,7 +232,7 @@ export function useCollaboratorTasks() {
       });
       return false;
     }
-  }, [fetchMyTasks, toast]);
+  }, [tasks, employeeId, employeeName, companyId, fetchMyTasks, toast, logTaskProgress, notifyTaskCompleted]);
 
   useEffect(() => {
     fetchMyTasks();

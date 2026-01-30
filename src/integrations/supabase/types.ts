@@ -438,6 +438,102 @@ export type Database = {
           },
         ]
       }
+      routine_template_assignments: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          is_active: boolean
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          is_active?: boolean
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          is_active?: boolean
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_template_assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_template_assignments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "routine_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_templates: {
+        Row: {
+          auto_assign: boolean
+          auto_assign_time: string | null
+          checklist_items: Json
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          auto_assign?: boolean
+          auto_assign_time?: string | null
+          checklist_items?: Json
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          auto_assign?: boolean
+          auto_assign_time?: string | null
+          checklist_items?: Json
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_checklist_items: {
         Row: {
           completed: boolean
@@ -505,6 +601,51 @@ export type Database = {
           },
           {
             foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_progress_logs: {
+        Row: {
+          action_type: string
+          checklist_item_id: string | null
+          checklist_item_text: string | null
+          created_at: string
+          employee_id: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          action_type: string
+          checklist_item_id?: string | null
+          checklist_item_text?: string | null
+          created_at?: string
+          employee_id: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          action_type?: string
+          checklist_item_id?: string | null
+          checklist_item_text?: string | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_progress_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_progress_logs_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"

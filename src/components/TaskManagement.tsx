@@ -9,12 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Pencil, Trash2, ClipboardList, ListTodo, Loader2 } from "lucide-react";
+import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Pencil, Trash2, ClipboardList, ListTodo, Loader2, Copy } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTasks, Task } from "@/hooks/useTasks";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
+import { RoutineTemplatesTab } from "@/components/tasks/RoutineTemplatesTab";
 
 export function TaskManagement() {
   const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem } = useTasks();
@@ -664,7 +665,7 @@ export function TaskManagement() {
       </Card>
 
       <Tabs defaultValue="minhas" className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+        <TabsList className="grid w-full max-w-3xl grid-cols-4">
           <TabsTrigger value="minhas">
             Minhas Tarefas
             <Badge variant="secondary" className="ml-2">
@@ -679,6 +680,10 @@ export function TaskManagement() {
           </TabsTrigger>
           <TabsTrigger value="colaboradores">
             Colaboradores
+          </TabsTrigger>
+          <TabsTrigger value="templates">
+            <Copy className="w-4 h-4 mr-1" />
+            Templates
           </TabsTrigger>
         </TabsList>
 
@@ -830,6 +835,10 @@ export function TaskManagement() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <RoutineTemplatesTab />
         </TabsContent>
       </Tabs>
     </div>
