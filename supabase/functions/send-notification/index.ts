@@ -155,16 +155,25 @@ serve(async (req) => {
           body: JSON.stringify(evolutionPayload),
         });
 
-        const n8nData = await n8nResponse.json();
+        const responseText = await n8nResponse.text();
+        console.log(`n8n response status: ${n8nResponse.status}, body: ${responseText}`);
         
-        if (n8nResponse.ok && n8nData.success) {
+        let n8nData: { success?: boolean; messageId?: string; error?: string };
+        try {
+          n8nData = JSON.parse(responseText);
+        } catch {
+          // Se não for JSON, considerar como sucesso se status for OK
+          n8nData = { success: n8nResponse.ok, messageId: "sent" };
+        }
+        
+        if (n8nResponse.ok && (n8nData.success !== false)) {
           // Atualizar notificação com status de envio
           await supabase
             .from("notifications")
             .update({
               status: "sent",
               whatsapp_status: "sent",
-              whatsapp_message_id: n8nData.messageId,
+              whatsapp_message_id: n8nData.messageId || "sent",
               whatsapp_instance: request.evolutionInstance || "default",
               whatsapp_sent_at: new Date().toISOString(),
               sent_at: new Date().toISOString(),
@@ -177,15 +186,15 @@ serve(async (req) => {
             .update({
               status: "completed",
               response_success: true,
-              response_message_id: n8nData.messageId,
+              response_message_id: n8nData.messageId || "sent",
               response_timestamp: new Date().toISOString(),
               processed_at: new Date().toISOString(),
             } as Record<string, unknown>)
             .eq("notification_id", notification.id);
 
-          whatsappResult = { sent: true, messageId: n8nData.messageId };
+          whatsappResult = { sent: true, messageId: n8nData.messageId || "sent" };
         } else {
-          throw new Error(n8nData.error || "n8n webhook failed");
+          throw new Error(n8nData.error || `n8n webhook failed: ${responseText}`);
         }
       } catch (n8nError: unknown) {
         console.error("Error sending to n8n:", n8nError);
