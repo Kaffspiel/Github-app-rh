@@ -1,25 +1,26 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Clock, CheckCircle2, Users, CalendarClock, User, ChevronRight } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle2, Users, CalendarClock, User, ChevronRight, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
-import { useApp } from "@/context/AppContext";
+import { useTasks, Task } from "@/hooks/useTasks";
+import { useEmployeesList } from "@/hooks/useEmployeesList";
+import { useAuth } from "@/context/AuthContext";
+import { format } from "date-fns";
 
 export function Dashboard() {
-  const { tasks, timeRecords, currentUser, setCurrentView, setTaskFilter } = useApp();
+  const { tasks, isLoading } = useTasks();
+  const { employees } = useEmployeesList();
+  const { user } = useAuth();
   const [period, setPeriod] = useState("hoje");
 
-  const handleShortcut = (filter: string) => {
-    setTaskFilter(filter);
-    setCurrentView("tasks");
-  };
+  // Find current employee
+  const currentEmployee = employees.find(e => e.email === user?.email);
 
   const allUrgentTasks = tasks.filter(t => (t.priority === 'alta' && t.status !== 'concluido') || t.status === 'atrasada');
-  const myUrgentTasks = allUrgentTasks.filter(t => t.assignee === currentUser);
-  const teamUrgentTasks = allUrgentTasks.filter(t => t.assignee !== currentUser);
-
-  const occurrences = timeRecords.filter(r => r.status !== 'normal');
+  const myUrgentTasks = allUrgentTasks.filter(t => t.assignee_id === currentEmployee?.id);
+  const teamUrgentTasks = allUrgentTasks.filter(t => t.assignee_id !== currentEmployee?.id);
 
   const stats = {
     tasks: {
@@ -29,7 +30,7 @@ export function Dashboard() {
       atrasadas: tasks.filter(t => t.status === 'atrasada').length,
       concluidas: tasks.filter(t => t.status === 'concluido').length,
     },
-    performance: 87,
+    performance: employees.length > 0 ? Math.round((tasks.filter(t => t.status === 'concluido').length / Math.max(tasks.length, 1)) * 100) : 0,
   };
 
   const getOccurrenceColor = (type: string) => {
@@ -41,7 +42,16 @@ export function Dashboard() {
     }
   };
 
-  const TaskItem = ({ task, isMine }: { task: any, isMine: boolean }) => (
+  const formatDueDate = (date: string | null) => {
+    if (!date) return "Sem prazo";
+    try {
+      return format(new Date(date), "dd/MM HH:mm");
+    } catch {
+      return date;
+    }
+  };
+
+  const TaskItem = ({ task, isMine }: { task: Task, isMine: boolean }) => (
     <div className={`p-4 rounded-xl border transition-all hover:shadow-md ${isMine ? 'bg-white border-red-100' : 'bg-white/80 border-gray-100 hover:border-orange-200'}`}>
       <div className="flex justify-between items-start mb-2">
         <Badge
@@ -50,21 +60,21 @@ export function Dashboard() {
         >
           {task.status === 'atrasada' ? 'ATRASADO' : 'ALTA PRIORIDADE'}
         </Badge>
-        {!isMine && (
+        {!isMine && task.assignee_name && (
           <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full border">
             <User className="w-3 h-3" />
-            {task.assignee.split(' ')[0]}
+            {task.assignee_name.split(' ')[0]}
           </div>
         )}
       </div>
 
       <h4 className="font-semibold text-gray-800 leading-tight mb-1 line-clamp-2">{task.title}</h4>
-      <p className="text-xs text-gray-500 line-clamp-1 mb-3">{task.description}</p>
+      <p className="text-xs text-gray-500 line-clamp-1 mb-3">{task.description || "Sem descrição"}</p>
 
       <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-2">
         <div className="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
           <CalendarClock className="w-3.5 h-3.5" />
-          <span className={task.status === 'atrasada' ? "text-red-500" : ""}>{task.dueDate}</span>
+          <span className={task.status === 'atrasada' ? "text-red-500" : ""}>{formatDueDate(task.due_date)}</span>
         </div>
 
         {isMine ? (
@@ -79,6 +89,14 @@ export function Dashboard() {
       </div>
     </div>
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-8 bg-gray-50/50 min-h-screen">
@@ -110,19 +128,13 @@ export function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <Card
-          className="shadow-sm border-gray-200 hover:border-gray-400 hover:shadow-md transition-all cursor-pointer group"
-          onClick={() => handleShortcut("pendente")}
-        >
+        <Card className="shadow-sm border-gray-200 hover:border-gray-400 hover:shadow-md transition-all cursor-pointer group">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 group-hover:text-gray-600 transition-colors">Pendentes</span>
             <div className="text-3xl font-bold text-gray-700">{stats.tasks.pendentes}</div>
           </CardContent>
         </Card>
-        <Card
-          className="shadow-sm border-blue-100 bg-blue-50/30 hover:bg-blue-100 hover:shadow-md transition-all cursor-pointer group"
-          onClick={() => handleShortcut("andamento")}
-        >
+        <Card className="shadow-sm border-blue-100 bg-blue-50/30 hover:bg-blue-100 hover:shadow-md transition-all cursor-pointer group">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-1 group-hover:text-blue-600 transition-colors">Em Andamento</span>
             <div className="text-3xl font-bold text-blue-600">{stats.tasks.emAndamento}</div>
@@ -134,19 +146,13 @@ export function Dashboard() {
             <div className="text-3xl font-bold text-orange-600">{stats.tasks.prorrogadas}</div>
           </CardContent>
         </Card>
-        <Card
-          className="shadow-sm border-red-100 bg-red-50/30 hover:bg-red-100 hover:shadow-md transition-all cursor-pointer group"
-          onClick={() => handleShortcut("atrasada")}
-        >
+        <Card className="shadow-sm border-red-100 bg-red-50/30 hover:bg-red-100 hover:shadow-md transition-all cursor-pointer group">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-red-400 uppercase tracking-wider mb-1 group-hover:text-red-600 transition-colors">Atrasadas</span>
             <div className="text-3xl font-bold text-red-600">{stats.tasks.atrasadas}</div>
           </CardContent>
         </Card>
-        <Card
-          className="shadow-sm border-green-100 bg-green-50/30 hover:bg-green-100 hover:shadow-md transition-all cursor-pointer group"
-          onClick={() => handleShortcut("concluido")}
-        >
+        <Card className="shadow-sm border-green-100 bg-green-50/30 hover:bg-green-100 hover:shadow-md transition-all cursor-pointer group">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-green-400 uppercase tracking-wider mb-1 group-hover:text-green-600 transition-colors">Concluídas</span>
             <div className="text-3xl font-bold text-green-600">{stats.tasks.concluidas}</div>
@@ -205,47 +211,6 @@ export function Dashboard() {
 
         {/* Right Column - Overview & Analytics - Span 8 */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Occurrences (From Time Records) */}
-          <Card className="border-none shadow-md bg-white overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100 pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold text-gray-800 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-gray-500" />
-                  Ocorrências de Ponto Recentes
-                </CardTitle>
-                <Button variant="ghost" size="sm" className="text-xs">Ver todas</Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {occurrences.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">Nenhuma ocorrência registrada hoje.</div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {occurrences.slice(0, 5).map((occurrence) => (
-                    <div key={occurrence.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-2 h-10 rounded-full ${getOccurrenceColor(occurrence.status).split(' ')[0]}`} />
-                        <div>
-                          <p className="font-semibold text-sm text-gray-900">{occurrence.employee}</p>
-                          <p className="text-xs text-gray-500">{occurrence.date} • {occurrence.entry1}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-right">
-                        <div>
-                          <Badge variant="outline" className={`${getOccurrenceColor(occurrence.status)} border-0 font-medium`}>
-                            {occurrence.status === 'missing-punch' ? 'Ponto Ausente' : occurrence.status === 'delay' ? 'Atraso' : occurrence.status}
-                          </Badge>
-                          <p className="text-[10px] text-gray-400 mt-1 max-w-[150px] truncate">{occurrence.issue}</p>
-                        </div>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-gray-600"><ChevronRight className="w-4 h-4" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Center/Right - General Summary */}
           <Card>
             <CardHeader>
@@ -257,21 +222,65 @@ export function Dashboard() {
                   <div className="p-4 bg-blue-50 rounded-lg">
                     <div className="flex items-center gap-2 text-blue-700 mb-2">
                       <Users className="w-5 h-5" />
-                      <span className="font-medium">Equipe Ativa</span>
+                      <span className="font-medium">Colaboradores</span>
                     </div>
-                    <p className="text-3xl font-bold text-blue-900">24/28</p>
-                    <p className="text-sm text-blue-600 mt-1">86% de presença</p>
+                    <p className="text-3xl font-bold text-blue-900">{employees.length}</p>
+                    <p className="text-sm text-blue-600 mt-1">Ativos na empresa</p>
                   </div>
                   <div className="p-4 bg-green-50 rounded-lg">
                     <div className="flex items-center gap-2 text-green-700 mb-2">
                       <CheckCircle2 className="w-5 h-5" />
                       <span className="font-medium">Taxa de Conclusão</span>
                     </div>
-                    <p className="text-3xl font-bold text-green-900">92%</p>
-                    <p className="text-sm text-green-600 mt-1">+5% vs. ontem</p>
+                    <p className="text-3xl font-bold text-green-900">{stats.performance}%</p>
+                    <p className="text-sm text-green-600 mt-1">{stats.tasks.concluidas} de {tasks.length} tarefas</p>
                   </div>
                 </div>
+
+                {tasks.length === 0 && (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed">
+                    <p className="text-gray-500">Nenhuma tarefa cadastrada ainda.</p>
+                    <p className="text-sm text-gray-400 mt-1">Acesse "Gestão de Tarefas" para criar a primeira.</p>
+                  </div>
+                )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity */}
+          <Card className="border-none shadow-md bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/50 border-b border-gray-100 pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-bold text-gray-800 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-gray-500" />
+                  Atividade Recente
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {tasks.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">Nenhuma atividade recente.</div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {tasks.slice(0, 5).map((task) => (
+                    <div key={task.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-2 h-10 rounded-full ${task.status === 'concluido' ? 'bg-green-500' : task.status === 'atrasada' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                        <div>
+                          <p className="font-semibold text-sm text-gray-900">{task.title}</p>
+                          <p className="text-xs text-gray-500">{task.assignee_name || "Não atribuído"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-right">
+                        <Badge variant="outline" className={getOccurrenceColor(task.status === 'concluido' ? '' : 'delay')}>
+                          {task.status === 'concluido' ? 'Concluída' : task.status === 'atrasada' ? 'Atrasada' : task.status === 'andamento' ? 'Em Andamento' : 'Pendente'}
+                        </Badge>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-gray-600"><ChevronRight className="w-4 h-4" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
