@@ -1,1 +1,19 @@
 project_id = "nnmrlucwrzoqkwzytbbl"
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.parse-time-document]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.setup-test-users]
+verify_jwt = false
+
+[functions.webhook-response]
+verify_jwt = false
+
+[functions.webhook-status]
+verify_jwt = false
