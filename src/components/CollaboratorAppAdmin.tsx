@@ -143,15 +143,21 @@ export function CollaboratorAppAdmin() {
   const formattedDate = format(today, "EEEE, dd 'de' MMMM", { locale: ptBR });
 
   const SmallTaskCard = ({ task }: { task: Task }) => (
-    <Card className={`relative overflow-hidden border-0 shadow-md ${task.priority === 'alta' ? 'bg-orange-50/50' : 'bg-white'}`}>
+    <Card className={`relative overflow-hidden border-0 shadow-md transition-all group hover:shadow-lg ${task.priority === 'alta' ? 'bg-orange-50/50' : 'bg-white'}`}>
       <div className={`absolute top-0 left-0 w-1 h-full ${task.priority === 'alta' ? 'bg-red-500' : task.priority === 'média' ? 'bg-orange-400' : 'bg-blue-400'}`} />
       <CardContent className="p-4 flex flex-col h-full justify-between">
         <div>
           <div className="flex justify-between items-start mb-2">
-            <h4 className="font-bold text-gray-900 line-clamp-2 text-sm leading-tight pr-2">{task.title}</h4>
-            <Badge variant="outline" className="text-[9px] px-1 h-4 uppercase font-bold shrink-0">{task.priority}</Badge>
+            <h4 className="font-bold text-gray-900 line-clamp-2 text-sm leading-tight pr-2 group-hover:text-blue-700 transition-colors">
+              {task.title}
+            </h4>
+            <Badge variant="outline" className="text-[9px] px-1 h-4 uppercase font-bold shrink-0">
+              {task.priority}
+            </Badge>
           </div>
-          <p className="text-gray-500 text-[11px] line-clamp-2 mb-3 leading-snug">{task.description || 'Sem descrição'}</p>
+          <p className="text-gray-500 text-[11px] line-clamp-2 mb-3 leading-snug">
+            {task.description || 'Sem descrição'}
+          </p>
         </div>
         <div className="space-y-3 mt-auto">
           <div className="space-y-1">
@@ -161,9 +167,16 @@ export function CollaboratorAppAdmin() {
             </div>
             <Progress value={task.progress} className="h-1.5 rounded-full bg-gray-100" />
           </div>
-          <Badge className={`w-full justify-center ${task.status === 'pendente' ? "bg-gray-100 text-gray-600" : "bg-orange-100 text-orange-700"}`}>
-            {task.status === 'pendente' ? "PENDENTE" : "EM ANDAMENTO"}
-          </Badge>
+          <Button 
+            size="sm" 
+            className={`w-full text-[11px] font-bold h-8 rounded-lg pointer-events-none ${task.status === 'pendente'
+              ? "bg-blue-600 text-white"
+              : "bg-orange-500 text-white"
+            }`}
+          >
+            {task.status === 'pendente' ? "INICIAR" : "CONTINUAR"}
+            <ChevronRight className="w-3 h-3 ml-1" />
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -228,7 +241,7 @@ export function CollaboratorAppAdmin() {
                   <User className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-blue-100 text-sm">Visualizando: {selectedEmployee?.name.split(' ')[0]}</p>
+                  <p className="text-blue-100 text-sm">Olá, {selectedEmployee?.name.split(' ')[0]}!</p>
                   <p className="text-xs text-blue-200 capitalize">{formattedDate}</p>
                 </div>
               </div>
@@ -239,14 +252,16 @@ export function CollaboratorAppAdmin() {
 
             <div className="bg-white/10 backdrop-blur border border-white/20 p-4 rounded-xl flex items-center justify-between relative z-10">
               <div>
-                <p className="text-blue-100 text-xs uppercase tracking-wider mb-1">Status do colaborador</p>
+                <p className="text-blue-100 text-xs uppercase tracking-wider mb-1">
+                  Você está offline
+                </p>
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-blue-300" />
-                  <span className="text-xl font-mono font-semibold tracking-tight">--:--:--</span>
+                  <span className="text-3xl font-mono font-semibold tracking-tight">--:--:--</span>
                 </div>
               </div>
-              <div className="h-12 w-12 rounded-full bg-gray-400/50 flex items-center justify-center">
-                <Pause className="fill-white text-white" />
+              <div className="h-12 w-12 rounded-full bg-green-500 shadow-lg border-2 border-white/20 flex items-center justify-center">
+                <Play className="fill-white text-white ml-1" />
               </div>
             </div>
           </div>
