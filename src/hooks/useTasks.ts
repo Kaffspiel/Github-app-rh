@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
+import { useTaskNotifications } from '@/hooks/useTaskNotifications';
 
 export interface ChecklistItem {
   id: string;
@@ -67,6 +68,7 @@ export function useTasks() {
   const { user } = useAuth();
   const { companyId } = useCompany();
   const { toast } = useToast();
+  const { notifyTaskAssigned } = useTaskNotifications();
 
   const fetchTasks = useCallback(async () => {
     if (!companyId) {
@@ -203,6 +205,31 @@ export function useTasks() {
         description: `"${input.title}" foi adicionada com sucesso.`,
       });
 
+      // Send notification if task was assigned
+      if (input.assignee_id && data) {
+        const assignee = await supabase
+          .from('employees')
+          .select('id, name')
+          .eq('id', input.assignee_id)
+          .single();
+
+        if (assignee.data) {
+          const currentEmployee = await supabase
+            .from('employees')
+            .select('name')
+            .eq('user_id', user?.id)
+            .maybeSingle();
+
+          notifyTaskAssigned({
+            taskId: data.id,
+            taskTitle: input.title,
+            assigneeId: input.assignee_id,
+            assigneeName: assignee.data.name,
+            senderName: currentEmployee?.data?.name,
+          });
+        }
+      }
+
       await fetchTasks();
       return data as Task;
     } catch (err: any) {
@@ -214,7 +241,7 @@ export function useTasks() {
       });
       return null;
     }
-  }, [companyId, user?.id, fetchTasks, toast]);
+  }, [companyId, user?.id, fetchTasks, toast, notifyTaskAssigned]);
 
   const updateTask = useCallback(async (taskId: string, input: UpdateTaskInput): Promise<boolean> => {
     try {
