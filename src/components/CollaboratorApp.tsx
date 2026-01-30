@@ -3,24 +3,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User, MessageSquare, Clock, MapPin, Play, Pause, ChevronRight, Bell, ClipboardList, AlertTriangle, Eye } from "lucide-react";
+import { User, MessageSquare, Clock, MapPin, Play, Pause, ChevronRight, Bell, ClipboardList, AlertTriangle, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useApp, Task } from "@/context/AppContext";
+import { useCollaboratorTasks, CollaboratorTask } from "@/hooks/useCollaboratorTasks";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export function CollaboratorApp() {
-  const { tasks, currentUser } = useApp();
+  const { tasks, employeeName, isLoading, toggleChecklistItem, updateTaskStatus } = useCollaboratorTasks();
   const [workStatus, setWorkStatus] = useState<"working" | "break" | "off">("off");
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [viewAsUser, setViewAsUser] = useState(currentUser);
 
-  useEffect(() => {
-    setViewAsUser(currentUser);
-  }, [currentUser]);
-
-  const userTasks = tasks.filter(t => t.assignee === viewAsUser && t.status !== 'concluido');
-  const dailyRoutines = userTasks.filter(t => t.isDailyRoutine);
-  const assignedTasks = userTasks.filter(t => !t.isDailyRoutine);
+  const dailyRoutines = tasks.filter(t => t.is_daily_routine);
+  const assignedTasks = tasks.filter(t => !t.is_daily_routine);
 
   const getPriorityWeight = (p: string) => {
     switch (p) { case 'alta': return 3; case 'média': return 2; case 'baixa': return 1; default: return 0; }
@@ -29,9 +24,7 @@ export function CollaboratorApp() {
   const sortedAssignedTasks = [...assignedTasks].sort((a, b) => {
     const weightDiff = getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
     if (weightDiff !== 0) return weightDiff;
-    const dateA = a.createdDate ? new Date(a.createdDate.split('/').reverse().join('-')).getTime() : Date.now();
-    const dateB = b.createdDate ? new Date(b.createdDate.split('/').reverse().join('-')).getTime() : Date.now();
-    return dateA - dateB;
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
   useEffect(() => {
@@ -55,7 +48,15 @@ export function CollaboratorApp() {
     setWorkStatus(prev => (prev === "working" ? "break" : "working"));
   };
 
-  const SmallTaskCard = ({ task }: { task: Task }) => (
+  const handleChecklistToggle = async (itemId: string, currentState: boolean) => {
+    await toggleChecklistItem(itemId, !currentState);
+  };
+
+  const handleStartTask = async (taskId: string) => {
+    await updateTaskStatus(taskId, 'andamento');
+  };
+
+  const SmallTaskCard = ({ task }: { task: CollaboratorTask }) => (
     <Card className={`relative overflow-hidden border-0 shadow-md transition-all active:scale-95 group hover:shadow-lg ${task.priority === 'alta' ? 'bg-orange-50/50' : 'bg-white'}`}>
       <div className={`absolute top-0 left-0 w-1 h-full ${task.priority === 'alta' ? 'bg-red-500' : task.priority === 'média' ? 'bg-orange-400' : 'bg-blue-400'
         }`} />
@@ -72,7 +73,7 @@ export function CollaboratorApp() {
           </div>
 
           <p className="text-gray-500 text-[11px] line-clamp-2 mb-3 leading-snug">
-            {task.description}
+            {task.description || 'Sem descrição'}
           </p>
         </div>
 
@@ -85,17 +86,35 @@ export function CollaboratorApp() {
             <Progress value={task.progress} className="h-1.5 rounded-full bg-gray-100" />
           </div>
 
-          <Button size="sm" className={`w-full text-[11px] font-bold h-8 rounded-lg ${task.progress === 0
-            ? "bg-blue-600 hover:bg-blue-700 text-white"
-            : "bg-orange-500 hover:bg-orange-600 text-white"
-            }`}>
-            {task.progress === 0 ? "INICIAR" : "CONTINUAR"}
+          <Button 
+            size="sm" 
+            className={`w-full text-[11px] font-bold h-8 rounded-lg ${task.status === 'pendente'
+              ? "bg-blue-600 hover:bg-blue-700 text-white"
+              : "bg-orange-500 hover:bg-orange-600 text-white"
+              }`}
+            onClick={() => task.status === 'pendente' && handleStartTask(task.id)}
+          >
+            {task.status === 'pendente' ? "INICIAR" : "CONTINUAR"}
             <ChevronRight className="w-3 h-3 ml-1" />
           </Button>
         </div>
       </CardContent>
     </Card>
   );
+
+  const today = new Date();
+  const formattedDate = format(today, "EEEE, dd 'de' MMMM", { locale: ptBR });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+          <p className="text-gray-500">Carregando suas tarefas...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-0 font-sans max-w-md mx-auto md:max-w-full md:mx-0 border-x md:border-none shadow-xl md:shadow-none bg-white">
@@ -110,33 +129,15 @@ export function CollaboratorApp() {
               <User className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-blue-100 text-sm">Olá, bom trabalho!</p>
-              <h1 className="text-xl font-bold">{viewAsUser}</h1>
+              <p className="text-blue-100 text-sm">Olá, {employeeName?.split(' ')[0] || 'Colaborador'}!</p>
+              <p className="text-xs text-blue-200 capitalize">{formattedDate}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Select value={viewAsUser} onValueChange={setViewAsUser}>
-              <SelectTrigger className="w-[140px] h-9 bg-white/10 border-white/20 text-white text-xs">
-                <Eye className="w-3 h-3 mr-2" />
-                <SelectValue placeholder="Ver como..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Maria Santos">Maria Santos</SelectItem>
-                <SelectItem value="João Silva">João Silva</SelectItem>
-                <SelectItem value="Ana Lima">Ana Lima</SelectItem>
-                <SelectItem value="Carlos Rocha">Carlos Rocha</SelectItem>
-                <SelectItem value="Pedro Costa">Pedro Costa</SelectItem>
-                <SelectItem value="Katiele Rocha">Katiele Rocha</SelectItem>
-                <SelectItem value="Julia Mendes">Julia Mendes</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 relative">
-              <Bell className="w-6 h-6" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-400 rounded-full border border-blue-800"></span>
-            </Button>
-          </div>
+          <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 relative">
+            <Bell className="w-6 h-6" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-red-400 rounded-full border border-blue-800"></span>
+          </Button>
         </div>
 
         <div className="bg-white/10 backdrop-blur border border-white/20 p-4 rounded-xl flex items-center justify-between relative z-10">
@@ -165,16 +166,31 @@ export function CollaboratorApp() {
       </div>
 
       <div className="p-5 space-y-8">
-        <div className="flex items-center gap-2 text-sm text-gray-500 px-1">
-          <MapPin className="w-4 h-4 text-blue-600" />
-          <span>Loja Centro • São Paulo</span>
-          {viewAsUser !== currentUser && (
-            <Badge variant="secondary" className="ml-auto text-[10px] h-5 bg-blue-50 text-blue-700 border-blue-100">
-              MODO ESPELHO
-            </Badge>
-          )}
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-100">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-green-600 mb-1">
+                <ClipboardList className="w-4 h-4" />
+                <span className="text-xs font-medium">Rotinas</span>
+              </div>
+              <p className="text-2xl font-bold text-green-700">{dailyRoutines.length}</p>
+              <p className="text-xs text-green-600">pendentes hoje</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-100">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-orange-600 mb-1">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-xs font-medium">Tarefas</span>
+              </div>
+              <p className="text-2xl font-bold text-orange-700">{sortedAssignedTasks.length}</p>
+              <p className="text-xs text-orange-600">atribuídas</p>
+            </CardContent>
+          </Card>
         </div>
 
+        {/* Daily Routines Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
@@ -195,7 +211,7 @@ export function CollaboratorApp() {
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h4 className="font-bold text-gray-900 text-sm leading-tight">{routine.title}</h4>
-                      <p className="text-gray-500 text-[11px] mt-1">{routine.description}</p>
+                      <p className="text-gray-500 text-[11px] mt-1">{routine.description || 'Sem descrição'}</p>
                     </div>
                     <Badge variant="outline" className="text-[9px] uppercase font-bold shrink-0">{routine.priority}</Badge>
                   </div>
@@ -203,7 +219,12 @@ export function CollaboratorApp() {
                     {routine.checklist.length > 0 ? (
                       routine.checklist.map(item => (
                         <div key={item.id} className="flex items-center gap-2 group/item">
-                          <Checkbox id={`r-${item.id}`} checked={item.completed} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                          <Checkbox 
+                            id={`r-${item.id}`} 
+                            checked={item.completed} 
+                            onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                          />
                           <label htmlFor={`r-${item.id}`} className={`text-xs ${item.completed ? 'text-gray-400 line-through' : 'text-gray-700'} font-medium cursor-pointer`}>
                             {item.text}
                           </label>
@@ -234,6 +255,7 @@ export function CollaboratorApp() {
           </div>
         </section>
 
+        {/* Extra Tasks Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
