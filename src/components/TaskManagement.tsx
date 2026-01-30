@@ -9,26 +9,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Pencil, Trash2, ClipboardList, ListTodo } from "lucide-react";
+import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Pencil, Trash2, ClipboardList, ListTodo, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useApp, Task } from "@/context/AppContext";
+import { useTasks, Task } from "@/hooks/useTasks";
+import { useEmployeesList } from "@/hooks/useEmployeesList";
+import { useAuth } from "@/context/AuthContext";
+import { format } from "date-fns";
 
 export function TaskManagement() {
-  const { tasks, addTask, currentUser, taskFilter, setTaskFilter } = useApp();
+  const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem } = useTasks();
+  const { employees } = useEmployeesList();
+  const { user } = useAuth();
+  
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState(taskFilter);
+  const [filterStatus, setFilterStatus] = useState("todas");
   const [filterCollaborator, setFilterCollaborator] = useState("todos");
   const [filterDate, setFilterDate] = useState("");
   const [sortBy, setSortBy] = useState("prioridade");
-
-  useEffect(() => {
-    setFilterStatus(taskFilter);
-  }, [taskFilter]);
-
-  const handleFilterChange = (value: string) => {
-    setFilterStatus(value);
-    setTaskFilter(value);
-  };
 
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
@@ -37,6 +34,7 @@ export function TaskManagement() {
   const [newTaskDue, setNewTaskDue] = useState("");
   const [isRoutineTask, setIsRoutineTask] = useState(false);
   const [selectedRole, setSelectedRole] = useState("caixa");
+  const [isCreating, setIsCreating] = useState(false);
 
   const [routines, setRoutines] = useState<any>({
     caixa: [
@@ -59,6 +57,9 @@ export function TaskManagement() {
   const [newRoutine, setNewRoutine] = useState({ title: "", description: "", priority: "média" });
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  // Get current employee info
+  const currentEmployee = employees.find(e => e.email === user?.email);
 
   useEffect(() => {
     const saved = localStorage.getItem("dailyRoutines");
@@ -96,34 +97,30 @@ export function TaskManagement() {
     setIsRoutineTask(true);
   };
 
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
     if (!newTaskTitle) return;
 
-    const newTask: Task = {
-      id: Math.random().toString(),
-      title: newTaskTitle,
-      description: newTaskDescription,
-      assignee: newTaskAssignee || currentUser,
-      priority: (newTaskPriority as "alta" | "média" | "baixa") || "média",
-      status: "pendente",
-      dueDate: newTaskDue || new Date().toLocaleString("pt-BR"),
-      createdDate: new Date().toLocaleDateString("pt-BR"),
-      createdBy: currentUser,
-      progress: 0,
-      comments: 0,
-      checklist: [],
-      isDailyRoutine: isRoutineTask
-    };
+    setIsCreating(true);
+    try {
+      await createTask({
+        title: newTaskTitle,
+        description: newTaskDescription,
+        priority: newTaskPriority,
+        due_date: newTaskDue || undefined,
+        assignee_id: newTaskAssignee || undefined,
+        is_daily_routine: isRoutineTask,
+      });
 
-    addTask(newTask);
-    setIsCreateDialogOpen(false);
-
-    setNewTaskTitle("");
-    setNewTaskDescription("");
-    setNewTaskAssignee("");
-    setNewTaskPriority("média");
-    setNewTaskDue("");
-    setIsRoutineTask(false);
+      setIsCreateDialogOpen(false);
+      setNewTaskTitle("");
+      setNewTaskDescription("");
+      setNewTaskAssignee("");
+      setNewTaskPriority("média");
+      setNewTaskDue("");
+      setIsRoutineTask(false);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const getStatusIcon = (status: Task["status"]) => {
@@ -159,46 +156,53 @@ export function TaskManagement() {
     switch (p) { case 'alta': return 3; case 'média': return 2; case 'baixa': return 1; default: return 0; }
   };
 
+  const formatDueDate = (date: string | null) => {
+    if (!date) return "Sem prazo";
+    try {
+      return format(new Date(date), "dd/MM/yyyy HH:mm");
+    } catch {
+      return date;
+    }
+  };
+
   const filterTasks = (taskList: Task[], checkCollaborator = false) => {
     return taskList.filter(task => {
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch =
         task.title.toLowerCase().includes(searchLower) ||
-        task.description.toLowerCase().includes(searchLower) ||
-        task.assignee.toLowerCase().includes(searchLower);
+        (task.description?.toLowerCase().includes(searchLower) ?? false) ||
+        (task.assignee_name?.toLowerCase().includes(searchLower) ?? false);
 
       const matchesStatus = filterStatus === "todas" || task.status === filterStatus;
 
       const matchesCollaborator = !checkCollaborator ||
         filterCollaborator === "todos" ||
-        task.assignee.toLowerCase().includes(filterCollaborator) ||
-        (filterCollaborator === "maria" && task.assignee.includes("Maria")) ||
-        (filterCollaborator === "ana" && task.assignee.includes("Ana")) ||
-        (filterCollaborator === "carlos" && task.assignee.includes("Carlos")) ||
-        (filterCollaborator === "pedro" && task.assignee.includes("Pedro")) ||
-        (filterCollaborator === "julia" && task.assignee.includes("Julia"));
+        task.assignee_id === filterCollaborator;
 
       const matchesDate = !filterDate || (() => {
-        if (!task.createdDate) return false;
-        const [day, month, year] = task.createdDate.split('/');
-        const taskFormatted = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-        return taskFormatted === filterDate;
+        if (!task.created_at) return false;
+        const taskDate = task.created_at.split('T')[0];
+        return taskDate === filterDate;
       })();
 
       return matchesSearch && matchesStatus && matchesCollaborator && matchesDate;
     }).sort((a, b) => {
       if (sortBy === "prioridade") return getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
       if (sortBy === "progresso") return b.progress - a.progress;
-      if (sortBy === "prazo") return a.dueDate.localeCompare(b.dueDate);
+      if (sortBy === "prazo") return (a.due_date || '').localeCompare(b.due_date || '');
       return 0;
     });
   };
 
-  const myTasks = tasks.filter(t => t.assignee === currentUser);
-  const teamTasks = tasks.filter(t => t.assignee !== currentUser);
+  const myTasks = tasks.filter(t => t.assignee_id === currentEmployee?.id);
+  const teamTasks = tasks.filter(t => t.assignee_id !== currentEmployee?.id);
 
   const filteredMyTasks = filterTasks(myTasks);
   const filteredTeamTasks = filterTasks(teamTasks, true);
+
+  const handleChecklistToggle = async (taskId: string, itemId: string, currentValue: boolean) => {
+    await toggleChecklistItem(itemId, !currentValue);
+  };
 
   const TaskCard = ({ task }: { task: Task }) => (
     <Card className={`${getPriorityColor(task.priority)} hover:shadow-md transition-shadow`}>
@@ -206,7 +210,7 @@ export function TaskManagement() {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <CardTitle className="text-base">{task.title}</CardTitle>
-            <p className="text-sm text-gray-500 mt-1">{task.description}</p>
+            <p className="text-sm text-gray-500 mt-1">{task.description || "Sem descrição"}</p>
           </div>
           <Badge variant="outline" className={`${getStatusColor(task.status)} whitespace-nowrap`}>
             {getStatusIcon(task.status)}
@@ -229,7 +233,10 @@ export function TaskManagement() {
           </p>
           {task.checklist.slice(0, 2).map((item) => (
             <div key={item.id} className="flex items-center gap-2 text-sm">
-              <Checkbox checked={item.completed} disabled />
+              <Checkbox 
+                checked={item.completed} 
+                onCheckedChange={() => handleChecklistToggle(task.id, item.id, item.completed)}
+              />
               <span className={item.completed ? "line-through text-gray-400" : "text-gray-700"}>{item.text}</span>
             </div>
           ))}
@@ -242,16 +249,16 @@ export function TaskManagement() {
           <div className="flex items-center gap-3 text-sm text-gray-600">
             <div className="flex items-center gap-1">
               <User className="w-4 h-4" />
-              <span>{task.assignee}</span>
+              <span>{task.assignee_name || "Não atribuído"}</span>
             </div>
             <div className="flex items-center gap-1">
               <MessageSquare className="w-4 h-4" />
-              <span>{task.comments}</span>
+              <span>{task.comments_count}</span>
             </div>
           </div>
           <div className="flex items-center gap-1 text-sm text-gray-500">
             <Calendar className="w-4 h-4" />
-            <span>{task.dueDate}</span>
+            <span>{formatDueDate(task.due_date)}</span>
           </div>
         </div>
 
@@ -266,6 +273,14 @@ export function TaskManagement() {
       </CardContent>
     </Card>
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -316,11 +331,11 @@ export function TaskManagement() {
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Maria Santos">Maria Santos</SelectItem>
-                        <SelectItem value="Ana Lima">Ana Lima</SelectItem>
-                        <SelectItem value="Carlos Rocha">Carlos Rocha</SelectItem>
-                        <SelectItem value="Pedro Costa">Pedro Costa</SelectItem>
-                        <SelectItem value="Julia Mendes">Julia Mendes</SelectItem>
+                        {employees.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {emp.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -478,7 +493,10 @@ export function TaskManagement() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleCreateTask}>Criar Tarefa</Button>
+              <Button onClick={handleCreateTask} disabled={isCreating || !newTaskTitle}>
+                {isCreating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Criar Tarefa
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -494,7 +512,7 @@ export function TaskManagement() {
                         {selectedTask.title}
                       </DialogTitle>
                       <DialogDescription className="mt-1">
-                        Criado em {selectedTask.createdDate} por {selectedTask.createdBy}
+                        Criado em {format(new Date(selectedTask.created_at), "dd/MM/yyyy")} por {selectedTask.created_by_name || "Sistema"}
                       </DialogDescription>
                     </div>
                     <Badge variant="outline" className={`${getStatusColor(selectedTask.status)}`}>
@@ -508,11 +526,11 @@ export function TaskManagement() {
                   <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700">Responsável: {selectedTask.assignee}</span>
+                      <span className="text-sm font-medium text-gray-700">Responsável: {selectedTask.assignee_name || "Não atribuído"}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700">Prazo: {selectedTask.dueDate}</span>
+                      <span className="text-sm font-medium text-gray-700">Prazo: {formatDueDate(selectedTask.due_date)}</span>
                     </div>
                     <Badge className={selectedTask.priority === 'alta' ? 'bg-red-500' : selectedTask.priority === 'média' ? 'bg-orange-500' : 'bg-blue-500'}>
                       Prioridade {selectedTask.priority}
@@ -522,7 +540,7 @@ export function TaskManagement() {
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Descrição</h4>
                     <p className="text-sm text-gray-600 leading-relaxed bg-white p-3 border rounded-md">
-                      {selectedTask.description}
+                      {selectedTask.description || "Sem descrição"}
                     </p>
                   </div>
 
@@ -535,7 +553,11 @@ export function TaskManagement() {
                     <div className="space-y-2">
                       {selectedTask.checklist.map((item) => (
                         <div key={item.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100 transition-colors">
-                          <Checkbox id={`todo-${item.id}`} checked={item.completed} disabled />
+                          <Checkbox 
+                            id={`todo-${item.id}`} 
+                            checked={item.completed} 
+                            onCheckedChange={() => handleChecklistToggle(selectedTask.id, item.id, item.completed)}
+                          />
                           <label
                             htmlFor={`todo-${item.id}`}
                             className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
@@ -544,14 +566,33 @@ export function TaskManagement() {
                           </label>
                         </div>
                       ))}
+                      {selectedTask.checklist.length === 0 && (
+                        <p className="text-sm text-gray-400 italic">Nenhum item no checklist</p>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex gap-2 justify-end pt-4 border-t">
                     <Button variant="outline" size="sm" className="gap-2">
-                      <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments})
+                      <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments_count})
                     </Button>
-                    <Button size="sm">Atualizar Progresso</Button>
+                    <Select 
+                      value={selectedTask.status} 
+                      onValueChange={(value) => {
+                        updateTask(selectedTask.id, { status: value as Task['status'] });
+                        setSelectedTask({ ...selectedTask, status: value as Task['status'] });
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pendente">Pendente</SelectItem>
+                        <SelectItem value="andamento">Em Andamento</SelectItem>
+                        <SelectItem value="concluido">Concluída</SelectItem>
+                        <SelectItem value="atrasada">Atrasada</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </>
@@ -593,7 +634,7 @@ export function TaskManagement() {
                 </Button>
               )}
             </div>
-            <Select value={filterStatus} onValueChange={handleFilterChange}>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-[180px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue />
@@ -659,8 +700,8 @@ export function TaskManagement() {
               <ClipboardList className="w-5 h-5" /> Rotinas Diárias
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMyTasks.filter(t => t.isDailyRoutine).length > 0 ? (
-                filteredMyTasks.filter(t => t.isDailyRoutine).map((task) => (
+              {filteredMyTasks.filter(t => t.is_daily_routine).length > 0 ? (
+                filteredMyTasks.filter(t => t.is_daily_routine).map((task) => (
                   <TaskCard key={task.id} task={task} />
                 ))
               ) : (
@@ -676,8 +717,8 @@ export function TaskManagement() {
               <ListTodo className="w-5 h-5" /> Tarefas Atribuídas
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMyTasks.filter(t => !t.isDailyRoutine).length > 0 ? (
-                filteredMyTasks.filter(t => !t.isDailyRoutine).map((task) => (
+              {filteredMyTasks.filter(t => !t.is_daily_routine).length > 0 ? (
+                filteredMyTasks.filter(t => !t.is_daily_routine).map((task) => (
                   <TaskCard key={task.id} task={task} />
                 ))
               ) : (
@@ -698,11 +739,11 @@ export function TaskManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os colaboradores</SelectItem>
-                <SelectItem value="maria">Maria Santos</SelectItem>
-                <SelectItem value="ana">Ana Lima</SelectItem>
-                <SelectItem value="carlos">Carlos Rocha</SelectItem>
-                <SelectItem value="pedro">Pedro Costa</SelectItem>
-                <SelectItem value="julia">Julia Mendes</SelectItem>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -732,8 +773,8 @@ export function TaskManagement() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Array.from(new Set(tasks.map(t => t.assignee).filter(a => a !== currentUser))).map((assignee) => {
-              const userTasks = tasks.filter(t => t.assignee === assignee);
+            {employees.filter(e => e.id !== currentEmployee?.id).map((employee) => {
+              const userTasks = tasks.filter(t => t.assignee_id === employee.id);
               const activeTask = userTasks.find(t => t.status === "andamento") ||
                 userTasks.filter(t => t.status === "pendente" || t.status === "atrasada").sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority))[0];
 
@@ -741,14 +782,14 @@ export function TaskManagement() {
               const pendingCount = userTasks.filter(t => t.status !== "concluido").length;
 
               return (
-                <Card key={assignee} className="hover:shadow-md transition-shadow">
+                <Card key={employee.id} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-2">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                        {assignee.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        {employee.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <CardTitle className="text-base">{assignee}</CardTitle>
+                        <CardTitle className="text-base">{employee.name}</CardTitle>
                         <p className="text-xs text-gray-500">{userTasks.length} tarefas totais</p>
                       </div>
                     </div>
@@ -758,39 +799,36 @@ export function TaskManagement() {
                       <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Fazendo Agora</p>
                       {activeTask ? (
                         <>
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <span className="font-medium text-sm text-gray-900 line-clamp-1" title={activeTask.title}>{activeTask.title}</span>
-                            <Badge variant="outline" className={`scale-90 ${getStatusColor(activeTask.status)}`}>
-                              {activeTask.status}
-                            </Badge>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs text-gray-600">
-                              <span>Conclusão</span>
-                              <span>{activeTask.progress}%</span>
-                            </div>
-                            <Progress value={activeTask.progress} className="h-2" />
+                          <p className="font-medium text-sm">{activeTask.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Progress value={activeTask.progress} className="h-1 flex-1" />
+                            <span className="text-xs text-gray-500">{activeTask.progress}%</span>
                           </div>
                         </>
                       ) : (
-                        <p className="text-sm text-gray-400 italic">Nenhuma tarefa ativa no momento.</p>
+                        <p className="text-sm text-gray-400 italic">Nenhuma tarefa ativa</p>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-center">
-                      <div className="bg-green-50 p-2 rounded border border-green-100">
-                        <p className="text-lg font-bold text-green-700">{completedCount}</p>
-                        <p className="text-xs text-green-600">Concluídas</p>
+                    <div className="flex justify-around text-center">
+                      <div>
+                        <p className="text-lg font-bold text-green-600">{completedCount}</p>
+                        <p className="text-xs text-gray-500">Concluídas</p>
                       </div>
-                      <div className="bg-orange-50 p-2 rounded border border-orange-100">
-                        <p className="text-lg font-bold text-orange-700">{pendingCount}</p>
-                        <p className="text-xs text-orange-600">Pendentes</p>
+                      <div>
+                        <p className="text-lg font-bold text-orange-600">{pendingCount}</p>
+                        <p className="text-xs text-gray-500">Pendentes</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               );
             })}
+            {employees.filter(e => e.id !== currentEmployee?.id).length === 0 && (
+              <div className="col-span-full py-8 text-center text-gray-500">
+                Nenhum colaborador cadastrado na equipe.
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>
