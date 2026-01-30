@@ -1,0 +1,481 @@
+import { useState, useCallback } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/context/CompanyContext";
+import { toast } from "sonner";
+import {
+  Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle,
+  AlertTriangle, ArrowRight, Download, RefreshCw
+} from "lucide-react";
+import type { Json } from "@/integrations/supabase/types";
+import {
+  parseExcel, getExcelHeaders,
+  parseCsv, getCsvHeaders,
+  type ParseResult, type ColumnMapping, type FileFormat
+} from "@/services/timeImport";
+
+interface ImportWizardProps {
+  onComplete: () => void;
+  onCancel: () => void;
+}
+
+type Step = "upload" | "mapping" | "preview" | "importing" | "complete";
+
+export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
+  const { companyId } = useCompany();
+  const [step, setStep] = useState<Step>("upload");
+  const [fileFormat, setFileFormat] = useState<FileFormat>("excel");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileContent, setFileContent] = useState<ArrayBuffer | string | null>(null);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<ColumnMapping>({
+    employeeId: "",
+    employeeName: "",
+    date: "",
+    punch1: "",
+    punch2: "",
+    punch3: "",
+    punch4: "",
+  });
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResult, setImportResult] = useState<{ imported: number; failed: number } | null>(null);
+
+  const handleFileSelect = useCallback(async (selectedFile: File) => {
+    setFile(selectedFile);
+    
+    try {
+      if (fileFormat === "excel") {
+        const buffer = await selectedFile.arrayBuffer();
+        setFileContent(buffer);
+        const hdrs = getExcelHeaders(buffer);
+        setHeaders(hdrs);
+      } else {
+        const text = await selectedFile.text();
+        setFileContent(text);
+        const hdrs = getCsvHeaders(text);
+        setHeaders(hdrs);
+      }
+      setStep("mapping");
+    } catch (error) {
+      toast.error("Erro ao ler arquivo");
+    }
+  }, [fileFormat]);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      handleFileSelect(droppedFile);
+    }
+  }, [handleFileSelect]);
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const handleParse = () => {
+    if (!fileContent || !mapping.employeeId || !mapping.date) {
+      toast.error("Configure o mapeamento obrigatório");
+      return;
+    }
+
+    let result: ParseResult;
+    if (fileFormat === "excel") {
+      result = parseExcel(fileContent as ArrayBuffer, mapping);
+    } else {
+      result = parseCsv(fileContent as string, mapping);
+    }
+
+    setParseResult(result);
+    setStep("preview");
+  };
+
+  const handleImport = async () => {
+    if (!parseResult || !companyId) return;
+
+    setStep("importing");
+    setImportProgress(0);
+
+    try {
+      // Create import record
+      const { data: importRecord, error: importError } = await supabase
+        .from("time_tracking_imports")
+        .insert({
+          company_id: companyId,
+          source_type: fileFormat,
+          source_name: file?.name,
+          total_records: parseResult.records.length,
+          status: "processing",
+          column_mapping: mapping as unknown as Json,
+        })
+        .select()
+        .single();
+
+      if (importError) throw importError;
+
+      let imported = 0;
+      let failed = 0;
+      const batchSize = 50;
+      const records = parseResult.records;
+
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
+        
+        const insertData = batch.map((record) => ({
+          company_id: companyId,
+          import_id: importRecord.id,
+          external_employee_id: record.externalEmployeeId,
+          record_date: record.date,
+          entry_1: record.punches[0] || null,
+          exit_1: record.punches[1] || null,
+          entry_2: record.punches[2] || null,
+          exit_2: record.punches[3] || null,
+          entry_3: record.punches[4] || null,
+          exit_3: record.punches[5] || null,
+          entry_4: record.punches[6] || null,
+          exit_4: record.punches[7] || null,
+          raw_data: record.rawData as Json,
+          status: "imported",
+        }));
+
+        const { error: batchError } = await supabase
+          .from("time_tracking_records")
+          .insert(insertData);
+
+        if (batchError) {
+          failed += batch.length;
+          console.error("Batch error:", batchError);
+        } else {
+          imported += batch.length;
+        }
+
+        setImportProgress(Math.round(((i + batch.length) / records.length) * 100));
+      }
+
+      // Update import record
+      await supabase
+        .from("time_tracking_imports")
+        .update({
+          status: failed === 0 ? "completed" : "partial",
+          imported_records: imported,
+          failed_records: failed,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", importRecord.id);
+
+      setImportResult({ imported, failed });
+      setStep("complete");
+    } catch (error: any) {
+      toast.error(`Erro na importação: ${error.message}`);
+      setStep("preview");
+    }
+  };
+
+  return (
+    <Card className="max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Upload className="w-5 h-5" />
+          Importar Registros de Ponto
+        </CardTitle>
+        <CardDescription>
+          {step === "upload" && "Selecione o arquivo para importar"}
+          {step === "mapping" && "Configure o mapeamento de colunas"}
+          {step === "preview" && "Revise os dados antes de importar"}
+          {step === "importing" && "Importando registros..."}
+          {step === "complete" && "Importação concluída!"}
+        </CardDescription>
+
+        {/* Progress steps */}
+        <div className="flex items-center gap-2 mt-4">
+          {["upload", "mapping", "preview", "complete"].map((s, i) => (
+            <div key={s} className="flex items-center">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  step === s
+                    ? "bg-primary text-primary-foreground"
+                    : ["upload", "mapping", "preview", "importing", "complete"].indexOf(step) > i
+                    ? "bg-green-500 text-white"
+                    : "bg-gray-200 text-gray-500"
+                }`}
+              >
+                {i + 1}
+              </div>
+              {i < 3 && <div className="w-12 h-0.5 bg-gray-200 mx-1" />}
+            </div>
+          ))}
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {/* Step: Upload */}
+        {step === "upload" && (
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label>Formato do arquivo</Label>
+              <Select value={fileFormat} onValueChange={(v) => setFileFormat(v as FileFormat)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="excel">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Excel (.xlsx, .xls)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="csv">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      CSV (.csv)
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div
+              className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary transition-colors"
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onClick={() => document.getElementById("file-input")?.click()}
+            >
+              <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-lg font-medium">Arraste o arquivo aqui</p>
+              <p className="text-sm text-gray-500 mt-1">ou clique para selecionar</p>
+              <input
+                id="file-input"
+                type="file"
+                accept={fileFormat === "excel" ? ".xlsx,.xls" : ".csv"}
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={onCancel}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Mapping */}
+        {step === "mapping" && (
+          <div className="space-y-6">
+            <Alert>
+              <FileSpreadsheet className="w-4 h-4" />
+              <AlertDescription>
+                Arquivo: <strong>{file?.name}</strong> - {headers.length} colunas encontradas
+              </AlertDescription>
+            </Alert>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>ID do Funcionário *</Label>
+                <Select value={mapping.employeeId} onValueChange={(v) => setMapping({ ...mapping, employeeId: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a coluna" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {headers.map((h) => (
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Nome do Funcionário</Label>
+                <Select value={mapping.employeeName || ""} onValueChange={(v) => setMapping({ ...mapping, employeeName: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Opcional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum</SelectItem>
+                    {headers.map((h) => (
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Select value={mapping.date} onValueChange={(v) => setMapping({ ...mapping, date: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a coluna" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {headers.map((h) => (
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Batidas (Entrada/Saída)</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map((n) => (
+                  <Select
+                    key={n}
+                    value={(mapping as any)[`punch${n}`] || ""}
+                    onValueChange={(v) => setMapping({ ...mapping, [`punch${n}`]: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={`Batida ${n}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {headers.map((h) => (
+                        <SelectItem key={h} value={h}>{h}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep("upload")}>
+                Voltar
+              </Button>
+              <Button onClick={handleParse} disabled={!mapping.employeeId || !mapping.date}>
+                Processar <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Preview */}
+        {step === "preview" && parseResult && (
+          <div className="space-y-6">
+            <div className="flex gap-4">
+              <Badge variant="outline" className="text-green-600 border-green-600">
+                <CheckCircle2 className="w-4 h-4 mr-1" />
+                {parseResult.records.length} registros válidos
+              </Badge>
+              {parseResult.errors.length > 0 && (
+                <Badge variant="outline" className="text-red-600 border-red-600">
+                  <XCircle className="w-4 h-4 mr-1" />
+                  {parseResult.errors.length} erros
+                </Badge>
+              )}
+            </div>
+
+            <Tabs defaultValue="records">
+              <TabsList>
+                <TabsTrigger value="records">Registros ({parseResult.records.length})</TabsTrigger>
+                <TabsTrigger value="errors">Erros ({parseResult.errors.length})</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="records" className="max-h-64 overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID Func.</TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Batidas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parseResult.records.slice(0, 20).map((record, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono">{record.externalEmployeeId}</TableCell>
+                        <TableCell>{record.employeeName || "-"}</TableCell>
+                        <TableCell>{record.date}</TableCell>
+                        <TableCell>{record.punches.join(", ") || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {parseResult.records.length > 20 && (
+                  <p className="text-sm text-gray-500 mt-2 text-center">
+                    Mostrando 20 de {parseResult.records.length} registros
+                  </p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="errors" className="max-h-64 overflow-auto">
+                {parseResult.errors.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">Nenhum erro encontrado</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Linha</TableHead>
+                        <TableHead>Erro</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parseResult.errors.slice(0, 20).map((error, i) => (
+                        <TableRow key={i}>
+                          <TableCell>{error.row}</TableCell>
+                          <TableCell className="text-red-600">{error.message}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep("mapping")}>
+                Voltar
+              </Button>
+              <Button onClick={handleImport} disabled={parseResult.records.length === 0}>
+                Importar {parseResult.records.length} registros
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Importing */}
+        {step === "importing" && (
+          <div className="space-y-6 text-center py-8">
+            <RefreshCw className="w-12 h-12 mx-auto animate-spin text-primary" />
+            <p className="text-lg font-medium">Importando registros...</p>
+            <Progress value={importProgress} className="w-full" />
+            <p className="text-sm text-gray-500">{importProgress}% concluído</p>
+          </div>
+        )}
+
+        {/* Step: Complete */}
+        {step === "complete" && importResult && (
+          <div className="space-y-6 text-center py-8">
+            <CheckCircle2 className="w-16 h-16 mx-auto text-green-500" />
+            <p className="text-xl font-bold">Importação Concluída!</p>
+            
+            <div className="flex justify-center gap-4">
+              <Badge className="bg-green-100 text-green-800 text-lg py-2 px-4">
+                {importResult.imported} importados
+              </Badge>
+              {importResult.failed > 0 && (
+                <Badge className="bg-red-100 text-red-800 text-lg py-2 px-4">
+                  {importResult.failed} falharam
+                </Badge>
+              )}
+            </div>
+
+            <Button onClick={onComplete}>
+              Concluir
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
