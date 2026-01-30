@@ -14,11 +14,177 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_integrations: {
+        Row: {
+          api_base_url: string | null
+          auth_type: string
+          company_id: string
+          created_at: string
+          credentials_ref: string | null
+          display_name: string | null
+          id: string
+          is_active: boolean
+          last_sync_at: string | null
+          last_sync_status: string | null
+          provider_name: string
+          settings: Json | null
+          sync_frequency: string | null
+          updated_at: string
+        }
+        Insert: {
+          api_base_url?: string | null
+          auth_type?: string
+          company_id: string
+          created_at?: string
+          credentials_ref?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          provider_name: string
+          settings?: Json | null
+          sync_frequency?: string | null
+          updated_at?: string
+        }
+        Update: {
+          api_base_url?: string | null
+          auth_type?: string
+          company_id?: string
+          created_at?: string
+          credentials_ref?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          provider_name?: string
+          settings?: Json | null
+          sync_frequency?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      column_mappings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          integration_id: string | null
+          is_default: boolean | null
+          mapping: Json
+          name: string
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          integration_id?: string | null
+          is_default?: boolean | null
+          mapping: Json
+          name: string
+          source_type: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          integration_id?: string | null
+          is_default?: boolean | null
+          mapping?: Json
+          name?: string
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "column_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "column_mappings_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "api_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          address: string | null
+          city: string | null
+          cnpj: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          phone: string | null
+          settings: Json | null
+          state: string | null
+          trade_name: string | null
+          updated_at: string
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          settings?: Json | null
+          state?: string | null
+          trade_name?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          settings?: Json | null
+          state?: string | null
+          trade_name?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
+          company_id: string | null
           created_at: string
           department: string
           email: string
+          external_id: string | null
           id: string
           is_active: boolean
           name: string
@@ -39,9 +205,11 @@ export type Database = {
           whatsapp_verified: boolean | null
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           department?: string
           email: string
+          external_id?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -62,9 +230,11 @@ export type Database = {
           whatsapp_verified?: boolean | null
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           department?: string
           email?: string
+          external_id?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -84,7 +254,15 @@ export type Database = {
           whatsapp_profile_pic?: string | null
           whatsapp_verified?: boolean | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_queue: {
         Row: {
@@ -148,6 +326,7 @@ export type Database = {
       notifications: {
         Row: {
           channels: string[] | null
+          company_id: string | null
           created_at: string
           id: string
           in_app_delivered_at: string | null
@@ -177,6 +356,7 @@ export type Database = {
         }
         Insert: {
           channels?: string[] | null
+          company_id?: string | null
           created_at?: string
           id?: string
           in_app_delivered_at?: string | null
@@ -206,6 +386,7 @@ export type Database = {
         }
         Update: {
           channels?: string[] | null
+          company_id?: string | null
           created_at?: string
           id?: string
           in_app_delivered_at?: string | null
@@ -235,6 +416,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "notifications_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
@@ -246,6 +434,193 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_tracking_imports: {
+        Row: {
+          column_mapping: Json | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          failed_records: number | null
+          file_url: string | null
+          id: string
+          imported_by: string | null
+          imported_records: number | null
+          period_end: string | null
+          period_start: string | null
+          source_name: string | null
+          source_type: string
+          status: string
+          total_records: number | null
+        }
+        Insert: {
+          column_mapping?: Json | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_records?: number | null
+          file_url?: string | null
+          id?: string
+          imported_by?: string | null
+          imported_records?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          source_name?: string | null
+          source_type: string
+          status?: string
+          total_records?: number | null
+        }
+        Update: {
+          column_mapping?: Json | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_records?: number | null
+          file_url?: string | null
+          id?: string
+          imported_by?: string | null
+          imported_records?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          source_name?: string | null
+          source_type?: string
+          status?: string
+          total_records?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_tracking_imports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_tracking_records: {
+        Row: {
+          anomalies: string[] | null
+          company_id: string
+          created_at: string
+          employee_id: string | null
+          entry_1: string | null
+          entry_2: string | null
+          entry_3: string | null
+          entry_4: string | null
+          exit_1: string | null
+          exit_2: string | null
+          exit_3: string | null
+          exit_4: string | null
+          external_employee_id: string | null
+          id: string
+          import_id: string | null
+          notes: string | null
+          overtime: unknown
+          raw_data: Json | null
+          record_date: string
+          status: string | null
+          total_hours: unknown
+          updated_at: string
+        }
+        Insert: {
+          anomalies?: string[] | null
+          company_id: string
+          created_at?: string
+          employee_id?: string | null
+          entry_1?: string | null
+          entry_2?: string | null
+          entry_3?: string | null
+          entry_4?: string | null
+          exit_1?: string | null
+          exit_2?: string | null
+          exit_3?: string | null
+          exit_4?: string | null
+          external_employee_id?: string | null
+          id?: string
+          import_id?: string | null
+          notes?: string | null
+          overtime?: unknown
+          raw_data?: Json | null
+          record_date: string
+          status?: string | null
+          total_hours?: unknown
+          updated_at?: string
+        }
+        Update: {
+          anomalies?: string[] | null
+          company_id?: string
+          created_at?: string
+          employee_id?: string | null
+          entry_1?: string | null
+          entry_2?: string | null
+          entry_3?: string | null
+          entry_4?: string | null
+          exit_1?: string | null
+          exit_2?: string | null
+          exit_3?: string | null
+          exit_4?: string | null
+          external_employee_id?: string | null
+          id?: string
+          import_id?: string | null
+          notes?: string | null
+          overtime?: unknown
+          raw_data?: Json | null
+          record_date?: string
+          status?: string | null
+          total_hours?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_tracking_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_tracking_records_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -318,14 +693,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_company: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
         Args: { user_uuid: string }
         Returns: Database["public"]["Enums"]["employee_role"]
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_admin: { Args: { user_uuid: string }; Returns: boolean }
+      is_admin_master: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_gestor: { Args: { user_uuid: string }; Returns: boolean }
+      user_belongs_to_company: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin_master" | "admin" | "gestor" | "colaborador"
       employee_role: "colaborador" | "gestor" | "admin"
       notification_priority: "low" | "normal" | "high" | "urgent"
       notification_status:
@@ -475,6 +864,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin_master", "admin", "gestor", "colaborador"],
       employee_role: ["colaborador", "gestor", "admin"],
       notification_priority: ["low", "normal", "high", "urgent"],
       notification_status: [
