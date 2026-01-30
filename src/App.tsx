@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppProvider } from "./context/AppContext";
 import { AuthProvider } from "./context/AuthContext";
+import { CompanyProvider } from "./context/CompanyContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -61,7 +62,9 @@ const App = () => (
                   path="/" 
                   element={
                     <ProtectedRoute allowedRoles={["admin", "gestor"]}>
-                      <Index />
+                      <CompanyProvider>
+                        <Index />
+                      </CompanyProvider>
                     </ProtectedRoute>
                   } 
                 />

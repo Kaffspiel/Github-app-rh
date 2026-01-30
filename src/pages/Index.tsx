@@ -10,10 +10,13 @@ import { Reports } from "@/components/Reports";
 import { EmployeeManagement } from "@/components/EmployeeManagement";
 import { useApp, View } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { useCompany } from "@/context/CompanyContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Index = () => {
   const { currentView, setCurrentView } = useApp();
-  const { signOut, user } = useAuth();
+  const { signOut, user, currentRole } = useAuth();
+  const { company, isLoading: companyLoading } = useCompany();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const navigation = [
@@ -46,7 +49,11 @@ const Index = () => {
           <div className="flex items-center justify-between">
             {sidebarOpen && (
               <div>
-                <h1 className="text-xl font-bold">OpsControl</h1>
+                {companyLoading ? (
+                  <Skeleton className="h-6 w-32 bg-blue-700" />
+                ) : (
+                  <h1 className="text-xl font-bold truncate">{company?.trade_name || company?.name || "OpsControl"}</h1>
+                )}
                 <p className="text-xs text-blue-200">Sistema de Gestão</p>
               </div>
             )}
@@ -78,9 +85,9 @@ const Index = () => {
             <div className="space-y-3">
               <div className="text-xs text-blue-200">
                 <p className="font-medium text-white mb-1 truncate">{user?.email || "Usuário"}</p>
-                <p>Gestor de Operações</p>
+                <p>{currentRole === "admin" ? "Administrador" : "Gestor"}</p>
               </div>
-              <Button 
+              <Button
                 variant="ghost" 
                 size="sm" 
                 onClick={signOut}
