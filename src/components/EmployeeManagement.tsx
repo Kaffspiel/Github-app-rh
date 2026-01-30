@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/context/CompanyContext";
 import { 
   Users, Plus, Search, Phone, Mail, Building2, Shield, 
   MessageSquare, Bell, Clock, CheckCircle2, XCircle,
@@ -34,7 +35,7 @@ export function EmployeeManagement() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [sendingTest, setSendingTest] = useState<string | null>(null);
   const { toast } = useToast();
-
+  const { companyId, company } = useCompany();
   // Form state
   const [formData, setFormData] = useState({
     name: "",
@@ -55,14 +56,19 @@ export function EmployeeManagement() {
   });
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    if (companyId) {
+      fetchEmployees();
+    }
+  }, [companyId]);
 
   const fetchEmployees = async () => {
+    if (!companyId) return;
+    
     setLoading(true);
     const { data, error } = await supabase
       .from("employees")
       .select("*")
+      .eq("company_id", companyId)
       .order("name");
 
     if (error) {
@@ -92,6 +98,7 @@ export function EmployeeManagement() {
       email: formData.email,
       department: formData.department,
       role: formData.role,
+      company_id: companyId,
       whatsapp_number: formData.whatsapp_number || null,
       whatsapp_verified: formData.whatsapp_verified,
       notify_whatsapp: formData.notify_whatsapp,
