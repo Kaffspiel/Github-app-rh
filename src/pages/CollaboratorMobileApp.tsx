@@ -5,13 +5,16 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Home, ListChecks, Clock, User, LogOut, Bell, 
   CheckCircle2, AlertCircle, Calendar, Trophy,
-  ChevronRight, RefreshCw, Star, Flame
+  ChevronRight, RefreshCw, Star, Flame, ClipboardList, Play
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useCollaboratorTasks } from "@/hooks/useCollaboratorTasks";
 import { format, isToday, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -61,6 +64,26 @@ export default function CollaboratorMobileApp() {
     monthlyPresence: 0,
     streak: 0
   });
+
+  // Use the collaborator tasks hook
+  const { 
+    tasks, 
+    isLoading: tasksLoading, 
+    toggleChecklistItem, 
+    updateTaskStatus,
+    refetch: refetchTasks 
+  } = useCollaboratorTasks();
+
+  const dailyRoutines = tasks.filter(t => t.is_daily_routine);
+  const extraTasks = tasks.filter(t => !t.is_daily_routine);
+
+  // Update pending tasks stat when tasks change
+  useEffect(() => {
+    setStats(prev => ({
+      ...prev,
+      pendingTasks: tasks.length
+    }));
+  }, [tasks]);
 
   useEffect(() => {
     if (user) {
@@ -313,6 +336,41 @@ export default function CollaboratorMobileApp() {
         </Card>
       </div>
 
+      {/* Tasks Summary */}
+      {tasks.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ListChecks className="w-4 h-4" />
+              Tarefas Pendentes
+              <Badge className="ml-auto bg-blue-100 text-blue-700">{tasks.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-3 bg-blue-50 rounded-lg text-center">
+                <ClipboardList className="w-5 h-5 mx-auto mb-1 text-blue-600" />
+                <p className="text-lg font-bold text-blue-700">{dailyRoutines.length}</p>
+                <p className="text-xs text-blue-600">Rotinas</p>
+              </div>
+              <div className="p-3 bg-orange-50 rounded-lg text-center">
+                <AlertCircle className="w-5 h-5 mx-auto mb-1 text-orange-600" />
+                <p className="text-lg font-bold text-orange-700">{extraTasks.length}</p>
+                <p className="text-xs text-orange-600">Extras</p>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              className="w-full mt-3" 
+              onClick={() => setCurrentView("tasks")}
+            >
+              Ver Tarefas
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent Notifications */}
       {notifications.length > 0 && (
         <Card>
@@ -346,26 +404,157 @@ export default function CollaboratorMobileApp() {
     </div>
   );
 
-  const renderTasksView = () => (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Minhas Tarefas</h2>
-        <Button variant="ghost" size="sm" onClick={loadData}>
-          <RefreshCw className="w-4 h-4" />
-        </Button>
-      </div>
+  const renderTasksView = () => {
+    const handleStartTask = async (taskId: string) => {
+      await updateTaskStatus(taskId, 'andamento');
+    };
 
-      <Card>
-        <CardContent className="text-center py-12">
-          <ListChecks className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500 font-medium">Nenhuma tarefa atribuída</p>
-          <p className="text-sm text-gray-400 mt-1">
-            Você receberá uma notificação quando novas tarefas forem atribuídas
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+    const handleChecklistToggle = async (itemId: string, currentState: boolean) => {
+      await toggleChecklistItem(itemId, !currentState);
+    };
+
+    const getPriorityColor = (priority: string) => {
+      switch (priority) {
+        case 'alta': return 'bg-red-500';
+        case 'média': return 'bg-orange-400';
+        default: return 'bg-blue-400';
+      }
+    };
+
+    return (
+      <div className="p-4 space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Minhas Tarefas</h2>
+          <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading}>
+            <RefreshCw className={`w-4 h-4 ${tasksLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+
+        {/* Daily Routines Section */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <ClipboardList className="w-4 h-4 text-blue-600" />
+            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+              Rotinas Diárias
+            </h3>
+            {dailyRoutines.length > 0 && (
+              <Badge className="bg-blue-100 text-blue-700 text-[10px]">
+                {dailyRoutines.length}
+              </Badge>
+            )}
+          </div>
+
+          {dailyRoutines.length > 0 ? (
+            <div className="space-y-3">
+              {dailyRoutines.map(routine => (
+                <Card key={routine.id} className="border-l-4 border-l-blue-500">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-semibold text-gray-900">{routine.title}</h4>
+                      <Badge variant="outline" className="text-[10px] uppercase">
+                        {routine.priority}
+                      </Badge>
+                    </div>
+                    {routine.description && (
+                      <p className="text-sm text-gray-500 mb-3">{routine.description}</p>
+                    )}
+                    {routine.checklist.length > 0 ? (
+                      <div className="space-y-2">
+                        {routine.checklist.map(item => (
+                          <div key={item.id} className="flex items-center gap-2">
+                            <Checkbox 
+                              checked={item.completed}
+                              onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
+                            />
+                            <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                              {item.text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Progresso</span>
+                          <span>{routine.progress}%</span>
+                        </div>
+                        <Progress value={routine.progress} className="h-2" />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-6 text-center">
+                <p className="text-gray-400 text-sm">Nenhuma rotina diária pendente</p>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        {/* Extra Tasks Section */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="w-4 h-4 text-orange-500" />
+            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+              Tarefas Extra
+            </h3>
+            {extraTasks.length > 0 && (
+              <Badge className="bg-orange-100 text-orange-700 text-[10px]">
+                {extraTasks.length}
+              </Badge>
+            )}
+          </div>
+
+          {extraTasks.length > 0 ? (
+            <div className="space-y-3">
+              {extraTasks.map(task => (
+                <Card key={task.id} className="overflow-hidden">
+                  <div className={`h-1 ${getPriorityColor(task.priority)}`} />
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-semibold text-gray-900">{task.title}</h4>
+                      <Badge variant="outline" className="text-[10px] uppercase">
+                        {task.priority}
+                      </Badge>
+                    </div>
+                    {task.description && (
+                      <p className="text-sm text-gray-500 mb-3">{task.description}</p>
+                    )}
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>Progresso</span>
+                        <span>{task.progress}%</span>
+                      </div>
+                      <Progress value={task.progress} className="h-2" />
+                      <Button 
+                        size="sm" 
+                        className={`w-full ${task.status === 'pendente' 
+                          ? 'bg-blue-600 hover:bg-blue-700' 
+                          : 'bg-orange-500 hover:bg-orange-600'}`}
+                        onClick={() => task.status === 'pendente' && handleStartTask(task.id)}
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        {task.status === 'pendente' ? 'INICIAR' : 'EM ANDAMENTO'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-6 text-center">
+                <p className="text-gray-400 text-sm">Nenhuma tarefa extra atribuída</p>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      </div>
+    );
+  };
 
   const renderTimeView = () => (
     <div className="p-4 space-y-4">
