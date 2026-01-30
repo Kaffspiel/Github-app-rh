@@ -9,91 +9,81 @@
         "options": {}
       },
       "id": "webhook-trigger",
-      "name": "Webhook Trigger",
+      "name": "Webhook (OpsControl)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300]
+      "position": [-672, 272],
+      "webhookId": "opscontrol-send"
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
+        "dataType": "string",
+        "value1": "={{ $json.body.messageType }}",
+        "rules": {
+          "rules": [
             {
-              "id": "condition-text",
-              "leftValue": "={{ $json.messageType }}",
-              "rightValue": "text",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
+              "value2": "text"
+            },
+            {
+              "value2": "buttons"
             }
-          ],
-          "combinator": "and"
+          ]
         },
-        "options": {}
+        "fallbackOutput": 2
       },
       "id": "switch-type",
       "name": "Tipo de Mensagem",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
-      "position": [450, 300]
+      "typeVersion": 1,
+      "position": [-448, 272]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.EVOLUTION_URL }}/message/sendText/{{ $json.instanceName }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "=https://evolution.kaffspiel.cloud/message/sendText/{{ $json.body.instanceName }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_KEY }}"
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.number }}\",\n  \"text\": \"{{ $json.text.message }}\",\n  \"delay\": 1200\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $json.body.number }}\",\n  \"text\": \"{{ $json.body.text.message }}\",\n  \"delay\": 1200\n}",
         "options": {}
       },
       "id": "send-text",
-      "name": "Enviar Texto",
+      "name": "Enviar WhatsApp (Texto)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [650, 200]
+      "position": [-208, 144]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.EVOLUTION_URL }}/message/sendButtons/{{ $json.instanceName }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "=https://evolution.kaffspiel.cloud/message/sendButtons/{{ $json.body.instanceName }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_KEY }}"
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.number }}\",\n  \"title\": \"{{ $json.buttons.title }}\",\n  \"description\": \"{{ $json.buttons.description }}\",\n  \"footer\": \"{{ $json.buttons.footer }}\",\n  \"buttons\": {{ JSON.stringify($json.buttons.buttons) }}\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $json.body.number }}\",\n  \"title\": \"{{ $json.body.buttons.title }}\",\n  \"description\": \"{{ $json.body.buttons.description }}\",\n  \"footer\": \"{{ $json.body.buttons.footer }}\",\n  \"buttons\": {{ JSON.stringify($json.body.buttons.buttons) }}\n}",
         "options": {}
       },
       "id": "send-buttons",
-      "name": "Enviar Botões",
+      "name": "Enviar WhatsApp (Botões)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [650, 400]
+      "position": [-208, 400]
     },
     {
       "parameters": {
@@ -105,11 +95,25 @@
       "name": "Responder Sucesso",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [900, 300]
+      "position": [50, 272]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"error\": \"Tipo de mensagem não suportado: {{ $json.body.messageType }}\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "Responder Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-208, 560]
     }
   ],
   "connections": {
-    "Webhook Trigger": {
+    "Webhook (OpsControl)": {
       "main": [
         [
           {
@@ -124,21 +128,28 @@
       "main": [
         [
           {
-            "node": "Enviar Texto",
+            "node": "Enviar WhatsApp (Texto)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Enviar Botões",
+            "node": "Enviar WhatsApp (Botões)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Erro",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Enviar Texto": {
+    "Enviar WhatsApp (Texto)": {
       "main": [
         [
           {
@@ -149,7 +160,7 @@
         ]
       ]
     },
-    "Enviar Botões": {
+    "Enviar WhatsApp (Botões)": {
       "main": [
         [
           {
