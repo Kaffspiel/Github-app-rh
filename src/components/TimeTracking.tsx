@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, AlertCircle, CheckCircle, XCircle, Clock, Download, Play, Plus } from "lucide-react";
-import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Upload, AlertCircle, CheckCircle, XCircle, Clock, Download, Play, Plus, FileSpreadsheet, History } from "lucide-react";
 import { useApp, TimeRecord } from "@/context/AppContext";
+import { ImportWizard } from "@/components/time-tracking/ImportWizard";
 
 const WORK_SCHEDULE = {
   entry1: "09:00",
@@ -23,6 +25,8 @@ export function TimeTracking() {
   const { timeRecords, addTimeRecord } = useApp();
   const [selectedRecord, setSelectedRecord] = useState<TimeRecord | null>(null);
   const [showJustificationDialog, setShowJustificationDialog] = useState(false);
+  const [showImportWizard, setShowImportWizard] = useState(false);
+  const [activeTab, setActiveTab] = useState("records");
 
   const [simEmployee, setSimEmployee] = useState("Novo Funcionário");
   const [simEntry1, setSimEntry1] = useState("");
@@ -110,6 +114,17 @@ export function TimeTracking() {
     setShowJustificationDialog(true);
   };
 
+  if (showImportWizard) {
+    return (
+      <div className="p-6">
+        <ImportWizard
+          onComplete={() => setShowImportWizard(false)}
+          onCancel={() => setShowImportWizard(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -121,8 +136,8 @@ export function TimeTracking() {
           <Button variant="outline">
             <Download className="w-4 h-4 mr-2" /> Exportar
           </Button>
-          <Button>
-            <Upload className="w-4 h-4 mr-2" /> Importar Relatório
+          <Button onClick={() => setShowImportWizard(true)}>
+            <Upload className="w-4 h-4 mr-2" /> Importar Arquivo
           </Button>
         </div>
       </div>
