@@ -8,18 +8,19 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/context/CompanyContext";
 import { toast } from "sonner";
 import {
   Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle,
-  AlertTriangle, ArrowRight, Download, RefreshCw
+  AlertTriangle, ArrowRight, Download, RefreshCw, Brain, FileType
 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 import {
   parseExcel, getExcelHeaders,
   parseCsv, getCsvHeaders,
-  type ParseResult, type ColumnMapping, type FileFormat
+  type ParseResult, type ColumnMapping, type FileFormat, type ParsedTimeRecord
 } from "@/services/timeImport";
 
 interface ImportWizardProps {
@@ -28,11 +29,12 @@ interface ImportWizardProps {
 }
 
 type Step = "upload" | "mapping" | "preview" | "importing" | "complete";
+type ExtendedFileFormat = FileFormat | "pdf";
 
 export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const { companyId } = useCompany();
   const [step, setStep] = useState<Step>("upload");
-  const [fileFormat, setFileFormat] = useState<FileFormat>("excel");
+  const [fileFormat, setFileFormat] = useState<ExtendedFileFormat>("excel");
   const [file, setFile] = useState<File | null>(null);
   const [fileContent, setFileContent] = useState<ArrayBuffer | string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -48,11 +50,23 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState<{ imported: number; failed: number } | null>(null);
+  const [useAI, setUseAI] = useState(false);
+  const [isAIParsing, setIsAIParsing] = useState(false);
 
   const handleFileSelect = useCallback(async (selectedFile: File) => {
     setFile(selectedFile);
     
     try {
+      // For PDF, always use AI
+      if (fileFormat === "pdf") {
+        setUseAI(true);
+        const text = await selectedFile.text();
+        setFileContent(text);
+        // Skip mapping step for AI parsing - go directly to AI processing
+        setStep("mapping");
+        return;
+      }
+
       if (fileFormat === "excel") {
         const buffer = await selectedFile.arrayBuffer();
         setFileContent(buffer);
@@ -82,7 +96,77 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     e.preventDefault();
   };
 
+  const handleAIParse = async () => {
+    if (!file) return;
+    
+    setIsAIParsing(true);
+    try {
+      // Read file content for AI
+      let content: string;
+      if (fileFormat === "excel") {
+        // For Excel, convert to text representation
+        const buffer = await file.arrayBuffer();
+        const { utils, read } = await import("xlsx");
+        const workbook = read(buffer, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        content = utils.sheet_to_csv(worksheet);
+      } else if (fileFormat === "pdf") {
+        // For PDF, read as base64 text (AI will parse it)
+        const text = await file.text();
+        content = text;
+      } else {
+        content = await file.text();
+      }
+
+      toast.info("Analisando documento com IA...");
+
+      const { data, error } = await supabase.functions.invoke('parse-time-document', {
+        body: {
+          fileContent: content,
+          fileType: fileFormat,
+          fileName: file.name,
+        },
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Falha no parsing com IA');
+      }
+
+      // Convert AI result to ParseResult format
+      const result: ParseResult = {
+        success: true,
+        records: data.records.map((r: ParsedTimeRecord) => ({
+          externalEmployeeId: r.externalEmployeeId,
+          employeeName: r.employeeName,
+          date: r.date,
+          punches: r.punches || [],
+        })),
+        errors: data.errors || [],
+        totalRows: data.records.length,
+      };
+
+      setParseResult(result);
+      setStep("preview");
+      toast.success(`IA identificou ${result.records.length} registros`);
+
+    } catch (error: any) {
+      console.error('AI parsing error:', error);
+      toast.error(`Erro no parsing com IA: ${error.message}`);
+    } finally {
+      setIsAIParsing(false);
+    }
+  };
+
   const handleParse = () => {
+    // If using AI, use AI parsing
+    if (useAI || fileFormat === "pdf") {
+      handleAIParse();
+      return;
+    }
+
     if (!fileContent || !mapping.employeeId || !mapping.date) {
       toast.error("Configure o mapeamento obrigatório");
       return;
@@ -111,11 +195,11 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         .from("time_tracking_imports")
         .insert({
           company_id: companyId,
-          source_type: fileFormat,
+          source_type: fileFormat === "pdf" ? "pdf" : fileFormat,
           source_name: file?.name,
           total_records: parseResult.records.length,
           status: "processing",
-          column_mapping: mapping as unknown as Json,
+          column_mapping: (useAI ? { ai_parsed: true } : mapping) as unknown as Json,
         })
         .select()
         .single();
@@ -180,16 +264,31 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     }
   };
 
+  const getAcceptedFormats = () => {
+    switch (fileFormat) {
+      case "excel": return ".xlsx,.xls";
+      case "csv": return ".csv";
+      case "pdf": return ".pdf";
+      default: return ".xlsx,.xls,.csv,.pdf";
+    }
+  };
+
   return (
     <Card className="max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Upload className="w-5 h-5" />
           Importar Registros de Ponto
+          {(useAI || fileFormat === "pdf") && (
+            <Badge className="ml-2 bg-purple-100 text-purple-700">
+              <Brain className="w-3 h-3 mr-1" />
+              Com IA
+            </Badge>
+          )}
         </CardTitle>
         <CardDescription>
           {step === "upload" && "Selecione o arquivo para importar"}
-          {step === "mapping" && "Configure o mapeamento de colunas"}
+          {step === "mapping" && (useAI || fileFormat === "pdf" ? "Processamento com IA" : "Configure o mapeamento de colunas")}
           {step === "preview" && "Revise os dados antes de importar"}
           {step === "importing" && "Importando registros..."}
           {step === "complete" && "Importação concluída!"}
@@ -220,28 +319,63 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         {/* Step: Upload */}
         {step === "upload" && (
           <div className="space-y-6">
-            <div className="space-y-2">
-              <Label>Formato do arquivo</Label>
-              <Select value={fileFormat} onValueChange={(v) => setFileFormat(v as FileFormat)}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="excel">
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-4 h-4" />
-                      Excel (.xlsx, .xls)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="csv">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      CSV (.csv)
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="space-y-2">
+                <Label>Formato do arquivo</Label>
+                <Select value={fileFormat} onValueChange={(v) => {
+                  setFileFormat(v as ExtendedFileFormat);
+                  if (v === "pdf") setUseAI(true);
+                }}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="excel">
+                      <div className="flex items-center gap-2">
+                        <FileSpreadsheet className="w-4 h-4" />
+                        Excel (.xlsx, .xls)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="csv">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        CSV (.csv)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="pdf">
+                      <div className="flex items-center gap-2">
+                        <FileType className="w-4 h-4" />
+                        PDF (.pdf)
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {fileFormat !== "pdf" && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={useAI}
+                    onCheckedChange={setUseAI}
+                    id="use-ai"
+                  />
+                  <Label htmlFor="use-ai" className="flex items-center gap-1 cursor-pointer">
+                    <Brain className="w-4 h-4 text-purple-600" />
+                    Usar IA para parsing inteligente
+                  </Label>
+                </div>
+              )}
             </div>
+
+            {useAI && (
+              <Alert className="bg-purple-50 border-purple-200">
+                <Brain className="w-4 h-4 text-purple-600" />
+                <AlertDescription className="text-purple-800">
+                  A IA irá analisar automaticamente o documento e extrair os registros de ponto,
+                  identificando colunas e formatos automaticamente.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div
               className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary transition-colors"
@@ -255,7 +389,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               <input
                 id="file-input"
                 type="file"
-                accept={fileFormat === "excel" ? ".xlsx,.xls" : ".csv"}
+                accept={getAcceptedFormats()}
                 className="hidden"
                 onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
               />
@@ -275,85 +409,126 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
             <Alert>
               <FileSpreadsheet className="w-4 h-4" />
               <AlertDescription>
-                Arquivo: <strong>{file?.name}</strong> - {headers.length} colunas encontradas
+                Arquivo: <strong>{file?.name}</strong>
+                {!useAI && fileFormat !== "pdf" && ` - ${headers.length} colunas encontradas`}
               </AlertDescription>
             </Alert>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>ID do Funcionário *</Label>
-                <Select value={mapping.employeeId} onValueChange={(v) => setMapping({ ...mapping, employeeId: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a coluna" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {headers.map((h) => (
-                      <SelectItem key={h} value={h}>{h}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {(useAI || fileFormat === "pdf") ? (
+              <div className="text-center py-8 space-y-4">
+                {isAIParsing ? (
+                  <>
+                    <Brain className="w-16 h-16 mx-auto text-purple-600 animate-pulse" />
+                    <p className="text-lg font-medium">Analisando documento com IA...</p>
+                    <p className="text-sm text-gray-500">
+                      A IA está identificando registros de ponto automaticamente
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-16 h-16 mx-auto text-purple-600" />
+                    <p className="text-lg font-medium">Pronto para análise com IA</p>
+                    <p className="text-sm text-gray-500">
+                      Clique em "Processar com IA" para extrair os registros automaticamente
+                    </p>
+                  </>
+                )}
               </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>ID do Funcionário *</Label>
+                    <Select value={mapping.employeeId} onValueChange={(v) => setMapping({ ...mapping, employeeId: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a coluna" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((h) => (
+                          <SelectItem key={h} value={h}>{h}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Nome do Funcionário</Label>
-                <Select value={mapping.employeeName || ""} onValueChange={(v) => setMapping({ ...mapping, employeeName: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Opcional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
-                    {headers.map((h) => (
-                      <SelectItem key={h} value={h}>{h}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label>Nome do Funcionário</Label>
+                    <Select value={mapping.employeeName || ""} onValueChange={(v) => setMapping({ ...mapping, employeeName: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Nenhum</SelectItem>
+                        {headers.map((h) => (
+                          <SelectItem key={h} value={h}>{h}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Data *</Label>
-                <Select value={mapping.date} onValueChange={(v) => setMapping({ ...mapping, date: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a coluna" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {headers.map((h) => (
-                      <SelectItem key={h} value={h}>{h}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                  <div className="space-y-2">
+                    <Label>Data *</Label>
+                    <Select value={mapping.date} onValueChange={(v) => setMapping({ ...mapping, date: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a coluna" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((h) => (
+                          <SelectItem key={h} value={h}>{h}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Batidas (Entrada/Saída)</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {[1, 2, 3, 4].map((n) => (
-                  <Select
-                    key={n}
-                    value={(mapping as any)[`punch${n}`] || ""}
-                    onValueChange={(v) => setMapping({ ...mapping, [`punch${n}`]: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={`Batida ${n}`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
-                      {headers.map((h) => (
-                        <SelectItem key={h} value={h}>{h}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ))}
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <Label>Batidas (Entrada/Saída)</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[1, 2, 3, 4].map((n) => (
+                      <Select
+                        key={n}
+                        value={(mapping as any)[`punch${n}`] || ""}
+                        onValueChange={(v) => setMapping({ ...mapping, [`punch${n}`]: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={`Batida ${n}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Nenhum</SelectItem>
+                          {headers.map((h) => (
+                            <SelectItem key={h} value={h}>{h}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep("upload")}>
                 Voltar
               </Button>
-              <Button onClick={handleParse} disabled={!mapping.employeeId || !mapping.date}>
-                Processar <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              {(useAI || fileFormat === "pdf") ? (
+                <Button onClick={handleParse} disabled={isAIParsing}>
+                  {isAIParsing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="w-4 h-4 mr-2" />
+                      Processar com IA
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button onClick={handleParse} disabled={!mapping.employeeId || !mapping.date}>
+                  Processar <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -370,6 +545,12 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
                 <Badge variant="outline" className="text-red-600 border-red-600">
                   <XCircle className="w-4 h-4 mr-1" />
                   {parseResult.errors.length} erros
+                </Badge>
+              )}
+              {(useAI || fileFormat === "pdf") && (
+                <Badge variant="outline" className="text-purple-600 border-purple-600">
+                  <Brain className="w-4 h-4 mr-1" />
+                  Processado com IA
                 </Badge>
               )}
             </div>

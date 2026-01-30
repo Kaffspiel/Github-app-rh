@@ -1,14 +1,216 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, ListChecks, Clock, User, LogOut } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { 
+  Home, ListChecks, Clock, User, LogOut, Bell, 
+  CheckCircle2, AlertCircle, Calendar, Trophy,
+  ChevronRight, RefreshCw, Star, Flame
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { format, isToday, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 type MobileView = "home" | "tasks" | "time" | "profile";
+
+interface TimeRecord {
+  id: string;
+  record_date: string;
+  entry_1: string | null;
+  exit_1: string | null;
+  entry_2: string | null;
+  exit_2: string | null;
+  status: string | null;
+  anomalies: string[] | null;
+}
+
+interface EmployeeProfile {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  role: string;
+  whatsapp_number: string | null;
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  read_at: string | null;
+  created_at: string;
+}
 
 export default function CollaboratorMobileApp() {
   const { signOut, user } = useAuth();
   const [currentView, setCurrentView] = useState<MobileView>("home");
+  const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState<EmployeeProfile | null>(null);
+  const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [todayRecord, setTodayRecord] = useState<TimeRecord | null>(null);
+  const [stats, setStats] = useState({
+    pendingTasks: 0,
+    unreadNotifications: 0,
+    monthlyPresence: 0,
+    streak: 0
+  });
+
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        loadProfile(),
+        loadTimeRecords(),
+        loadNotifications()
+      ]);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadProfile = async () => {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("*")
+      .eq("user_id", user?.id)
+      .single();
+
+    if (!error && data) {
+      setProfile(data as EmployeeProfile);
+    }
+  };
+
+  const loadTimeRecords = async () => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+    const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+
+    // Get employee ID first
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id, external_id")
+      .eq("user_id", user?.id)
+      .single();
+
+    if (!employee) return;
+
+    // Load time records for this month
+    const { data: records, error } = await supabase
+      .from("time_tracking_records")
+      .select("*")
+      .or(`employee_id.eq.${employee.id},external_employee_id.eq.${employee.external_id || 'none'}`)
+      .gte("record_date", monthStart)
+      .lte("record_date", monthEnd)
+      .order("record_date", { ascending: false });
+
+    if (!error && records) {
+      setTimeRecords(records as TimeRecord[]);
+      
+      // Find today's record
+      const todaysRecord = records.find(r => r.record_date === today);
+      setTodayRecord(todaysRecord || null);
+
+      // Calculate monthly presence rate
+      const daysWithRecords = records.filter(r => r.entry_1).length;
+      const workDaysInMonth = 22; // Average work days
+      const presenceRate = Math.round((daysWithRecords / workDaysInMonth) * 100);
+      
+      setStats(prev => ({ 
+        ...prev, 
+        monthlyPresence: Math.min(presenceRate, 100),
+        streak: calculateStreak(records)
+      }));
+    }
+  };
+
+  const loadNotifications = async () => {
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("user_id", user?.id)
+      .single();
+
+    if (!employee) return;
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("recipient_id", employee.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (!error && data) {
+      setNotifications(data as Notification[]);
+      setStats(prev => ({
+        ...prev,
+        unreadNotifications: data.filter(n => !n.read_at).length
+      }));
+    }
+  };
+
+  const calculateStreak = (records: TimeRecord[]): number => {
+    let streak = 0;
+    const sortedRecords = [...records].sort((a, b) => 
+      new Date(b.record_date).getTime() - new Date(a.record_date).getTime()
+    );
+    
+    for (const record of sortedRecords) {
+      if (record.entry_1) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", notificationId);
+    
+    loadNotifications();
+  };
+
+  const formatTime = (time: string | null) => {
+    if (!time) return "--:--";
+    return time.substring(0, 5);
+  };
+
+  const getStatusColor = (status: string | null) => {
+    switch (status) {
+      case "normal": return "bg-green-100 text-green-700";
+      case "delay": return "bg-orange-100 text-orange-700";
+      case "absence": return "bg-red-100 text-red-700";
+      default: return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const getStatusLabel = (status: string | null) => {
+    switch (status) {
+      case "normal": return "Normal";
+      case "delay": return "Atraso";
+      case "absence": return "Falta";
+      case "imported": return "Importado";
+      default: return status || "Pendente";
+    }
+  };
 
   const navigation = [
     { id: "home" as MobileView, name: "Início", icon: Home },
@@ -17,78 +219,329 @@ export default function CollaboratorMobileApp() {
     { id: "profile" as MobileView, name: "Perfil", icon: User },
   ];
 
-  const renderView = () => {
-    switch (currentView) {
-      case "home":
-        return (
-          <div className="p-4 space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Resumo do Dia</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-600">0</p>
-                    <p className="text-sm text-gray-600">Tarefas Pendentes</p>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">--:--</p>
-                    <p className="text-sm text-gray-600">Entrada Hoje</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+  const renderHomeView = () => (
+    <div className="p-4 space-y-4">
+      {/* Welcome Card */}
+      <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-none">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16 border-2 border-white/30">
+              <AvatarFallback className="bg-blue-500 text-white text-xl">
+                {profile?.name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h2 className="text-xl font-semibold">
+                Olá, {profile?.name?.split(" ")[0] || "Colaborador"}!
+              </h2>
+              <p className="text-blue-100 text-sm">
+                {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
+              </p>
+            </div>
           </div>
-        );
-      case "tasks":
-        return (
-          <div className="p-4">
-            <Card>
-              <CardContent className="text-center py-12">
-                <ListChecks className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-gray-500">Nenhuma tarefa atribuída</p>
-              </CardContent>
-            </Card>
+        </CardContent>
+      </Card>
+
+      {/* Today's Punches */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Ponto de Hoje
+            </span>
+            {todayRecord && (
+              <Badge className={getStatusColor(todayRecord.status)}>
+                {getStatusLabel(todayRecord.status)}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="p-3 bg-green-50 rounded-lg">
+              <p className="text-xs text-gray-500">Entrada 1</p>
+              <p className="text-lg font-bold text-green-600">
+                {formatTime(todayRecord?.entry_1)}
+              </p>
+            </div>
+            <div className="p-3 bg-orange-50 rounded-lg">
+              <p className="text-xs text-gray-500">Saída 1</p>
+              <p className="text-lg font-bold text-orange-600">
+                {formatTime(todayRecord?.exit_1)}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <p className="text-xs text-gray-500">Entrada 2</p>
+              <p className="text-lg font-bold text-blue-600">
+                {formatTime(todayRecord?.entry_2)}
+              </p>
+            </div>
+            <div className="p-3 bg-purple-50 rounded-lg">
+              <p className="text-xs text-gray-500">Saída 2</p>
+              <p className="text-lg font-bold text-purple-600">
+                {formatTime(todayRecord?.exit_2)}
+              </p>
+            </div>
           </div>
-        );
-      case "time":
-        return (
-          <div className="p-4">
+        </CardContent>
+      </Card>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="bg-green-500 rounded-full p-2">
+              <Trophy className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-green-700">{stats.monthlyPresence}%</p>
+              <p className="text-xs text-green-600">Presença Mensal</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="bg-orange-500 rounded-full p-2">
+              <Flame className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-orange-700">{stats.streak}</p>
+              <p className="text-xs text-orange-600">Dias Consecutivos</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Notifications */}
+      {notifications.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              Notificações
+              {stats.unreadNotifications > 0 && (
+                <Badge variant="destructive" className="ml-auto">
+                  {stats.unreadNotifications}
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {notifications.slice(0, 3).map((notification) => (
+              <div
+                key={notification.id}
+                onClick={() => markNotificationAsRead(notification.id)}
+                className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                  notification.read_at ? "bg-gray-50" : "bg-blue-50 border-l-4 border-blue-500"
+                }`}
+              >
+                <p className="text-sm font-medium">{notification.title}</p>
+                <p className="text-xs text-gray-500 line-clamp-1">{notification.message}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+
+  const renderTasksView = () => (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Minhas Tarefas</h2>
+        <Button variant="ghost" size="sm" onClick={loadData}>
+          <RefreshCw className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="text-center py-12">
+          <ListChecks className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+          <p className="text-gray-500 font-medium">Nenhuma tarefa atribuída</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Você receberá uma notificação quando novas tarefas forem atribuídas
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const renderTimeView = () => (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Histórico de Ponto</h2>
+        <Button variant="ghost" size="sm" onClick={loadData}>
+          <RefreshCw className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* Current Month Summary */}
+      <Card className="bg-gradient-to-r from-slate-800 to-slate-700 text-white border-none">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-300 text-sm">
+                {format(new Date(), "MMMM yyyy", { locale: ptBR })}
+              </p>
+              <p className="text-2xl font-bold">{timeRecords.length} registros</p>
+            </div>
+            <Calendar className="w-10 h-10 text-slate-400" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Records List */}
+      <ScrollArea className="h-[calc(100vh-320px)]">
+        <div className="space-y-2">
+          {timeRecords.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
                 <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-gray-500">Histórico de ponto vazio</p>
+                <p className="text-gray-500">Nenhum registro encontrado</p>
               </CardContent>
             </Card>
+          ) : (
+            timeRecords.map((record) => (
+              <Card key={record.id} className="overflow-hidden">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        record.status === "normal" ? "bg-green-500" :
+                        record.status === "delay" ? "bg-orange-500" :
+                        record.status === "absence" ? "bg-red-500" :
+                        "bg-gray-400"
+                      }`} />
+                      <span className="font-medium">
+                        {format(parseISO(record.record_date), "EEEE, d", { locale: ptBR })}
+                      </span>
+                    </div>
+                    <Badge variant="outline" className={getStatusColor(record.status)}>
+                      {getStatusLabel(record.status)}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 text-center text-xs">
+                    <div>
+                      <p className="text-gray-400">E1</p>
+                      <p className="font-mono">{formatTime(record.entry_1)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">S1</p>
+                      <p className="font-mono">{formatTime(record.exit_1)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">E2</p>
+                      <p className="font-mono">{formatTime(record.entry_2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">S2</p>
+                      <p className="font-mono">{formatTime(record.exit_2)}</p>
+                    </div>
+                  </div>
+                  {record.anomalies && record.anomalies.length > 0 && (
+                    <div className="mt-2 flex items-center gap-1 text-orange-600">
+                      <AlertCircle className="w-3 h-3" />
+                      <span className="text-xs">{record.anomalies.join(", ")}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+
+  const renderProfileView = () => (
+    <div className="p-4 space-y-4">
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center text-center">
+            <Avatar className="h-20 w-20 mb-4">
+              <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+                {profile?.name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <h2 className="text-xl font-semibold">{profile?.name || "Colaborador"}</h2>
+            <p className="text-gray-500">{profile?.department || "Departamento"}</p>
+            <Badge className="mt-2" variant="secondary">{profile?.role || "colaborador"}</Badge>
           </div>
-        );
-      case "profile":
-        return (
-          <div className="p-4 space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Meu Perfil</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{user?.email}</p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  className="w-full text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={signOut}
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sair da Conta
-                </Button>
-              </CardContent>
-            </Card>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Informações</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500">Email</span>
+            <span className="font-medium">{profile?.email || user?.email}</span>
           </div>
-        );
-      default:
-        return null;
+          <Separator />
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500">WhatsApp</span>
+            <span className="font-medium">{profile?.whatsapp_number || "Não configurado"}</span>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500">Departamento</span>
+            <span className="font-medium">{profile?.department || "-"}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Estatísticas do Mês</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <Star className="w-6 h-6 mx-auto mb-1 text-green-600" />
+              <p className="text-2xl font-bold text-green-600">{stats.monthlyPresence}%</p>
+              <p className="text-xs text-gray-500">Taxa de Presença</p>
+            </div>
+            <div className="text-center p-4 bg-orange-50 rounded-lg">
+              <Flame className="w-6 h-6 mx-auto mb-1 text-orange-600" />
+              <p className="text-2xl font-bold text-orange-600">{stats.streak}</p>
+              <p className="text-xs text-gray-500">Sequência Atual</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Button 
+        variant="outline" 
+        className="w-full text-red-600 border-red-200 hover:bg-red-50"
+        onClick={() => {
+          signOut();
+          toast.success("Logout realizado com sucesso!");
+        }}
+      >
+        <LogOut className="w-4 h-4 mr-2" />
+        Sair da Conta
+      </Button>
+    </div>
+  );
+
+  const renderView = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    switch (currentView) {
+      case "home": return renderHomeView();
+      case "tasks": return renderTasksView();
+      case "time": return renderTimeView();
+      case "profile": return renderProfileView();
+      default: return null;
     }
   };
 
@@ -100,6 +553,14 @@ export default function CollaboratorMobileApp() {
           <h1 className="font-semibold text-gray-900">OpsControl</h1>
           <p className="text-xs text-gray-500">Área do Colaborador</p>
         </div>
+        <Button variant="ghost" size="sm" className="relative" onClick={() => setCurrentView("home")}>
+          <Bell className="w-5 h-5" />
+          {stats.unreadNotifications > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+              {stats.unreadNotifications}
+            </span>
+          )}
+        </Button>
       </header>
 
       {/* Main Content */}
