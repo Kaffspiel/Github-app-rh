@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound } from "lucide-react";
+import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut } from "lucide-react";
 import { Dashboard } from "@/components/Dashboard";
 import { TaskManagement } from "@/components/TaskManagement";
 import { CollaboratorApp } from "@/components/CollaboratorApp";
@@ -9,9 +9,11 @@ import { Gamification } from "@/components/Gamification";
 import { Reports } from "@/components/Reports";
 import { EmployeeManagement } from "@/components/EmployeeManagement";
 import { useApp, View } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 
 const Index = () => {
   const { currentView, setCurrentView } = useApp();
+  const { signOut, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const navigation = [
@@ -73,15 +75,30 @@ const Index = () => {
 
         <div className="p-4 border-t border-blue-800">
           {sidebarOpen ? (
-            <div className="text-xs text-blue-200">
-              <p className="font-medium text-white mb-1">João Silva</p>
-              <p>Gestor de Operações</p>
-              <p className="mt-2 text-blue-300">Loja Centro • SP</p>
+            <div className="space-y-3">
+              <div className="text-xs text-blue-200">
+                <p className="font-medium text-white mb-1 truncate">{user?.email || "Usuário"}</p>
+                <p>Gestor de Operações</p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={signOut}
+                className="w-full justify-start text-blue-200 hover:text-white hover:bg-blue-800"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </Button>
             </div>
           ) : (
-            <div className="flex justify-center">
-              <div className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center text-white font-semibold">JS</div>
-            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={signOut}
+              className="w-full text-blue-200 hover:text-white hover:bg-blue-800"
+            >
+              <LogOut className="w-5 h-5" />
+            </Button>
           )}
         </div>
       </aside>
