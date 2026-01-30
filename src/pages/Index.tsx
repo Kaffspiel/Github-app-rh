@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu } from "lucide-react";
+import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound } from "lucide-react";
 import { Dashboard } from "@/components/Dashboard";
 import { TaskManagement } from "@/components/TaskManagement";
 import { CollaboratorApp } from "@/components/CollaboratorApp";
 import { TimeTracking } from "@/components/TimeTracking";
 import { Gamification } from "@/components/Gamification";
 import { Reports } from "@/components/Reports";
+import { EmployeeManagement } from "@/components/EmployeeManagement";
 import { useApp, View } from "@/context/AppContext";
 
 const Index = () => {
@@ -16,6 +17,7 @@ const Index = () => {
   const navigation = [
     { id: "dashboard" as View, name: "Dashboard", icon: LayoutDashboard },
     { id: "tasks" as View, name: "Tarefas", icon: ListChecks },
+    { id: "employees" as View, name: "Colaboradores", icon: UsersRound },
     { id: "collaborator" as View, name: "App Colaborador", icon: Users },
     { id: "timetracking" as View, name: "Controle de Ponto", icon: Clock },
     { id: "gamification" as View, name: "Gamificação", icon: Trophy },
@@ -26,6 +28,7 @@ const Index = () => {
     switch (currentView) {
       case "dashboard": return <Dashboard />;
       case "tasks": return <TaskManagement />;
+      case "employees": return <EmployeeManagement />;
       case "collaborator": return <CollaboratorApp />;
       case "timetracking": return <TimeTracking />;
       case "gamification": return <Gamification />;
