@@ -318,7 +318,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { user_uuid: string }
+        Returns: Database["public"]["Enums"]["employee_role"]
+      }
+      is_admin: { Args: { user_uuid: string }; Returns: boolean }
+      is_admin_or_gestor: { Args: { user_uuid: string }; Returns: boolean }
     }
     Enums: {
       employee_role: "colaborador" | "gestor" | "admin"
