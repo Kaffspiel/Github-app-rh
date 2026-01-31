@@ -129,235 +129,235 @@ export default function CollaboratorTasks() {
         }
     };
 
-};
 
-// Filter tasks for Tabs
-const activeTasksList = tasks.filter(t => t.status !== 'concluido');
-const completedTasks = tasks.filter(t => t.status === 'concluido');
 
-const dailyRoutines = activeTasksList.filter(t => t.is_daily_routine);
-const extraTasks = activeTasksList.filter(t => !t.is_daily_routine);
+    // Filter tasks for Tabs
+    const activeTasksList = tasks.filter(t => t.status !== 'concluido');
+    const completedTasks = tasks.filter(t => t.status === 'concluido');
 
-return (
-    <div className="p-4 space-y-6">
-        <Tabs defaultValue="tasks" className="w-full">
-            <div className="flex items-center justify-between mb-4">
-                <TabsList className="grid w-[200px] grid-cols-2">
-                    <TabsTrigger value="tasks">Tarefas</TabsTrigger>
-                    <TabsTrigger value="history">Histórico</TabsTrigger>
-                </TabsList>
-                <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading}>
-                    <RefreshCw className={`w-4 h-4 ${tasksLoading ? 'animate-spin' : ''}`} />
-                </Button>
-            </div>
+    const dailyRoutines = activeTasksList.filter(t => t.is_daily_routine);
+    const extraTasks = activeTasksList.filter(t => !t.is_daily_routine);
 
-            <TabsContent value="tasks" className="space-y-6">
-                {/* Daily Routines Section */}
-                <section>
-                    <div className="flex items-center gap-2 mb-3">
-                        <ClipboardList className="w-4 h-4 text-blue-600" />
-                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                            Rotinas Diárias
-                        </h3>
-                        {dailyRoutines.length > 0 && (
-                            <Badge className="bg-blue-100 text-blue-700 text-[10px]">
-                                {dailyRoutines.length}
-                            </Badge>
-                        )}
-                    </div>
+    return (
+        <div className="p-4 space-y-6">
+            <Tabs defaultValue="tasks" className="w-full">
+                <div className="flex items-center justify-between mb-4">
+                    <TabsList className="grid w-[200px] grid-cols-2">
+                        <TabsTrigger value="tasks">Tarefas</TabsTrigger>
+                        <TabsTrigger value="history">Histórico</TabsTrigger>
+                    </TabsList>
+                    <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading}>
+                        <RefreshCw className={`w-4 h-4 ${tasksLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                </div>
 
-                    {dailyRoutines.length > 0 ? (
-                        <div className="space-y-3">
-                            {dailyRoutines.map(routine => (
-                                <Card key={routine.id} className="border-l-4 border-l-blue-500">
-                                    <CardContent className="p-4">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h4 className="font-semibold text-gray-900">{routine.title}</h4>
-                                            <Badge variant="outline" className="text-[10px] uppercase">
-                                                {routine.priority}
-                                            </Badge>
-                                        </div>
-                                        {routine.description && (
-                                            <p className="text-sm text-gray-500 mb-3">{routine.description}</p>
-                                        )}
-                                        <div className="space-y-2">
-                                            {routine.checklist.length > 0 ? (
-                                                routine.checklist.map(item => (
-                                                    <div key={item.id} className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            checked={item.completed}
-                                                            onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
-                                                        />
-                                                        <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                                                            {item.text}
-                                                        </span>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="text-sm text-gray-500 italic py-2">
-                                                    Checklist vazio (sem itens)
-                                                </div>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <Card>
-                            <CardContent className="py-6 text-center">
-                                <p className="text-gray-400 text-sm">Nenhuma rotina diária pendente</p>
-                            </CardContent>
-                        </Card>
-                    )}
-                </section>
-
-                {/* Extra Tasks Section */}
-                <section>
-                    <div className="flex items-center gap-2 mb-3">
-                        <AlertCircle className="w-4 h-4 text-orange-500" />
-                        <div className="flex justify-between items-center mb-4 w-full">
+                <TabsContent value="tasks" className="space-y-6">
+                    {/* Daily Routines Section */}
+                    <section>
+                        <div className="flex items-center gap-2 mb-3">
+                            <ClipboardList className="w-4 h-4 text-blue-600" />
                             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                                Tarefas Extra
+                                Rotinas Diárias
                             </h3>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => setIsNewTaskOpen(true)}
-                            >
-                                <ClipboardList className="w-3 h-3 mr-1" />
-                                Nova Tarefa
-                            </Button>
+                            {dailyRoutines.length > 0 && (
+                                <Badge className="bg-blue-100 text-blue-700 text-[10px]">
+                                    {dailyRoutines.length}
+                                </Badge>
+                            )}
                         </div>
-                        {extraTasks.length > 0 && (
-                            <Badge className="bg-orange-100 text-orange-700 text-[10px] mb-2">
-                                {extraTasks.length} tarefas
-                            </Badge>
-                        )}
-                    </div>
 
-                    {extraTasks.length > 0 ? (
-                        <div className="space-y-3">
-                            {extraTasks.map(task => (
-                                <Card key={task.id} className="overflow-hidden">
-                                    <div className={`h-1 ${getPriorityColor(task.priority)}`} />
-                                    <CardContent className="p-4">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h4 className="font-semibold text-gray-900">{task.title}</h4>
-                                            <div className="flex gap-1">
-                                                {task.status === 'atrasada' && (
-                                                    <Badge variant="destructive" className="text-[10px] uppercase">
-                                                        Atrasada
-                                                    </Badge>
-                                                )}
+                        {dailyRoutines.length > 0 ? (
+                            <div className="space-y-3">
+                                {dailyRoutines.map(routine => (
+                                    <Card key={routine.id} className="border-l-4 border-l-blue-500">
+                                        <CardContent className="p-4">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="font-semibold text-gray-900">{routine.title}</h4>
                                                 <Badge variant="outline" className="text-[10px] uppercase">
-                                                    {task.priority}
+                                                    {routine.priority}
                                                 </Badge>
                                             </div>
-                                        </div>
-                                        {task.description && (
-                                            <p className="text-sm text-gray-500 mb-3">{task.description}</p>
-                                        )}
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between text-xs text-gray-500">
-                                                <span>Progresso</span>
-                                                <span>{task.progress}%</span>
-                                            </div>
-
-                                            {task.status === 'andamento' && (!task.checklist || task.checklist.length === 0) ? (
-                                                <div className="py-2">
-                                                    <Slider
-                                                        defaultValue={[task.progress]}
-                                                        max={100}
-                                                        step={5}
-                                                        onValueCommit={(vals) => updateTaskProgress(task.id, vals[0])}
-                                                        className="w-full"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <Progress value={task.progress} className="h-2" />
+                                            {routine.description && (
+                                                <p className="text-sm text-gray-500 mb-3">{routine.description}</p>
                                             )}
-
-                                            <div className="flex gap-2">
-                                                {task.status === 'pendente' || task.status === 'atrasada' ? (
-                                                    <Button
-                                                        size="sm"
-                                                        className="w-full bg-blue-600 hover:bg-blue-700"
-                                                        onClick={() => handleStartTask(task.id)}
-                                                    >
-                                                        <Play className="w-3 h-3 mr-1" />
-                                                        INICIAR
-                                                    </Button>
+                                            <div className="space-y-2">
+                                                {routine.checklist.length > 0 ? (
+                                                    routine.checklist.map(item => (
+                                                        <div key={item.id} className="flex items-center gap-2">
+                                                            <Checkbox
+                                                                checked={item.completed}
+                                                                onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
+                                                            />
+                                                            <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                                                {item.text}
+                                                            </span>
+                                                        </div>
+                                                    ))
                                                 ) : (
-                                                    <Button
-                                                        size="sm"
-                                                        className="w-full bg-green-600 hover:bg-green-700"
-                                                        onClick={() => updateTaskStatus(task.id, 'concluido')}
-                                                    >
-                                                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                                                        CONCLUIR
-                                                    </Button>
+                                                    <div className="text-sm text-gray-500 italic py-2">
+                                                        Checklist vazio (sem itens)
+                                                    </div>
                                                 )}
                                             </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <Card>
+                                <CardContent className="py-6 text-center">
+                                    <p className="text-gray-400 text-sm">Nenhuma rotina diária pendente</p>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </section>
 
-                                            {/* Show checklist progress if exists */}
-                                            {task.checklist && task.checklist.length > 0 && (
-                                                <div className="mt-2 text-xs text-gray-500">
-                                                    Checklist: {task.checklist.filter(i => i.completed).length}/{task.checklist.length} concluídos
+                    {/* Extra Tasks Section */}
+                    <section>
+                        <div className="flex items-center gap-2 mb-3">
+                            <AlertCircle className="w-4 h-4 text-orange-500" />
+                            <div className="flex justify-between items-center mb-4 w-full">
+                                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                                    Tarefas Extra
+                                </h3>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => setIsNewTaskOpen(true)}
+                                >
+                                    <ClipboardList className="w-3 h-3 mr-1" />
+                                    Nova Tarefa
+                                </Button>
+                            </div>
+                            {extraTasks.length > 0 && (
+                                <Badge className="bg-orange-100 text-orange-700 text-[10px] mb-2">
+                                    {extraTasks.length} tarefas
+                                </Badge>
+                            )}
+                        </div>
+
+                        {extraTasks.length > 0 ? (
+                            <div className="space-y-3">
+                                {extraTasks.map(task => (
+                                    <Card key={task.id} className="overflow-hidden">
+                                        <div className={`h-1 ${getPriorityColor(task.priority)}`} />
+                                        <CardContent className="p-4">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="font-semibold text-gray-900">{task.title}</h4>
+                                                <div className="flex gap-1">
+                                                    {task.status === 'atrasada' && (
+                                                        <Badge variant="destructive" className="text-[10px] uppercase">
+                                                            Atrasada
+                                                        </Badge>
+                                                    )}
+                                                    <Badge variant="outline" className="text-[10px] uppercase">
+                                                        {task.priority}
+                                                    </Badge>
                                                 </div>
+                                            </div>
+                                            {task.description && (
+                                                <p className="text-sm text-gray-500 mb-3">{task.description}</p>
                                             )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <Card>
-                            <CardContent className="py-6 text-center">
-                                <p className="text-gray-400 text-sm">Nenhuma tarefa extra atribuída</p>
-                            </CardContent>
-                        </Card>
-                    )}
-                </section>
-            </TabsContent>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between text-xs text-gray-500">
+                                                    <span>Progresso</span>
+                                                    <span>{task.progress}%</span>
+                                                </div>
 
-            <TabsContent value="history">
-                <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        Tarefas Concluídas
-                    </h3>
+                                                {task.status === 'andamento' && (!task.checklist || task.checklist.length === 0) ? (
+                                                    <div className="py-2">
+                                                        <Slider
+                                                            defaultValue={[task.progress]}
+                                                            max={100}
+                                                            step={5}
+                                                            onValueCommit={(vals) => updateTaskProgress(task.id, vals[0])}
+                                                            className="w-full"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <Progress value={task.progress} className="h-2" />
+                                                )}
 
-                    {completedTasks.length > 0 ? (
-                        <div className="space-y-3">
-                            {completedTasks.map(task => (
-                                <Card key={task.id} className="opacity-75 bg-gray-50">
-                                    <CardContent className="p-4">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h4 className="font-semibold text-gray-700 line-through">{task.title}</h4>
-                                            <Badge variant="secondary" className="text-[10px] uppercase bg-green-100 text-green-800">
-                                                Concluída
-                                            </Badge>
-                                        </div>
-                                        <p className="text-xs text-gray-500">
-                                            Finalizada em: {new Date().toLocaleDateString()}
-                                        </p>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <Card>
-                            <CardContent className="py-8 text-center">
-                                <CheckCircle2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                <p className="text-gray-400 text-sm">Nenhuma tarefa concluída no histórico</p>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            </TabsContent>
-        </Tabs>
-    </div>
-);
+                                                <div className="flex gap-2">
+                                                    {task.status === 'pendente' || task.status === 'atrasada' ? (
+                                                        <Button
+                                                            size="sm"
+                                                            className="w-full bg-blue-600 hover:bg-blue-700"
+                                                            onClick={() => handleStartTask(task.id)}
+                                                        >
+                                                            <Play className="w-3 h-3 mr-1" />
+                                                            INICIAR
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            className="w-full bg-green-600 hover:bg-green-700"
+                                                            onClick={() => updateTaskStatus(task.id, 'concluido')}
+                                                        >
+                                                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                            CONCLUIR
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                {/* Show checklist progress if exists */}
+                                                {task.checklist && task.checklist.length > 0 && (
+                                                    <div className="mt-2 text-xs text-gray-500">
+                                                        Checklist: {task.checklist.filter(i => i.completed).length}/{task.checklist.length} concluídos
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <Card>
+                                <CardContent className="py-6 text-center">
+                                    <p className="text-gray-400 text-sm">Nenhuma tarefa extra atribuída</p>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </section>
+                </TabsContent>
+
+                <TabsContent value="history">
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Tarefas Concluídas
+                        </h3>
+
+                        {completedTasks.length > 0 ? (
+                            <div className="space-y-3">
+                                {completedTasks.map(task => (
+                                    <Card key={task.id} className="opacity-75 bg-gray-50">
+                                        <CardContent className="p-4">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="font-semibold text-gray-700 line-through">{task.title}</h4>
+                                                <Badge variant="secondary" className="text-[10px] uppercase bg-green-100 text-green-800">
+                                                    Concluída
+                                                </Badge>
+                                            </div>
+                                            <p className="text-xs text-gray-500">
+                                                Finalizada em: {new Date().toLocaleDateString()}
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <Card>
+                                <CardContent className="py-8 text-center">
+                                    <CheckCircle2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                    <p className="text-gray-400 text-sm">Nenhuma tarefa concluída no histórico</p>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
+                </TabsContent>
+            </Tabs>
+        </div>
+    );
 }
