@@ -18,6 +18,9 @@ export function NotificationSettings() {
         notify_tasks: true,
         notify_in_app: true,
         notify_whatsapp: false,
+        notify_time_tracking: true,
+        notify_reminders: true,
+        notify_announcements: true,
     });
 
     useEffect(() => {
@@ -27,7 +30,7 @@ export function NotificationSettings() {
             try {
                 const { data, error } = await supabase
                     .from('employees')
-                    .select('notify_tasks, notify_in_app, notify_whatsapp')
+                    .select('notify_tasks, notify_in_app, notify_whatsapp, notify_time_tracking, notify_reminders, notify_announcements')
                     .eq('user_id', user.id)
                     .single();
 
@@ -38,6 +41,9 @@ export function NotificationSettings() {
                         notify_tasks: data.notify_tasks ?? true,
                         notify_in_app: data.notify_in_app ?? true,
                         notify_whatsapp: data.notify_whatsapp ?? false,
+                        notify_time_tracking: data.notify_time_tracking ?? true,
+                        notify_reminders: data.notify_reminders ?? true,
+                        notify_announcements: data.notify_announcements ?? true,
                     });
                 }
             } catch (error) {
@@ -61,6 +67,9 @@ export function NotificationSettings() {
                     notify_tasks: settings.notify_tasks,
                     notify_in_app: settings.notify_in_app,
                     notify_whatsapp: settings.notify_whatsapp,
+                    notify_time_tracking: settings.notify_time_tracking,
+                    notify_reminders: settings.notify_reminders,
+                    notify_announcements: settings.notify_announcements,
                 })
                 .eq('user_id', user.id);
 
@@ -99,46 +108,96 @@ export function NotificationSettings() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="flex items-center justify-between space-x-2">
-                    <div className="space-y-0.5">
-                        <Label htmlFor="notify-tasks">Notificações de Tarefas</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Receber avisos sobre novas tarefas, prazos e conclusões via notificação.
-                        </p>
+                <div className="space-y-4">
+                    <Label className="text-base font-medium">Canais</Label>
+
+                    <div className="flex items-center justify-between space-x-2">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="notify-in-app">Notificações no App</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Exibir alertas dentro do aplicativo (sino de notificações).
+                            </p>
+                        </div>
+                        <Switch
+                            id="notify-in-app"
+                            checked={settings.notify_in_app}
+                            onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_in_app: checked }))}
+                        />
                     </div>
-                    <Switch
-                        id="notify-tasks"
-                        checked={settings.notify_tasks}
-                        onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_tasks: checked }))}
-                    />
+
+                    <div className="flex items-center justify-between space-x-2">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="notify-whatsapp">Notificações via WhatsApp</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Receber mensagens importantes no WhatsApp cadastrado.
+                            </p>
+                        </div>
+                        <Switch
+                            id="notify-whatsapp"
+                            checked={settings.notify_whatsapp}
+                            onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_whatsapp: checked }))}
+                        />
+                    </div>
                 </div>
 
-                <div className="flex items-center justify-between space-x-2">
-                    <div className="space-y-0.5">
-                        <Label htmlFor="notify-in-app">Notificações no App</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Exibir alertas dentro do aplicativo (sino de notificações).
-                        </p>
-                    </div>
-                    <Switch
-                        id="notify-in-app"
-                        checked={settings.notify_in_app}
-                        onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_in_app: checked }))}
-                    />
-                </div>
+                <div className="space-y-4">
+                    <Label className="text-base font-medium">Tipos de Notificação</Label>
 
-                <div className="flex items-center justify-between space-x-2">
-                    <div className="space-y-0.5">
-                        <Label htmlFor="notify-whatsapp">Notificações via WhatsApp</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Receber mensagens importantes no WhatsApp cadastrado.
-                        </p>
+                    <div className="flex items-center justify-between space-x-2">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="notify-tasks">Tarefas</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Novas tarefas, prazos e conclusões.
+                            </p>
+                        </div>
+                        <Switch
+                            id="notify-tasks"
+                            checked={settings.notify_tasks}
+                            onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_tasks: checked }))}
+                        />
                     </div>
-                    <Switch
-                        id="notify-whatsapp"
-                        checked={settings.notify_whatsapp}
-                        onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_whatsapp: checked }))}
-                    />
+
+                    <div className="flex items-center justify-between space-x-2">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="notify-time-tracking">Controle de Ponto</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Lembretes de entrada, saída e intervalos.
+                            </p>
+                        </div>
+                        <Switch
+                            id="notify-time-tracking"
+                            checked={settings.notify_time_tracking}
+                            onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_time_tracking: checked }))}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between space-x-2">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="notify-reminders">Lembretes Gerais</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Avisos gerais e lembretes do sistema.
+                            </p>
+                        </div>
+                        <Switch
+                            id="notify-reminders"
+                            checked={settings.notify_reminders}
+                            onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_reminders: checked }))}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between space-x-2">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="notify-announcements">Comunicados</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Comunicados importantes da empresa.
+                            </p>
+                        </div>
+                        <Switch
+                            id="notify-announcements"
+                            checked={settings.notify_announcements}
+                            onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notify_announcements: checked }))}
+                        />
+                    </div>
                 </div>
 
                 <div className="pt-4 flex justify-end">
