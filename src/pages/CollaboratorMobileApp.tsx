@@ -525,48 +525,47 @@ export default function CollaboratorMobileApp() {
                       <p className="text-sm text-gray-500 mb-3">{task.description}</p>
                     )}
                     <div className="space-y-3">
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Progresso</span>
-                          <span>{task.progress}%</span>
-                        </div>
-
-                        {task.status === 'andamento' && (!task.checklist || task.checklist.length === 0) ? (
-                          <div className="py-2">
-                            <Slider
-                              defaultValue={[task.progress]}
-                              max={100}
-                              step={5}
-                              onValueCommit={(vals) => updateTaskProgress(task.id, vals[0])}
-                              className="w-full"
-                            />
-                          </div>
-                        ) : (
-                          <Progress value={task.progress} className="h-2" />
-                        )}
-
-                        <div className="flex gap-2">
-                          {task.status === 'pendente' ? (
-                            <Button
-                              size="sm"
-                              className="w-full bg-blue-600 hover:bg-blue-700"
-                              onClick={() => handleStartTask(task.id)}
-                            >
-                              <Play className="w-3 h-3 mr-1" />
-                              INICIAR
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              className="w-full bg-green-600 hover:bg-green-700"
-                              onClick={() => updateTaskStatus(task.id, 'concluido')}
-                            >
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              CONCLUIR
-                            </Button>
-                          )}
-                        </div>
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>Progresso</span>
+                        <span>{task.progress}%</span>
                       </div>
+
+                      {task.status === 'andamento' && (!task.checklist || task.checklist.length === 0) ? (
+                        <div className="py-2">
+                          <Slider
+                            defaultValue={[task.progress]}
+                            max={100}
+                            step={5}
+                            onValueCommit={(vals) => updateTaskProgress(task.id, vals[0])}
+                            className="w-full"
+                          />
+                        </div>
+                      ) : (
+                        <Progress value={task.progress} className="h-2" />
+                      )}
+
+                      <div className="flex gap-2">
+                        {task.status === 'pendente' ? (
+                          <Button
+                            size="sm"
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                            onClick={() => handleStartTask(task.id)}
+                          >
+                            <Play className="w-3 h-3 mr-1" />
+                            INICIAR
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={() => updateTaskStatus(task.id, 'concluido')}
+                          >
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            CONCLUIR
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
