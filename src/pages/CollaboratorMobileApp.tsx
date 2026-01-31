@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -7,8 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Home, ListChecks, Clock, User, LogOut, Bell, 
+import {
+  Home, ListChecks, Clock, User, LogOut, Bell,
   CheckCircle2, AlertCircle, Calendar, Trophy,
   ChevronRight, RefreshCw, Star, Flame, ClipboardList, Play
 } from "lucide-react";
@@ -66,12 +67,13 @@ export default function CollaboratorMobileApp() {
   });
 
   // Use the collaborator tasks hook
-  const { 
-    tasks, 
-    isLoading: tasksLoading, 
-    toggleChecklistItem, 
+  const {
+    tasks,
+    isLoading: tasksLoading,
+    toggleChecklistItem,
     updateTaskStatus,
-    refetch: refetchTasks 
+    updateTaskProgress,
+    refetch: refetchTasks
   } = useCollaboratorTasks();
 
   const dailyRoutines = tasks.filter(t => t.is_daily_routine);
@@ -143,7 +145,7 @@ export default function CollaboratorMobileApp() {
 
     if (!error && records) {
       setTimeRecords(records as TimeRecord[]);
-      
+
       // Find today's record
       const todaysRecord = records.find(r => r.record_date === today);
       setTodayRecord(todaysRecord || null);
@@ -152,9 +154,9 @@ export default function CollaboratorMobileApp() {
       const daysWithRecords = records.filter(r => r.entry_1).length;
       const workDaysInMonth = 22; // Average work days
       const presenceRate = Math.round((daysWithRecords / workDaysInMonth) * 100);
-      
-      setStats(prev => ({ 
-        ...prev, 
+
+      setStats(prev => ({
+        ...prev,
         monthlyPresence: Math.min(presenceRate, 100),
         streak: calculateStreak(records)
       }));
@@ -188,10 +190,10 @@ export default function CollaboratorMobileApp() {
 
   const calculateStreak = (records: TimeRecord[]): number => {
     let streak = 0;
-    const sortedRecords = [...records].sort((a, b) => 
+    const sortedRecords = [...records].sort((a, b) =>
       new Date(b.record_date).getTime() - new Date(a.record_date).getTime()
     );
-    
+
     for (const record of sortedRecords) {
       if (record.entry_1) {
         streak++;
@@ -207,7 +209,7 @@ export default function CollaboratorMobileApp() {
       .from("notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("id", notificationId);
-    
+
     loadNotifications();
   };
 
@@ -359,9 +361,9 @@ export default function CollaboratorMobileApp() {
                 <p className="text-xs text-orange-600">Extras</p>
               </div>
             </div>
-            <Button 
-              variant="outline" 
-              className="w-full mt-3" 
+            <Button
+              variant="outline"
+              className="w-full mt-3"
               onClick={() => setCurrentView("tasks")}
             >
               Ver Tarefas
@@ -390,9 +392,8 @@ export default function CollaboratorMobileApp() {
               <div
                 key={notification.id}
                 onClick={() => markNotificationAsRead(notification.id)}
-                className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                  notification.read_at ? "bg-gray-50" : "bg-blue-50 border-l-4 border-blue-500"
-                }`}
+                className={`p-3 rounded-lg cursor-pointer transition-colors ${notification.read_at ? "bg-gray-50" : "bg-blue-50 border-l-4 border-blue-500"
+                  }`}
               >
                 <p className="text-sm font-medium">{notification.title}</p>
                 <p className="text-xs text-gray-500 line-clamp-1">{notification.message}</p>
@@ -462,7 +463,7 @@ export default function CollaboratorMobileApp() {
                       <div className="space-y-2">
                         {routine.checklist.map(item => (
                           <div key={item.id} className="flex items-center gap-2">
-                            <Checkbox 
+                            <Checkbox
                               checked={item.completed}
                               onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
                             />
@@ -524,22 +525,48 @@ export default function CollaboratorMobileApp() {
                       <p className="text-sm text-gray-500 mb-3">{task.description}</p>
                     )}
                     <div className="space-y-3">
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>Progresso</span>
-                        <span>{task.progress}%</span>
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Progresso</span>
+                          <span>{task.progress}%</span>
+                        </div>
+
+                        {task.status === 'andamento' && (!task.checklist || task.checklist.length === 0) ? (
+                          <div className="py-2">
+                            <Slider
+                              defaultValue={[task.progress]}
+                              max={100}
+                              step={5}
+                              onValueCommit={(vals) => updateTaskProgress(task.id, vals[0])}
+                              className="w-full"
+                            />
+                          </div>
+                        ) : (
+                          <Progress value={task.progress} className="h-2" />
+                        )}
+
+                        <div className="flex gap-2">
+                          {task.status === 'pendente' ? (
+                            <Button
+                              size="sm"
+                              className="w-full bg-blue-600 hover:bg-blue-700"
+                              onClick={() => handleStartTask(task.id)}
+                            >
+                              <Play className="w-3 h-3 mr-1" />
+                              INICIAR
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="w-full bg-green-600 hover:bg-green-700"
+                              onClick={() => updateTaskStatus(task.id, 'concluido')}
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              CONCLUIR
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <Progress value={task.progress} className="h-2" />
-                      <Button 
-                        size="sm" 
-                        className={`w-full ${task.status === 'pendente' 
-                          ? 'bg-blue-600 hover:bg-blue-700' 
-                          : 'bg-orange-500 hover:bg-orange-600'}`}
-                        onClick={() => task.status === 'pendente' && handleStartTask(task.id)}
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        {task.status === 'pendente' ? 'INICIAR' : 'EM ANDAMENTO'}
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -596,12 +623,11 @@ export default function CollaboratorMobileApp() {
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        record.status === "normal" ? "bg-green-500" :
+                      <div className={`w-2 h-2 rounded-full ${record.status === "normal" ? "bg-green-500" :
                         record.status === "delay" ? "bg-orange-500" :
-                        record.status === "absence" ? "bg-red-500" :
-                        "bg-gray-400"
-                      }`} />
+                          record.status === "absence" ? "bg-red-500" :
+                            "bg-gray-400"
+                        }`} />
                       <span className="font-medium">
                         {format(parseISO(record.record_date), "EEEE, d", { locale: ptBR })}
                       </span>
@@ -702,8 +728,8 @@ export default function CollaboratorMobileApp() {
         </CardContent>
       </Card>
 
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         className="w-full text-red-600 border-red-200 hover:bg-red-50"
         onClick={() => {
           signOut();
@@ -767,11 +793,10 @@ export default function CollaboratorMobileApp() {
               <button
                 key={item.id}
                 onClick={() => setCurrentView(item.id)}
-                className={`flex flex-col items-center px-4 py-2 rounded-lg transition-colors ${
-                  isActive 
-                    ? "text-blue-600" 
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`flex flex-col items-center px-4 py-2 rounded-lg transition-colors ${isActive
+                  ? "text-blue-600"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 <Icon className={`w-6 h-6 ${isActive ? "stroke-2" : ""}`} />
                 <span className="text-xs mt-1">{item.name}</span>

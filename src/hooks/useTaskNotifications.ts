@@ -70,7 +70,7 @@ export function useTaskNotifications() {
   const logTaskProgress = useCallback(async (params: {
     taskId: string;
     employeeId: string;
-    actionType: 'checklist_completed' | 'task_started' | 'task_completed';
+    actionType: 'checklist_completed' | 'task_started' | 'task_completed' | 'progress_updated';
     checklistItemId?: string;
     checklistItemText?: string;
   }) => {

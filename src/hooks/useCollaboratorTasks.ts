@@ -53,7 +53,7 @@ export function useCollaboratorTasks() {
         .maybeSingle();
 
       if (employeeError) throw employeeError;
-      
+
       if (!employee) {
         setTasks([]);
         setIsLoading(false);
@@ -138,7 +138,7 @@ export function useCollaboratorTasks() {
       // Find the task and checklist item for logging
       const task = tasks.find(t => t.checklist.some(c => c.id === itemId));
       const checklistItem = task?.checklist.find(c => c.id === itemId);
-      
+
       // Log the progress
       if (task && employeeId && completed) {
         logTaskProgress({
@@ -152,7 +152,7 @@ export function useCollaboratorTasks() {
 
       // Recalculate task progress
       if (task && task.checklist.length > 0) {
-        const updatedChecklist = task.checklist.map(c => 
+        const updatedChecklist = task.checklist.map(c =>
           c.id === itemId ? { ...c, completed } : c
         );
         const completedCount = updatedChecklist.filter(c => c.completed).length;
@@ -234,6 +234,38 @@ export function useCollaboratorTasks() {
     }
   }, [tasks, employeeId, employeeName, companyId, fetchMyTasks, toast, logTaskProgress, notifyTaskCompleted]);
 
+  const updateTaskProgress = useCallback(async (taskId: string, progress: number): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ progress })
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      // Log progress update
+      if (employeeId) {
+        logTaskProgress({
+          taskId,
+          employeeId,
+          actionType: 'progress_updated',
+          checklistItemText: `Progress updated to ${progress}%`
+        });
+      }
+
+      await fetchMyTasks();
+      return true;
+    } catch (err: any) {
+      console.error('Error updating task progress:', err);
+      toast({
+        title: 'Erro ao atualizar progresso',
+        description: err.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [employeeId, fetchMyTasks, toast, logTaskProgress]);
+
   useEffect(() => {
     fetchMyTasks();
   }, [fetchMyTasks]);
@@ -246,5 +278,6 @@ export function useCollaboratorTasks() {
     refetch: fetchMyTasks,
     toggleChecklistItem,
     updateTaskStatus,
+    updateTaskProgress,
   };
 }
