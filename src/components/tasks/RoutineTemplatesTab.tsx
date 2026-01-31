@@ -12,19 +12,21 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Plus, Trash2, Users, Clock, Copy, Play, Loader2, X, GripVertical } from "lucide-react";
 import { useRoutineTemplates, ChecklistItemTemplate } from "@/hooks/useRoutineTemplates";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
+import { useAuth } from "@/context/AuthContext";
 
 export function RoutineTemplatesTab() {
-  const { 
-    templates, 
-    isLoading, 
-    createTemplate, 
-    updateTemplate, 
+  const {
+    templates,
+    isLoading,
+    createTemplate,
+    updateTemplate,
     deleteTemplate,
     assignTemplate,
     unassignTemplate,
     createTaskFromTemplate,
   } = useRoutineTemplates();
   const { employees } = useEmployeesList();
+  const { user } = useAuth();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -303,8 +305,8 @@ export function RoutineTemplatesTab() {
                     {template.assignments && template.assignments.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {template.assignments.map((assignment) => (
-                          <Badge 
-                            key={assignment.id} 
+                          <Badge
+                            key={assignment.id}
                             variant="secondary"
                             className="flex items-center gap-1"
                           >
@@ -364,20 +366,34 @@ export function RoutineTemplatesTab() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4">
-            <Label htmlFor="assign-employee">Colaborador</Label>
-            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-              <SelectTrigger id="assign-employee">
-                <SelectValue placeholder="Selecione um colaborador" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="py-4 space-y-3">
+            <div className="flex items-end gap-2">
+              <div className="grid gap-1.5 flex-1">
+                <Label htmlFor="assign-employee">Colaborador</Label>
+                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                  <SelectTrigger id="assign-employee">
+                    <SelectValue placeholder="Selecione um colaborador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.name} {emp.id === employees.find(e => e.email === user?.email)?.id ? '(Eu)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const myId = employees.find(e => e.email === user?.email)?.id;
+                  if (myId) setSelectedEmployeeId(myId);
+                }}
+                disabled={!employees.find(e => e.email === user?.email)}
+              >
+                Atribuir a mim
+              </Button>
+            </div>
           </div>
 
           <DialogFooter>
