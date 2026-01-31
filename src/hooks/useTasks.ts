@@ -245,6 +245,18 @@ export function useTasks() {
 
   const updateTask = useCallback(async (taskId: string, input: UpdateTaskInput): Promise<boolean> => {
     try {
+      // Get current task data if assignee is being updated
+      let currentTask: { assignee_id: string | null, title: string } | null = null;
+      
+      if (input.assignee_id !== undefined) {
+         const { data } = await supabase
+           .from('tasks')
+           .select('assignee_id, title')
+           .eq('id', taskId)
+           .maybeSingle();
+         currentTask = data;
+      }
+
       const { error } = await supabase
         .from('tasks')
         .update(input)
@@ -257,6 +269,35 @@ export function useTasks() {
         description: 'As alterações foram salvas.',
       });
 
+      // Send notification if assignee changed and is not null
+      if (
+        input.assignee_id && 
+        currentTask && 
+        input.assignee_id !== currentTask.assignee_id
+      ) {
+         const assignee = await supabase
+           .from('employees')
+           .select('id, name')
+           .eq('id', input.assignee_id)
+           .single();
+
+         if (assignee.data) {
+            const currentUser = await supabase
+               .from('employees')
+               .select('name')
+               .eq('user_id', user?.id)
+               .maybeSingle();
+            
+            notifyTaskAssigned({
+               taskId: taskId,
+               taskTitle: input.title || currentTask.title,
+               assigneeId: input.assignee_id,
+               assigneeName: assignee.data.name,
+               senderName: currentUser?.data?.name,
+            });
+         }
+      }
+
       await fetchTasks();
       return true;
     } catch (err: any) {
@@ -268,7 +309,7 @@ export function useTasks() {
       });
       return false;
     }
-  }, [fetchTasks, toast]);
+  }, [fetchTasks, toast, user?.id, notifyTaskAssigned]);
 
   const deleteTask = useCallback(async (taskId: string): Promise<boolean> => {
     try {
