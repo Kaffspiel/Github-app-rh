@@ -33,7 +33,7 @@ export function useCollaboratorTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { logTaskProgress, notifyTaskCompleted, notifyChecklistItemCompleted } = useTaskNotifications();
+  const { logTaskProgress, notifyTaskCompleted, notifyChecklistItemCompleted, notifyTaskOverdue } = useTaskNotifications();
 
   const fetchMyTasks = useCallback(async () => {
     if (!user?.id) {
@@ -69,7 +69,6 @@ export function useCollaboratorTasks() {
         .from('tasks')
         .select('*')
         .eq('assignee_id', employee.id)
-        .neq('status', 'concluido')
         .order('created_at', { ascending: false });
 
       if (tasksError) throw tasksError;
@@ -89,8 +88,38 @@ export function useCollaboratorTasks() {
         checklistsData = checklists || [];
       }
 
+      // Check for overdue tasks
+      const now = new Date();
+      const updatesPromises = (tasksData || []).map(async (task) => {
+        if (task.status !== 'concluido' && task.status !== 'atrasada' && task.due_date) {
+          const dueDate = new Date(task.due_date);
+          if (dueDate < now) {
+            // Update status to 'atrasada'
+            await supabase
+              .from('tasks')
+              .update({ status: 'atrasada' })
+              .eq('id', task.id);
+
+            // Notify manager
+            if (employee.company_id) {
+              notifyTaskOverdue({
+                taskId: task.id,
+                taskTitle: task.title,
+                employeeName: employee.name,
+                companyId: employee.company_id
+              });
+            }
+
+            return { ...task, status: 'atrasada' };
+          }
+        }
+        return task;
+      });
+
+      const checkedTasks = await Promise.all(updatesPromises);
+
       // Map tasks with checklists
-      const enrichedTasks: CollaboratorTask[] = (tasksData || []).map(task => {
+      const enrichedTasks: CollaboratorTask[] = checkedTasks.map((task: any) => {
         const taskChecklists = checklistsData.filter(c => c.task_id === task.id);
 
         return {
@@ -124,7 +153,7 @@ export function useCollaboratorTasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, toast]);
+  }, [user?.id, toast, notifyTaskOverdue]);
 
   const toggleChecklistItem = useCallback(async (itemId: string, completed: boolean): Promise<boolean> => {
     try {

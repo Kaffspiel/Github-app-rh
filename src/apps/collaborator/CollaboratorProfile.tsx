@@ -2,8 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { NotificationSettings } from "@/components/settings/NotificationSettings";
 
 interface EmployeeProfile {
     id: string;
@@ -55,6 +57,18 @@ export default function CollaboratorProfile({ profile, userEmail }: Collaborator
                         </div>
                     </CardContent>
                 </Card>
+
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full">
+                            <Settings className="w-4 h-4 mr-2" />
+                            Configurar Notificações
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <NotificationSettings />
+                    </DialogContent>
+                </Dialog>
 
                 <Button
                     variant="destructive"

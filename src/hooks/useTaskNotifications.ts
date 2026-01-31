@@ -216,10 +216,59 @@ export function useTaskNotifications() {
     }
   }, []);
 
+  // Notify manager when task is overdue
+  const notifyTaskOverdue = useCallback(async (params: {
+    taskId: string;
+    taskTitle: string;
+    employeeName: string;
+    companyId: string;
+  }) => {
+    try {
+      // Find managers
+      const { data: managers, error: managersError } = await supabase
+        .from('employees')
+        .select('id, name, notify_tasks, notify_in_app')
+        .eq('company_id', params.companyId)
+        .in('role', ['admin', 'gestor']);
+
+      if (managersError || !managers || managers.length === 0) return;
+
+      // Create notifications
+      const notifications = managers
+        .filter(m => m.notify_tasks && m.notify_in_app)
+        .map(manager => ({
+          type: 'task_overdue', // Supported by enum
+          title: '⚠️ Tarefa Atrasada',
+          message: `A tarefa "${params.taskTitle}" de ${params.employeeName} está atrasada.`,
+          recipient_id: manager.id,
+          sender_name: 'Sistema',
+          channels: ['in_app'],
+          priority: 'high',
+          related_entity_type: 'task',
+          related_entity_id: params.taskId,
+          status: 'pending',
+          in_app_status: 'delivered',
+          in_app_delivered_at: new Date().toISOString(),
+        }));
+
+      if (notifications.length > 0) {
+        const { error } = await supabase
+          .from('notifications')
+          .insert(notifications as any);
+
+        if (error) throw error;
+        console.log('Task overdue notifications sent');
+      }
+    } catch (err) {
+      console.error('Error notifying overdue task:', err);
+    }
+  }, []);
+
   return {
     notifyTaskAssigned,
     logTaskProgress,
     notifyTaskCompleted,
-    notifyChecklistItemCompleted
+    notifyChecklistItemCompleted,
+    notifyTaskOverdue
   };
 }
