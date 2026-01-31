@@ -33,7 +33,7 @@ export function useCollaboratorTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { logTaskProgress, notifyTaskCompleted } = useTaskNotifications();
+  const { logTaskProgress, notifyTaskCompleted, notifyChecklistItemCompleted } = useTaskNotifications();
 
   const fetchMyTasks = useCallback(async () => {
     if (!user?.id) {
@@ -139,7 +139,7 @@ export function useCollaboratorTasks() {
       const task = tasks.find(t => t.checklist.some(c => c.id === itemId));
       const checklistItem = task?.checklist.find(c => c.id === itemId);
 
-      // Log the progress
+      // Log progress
       if (task && employeeId && completed) {
         logTaskProgress({
           taskId: task.id,
@@ -148,6 +148,18 @@ export function useCollaboratorTasks() {
           checklistItemId: itemId,
           checklistItemText: checklistItem?.text,
         });
+
+        // Notify manager each time a checklist item is completed
+        if (companyId) {
+          notifyChecklistItemCompleted({
+            taskId: task.id,
+            taskTitle: task.title,
+            employeeId,
+            employeeName,
+            companyId,
+            checklistItemText: checklistItem?.text || 'Item desconhecido',
+          });
+        }
       }
 
       // Recalculate task progress
@@ -175,7 +187,7 @@ export function useCollaboratorTasks() {
       });
       return false;
     }
-  }, [tasks, employeeId, fetchMyTasks, toast, logTaskProgress]);
+  }, [tasks, employeeId, employeeName, companyId, fetchMyTasks, toast, logTaskProgress, notifyChecklistItemCompleted]);
 
   const updateTaskStatus = useCallback(async (taskId: string, status: string): Promise<boolean> => {
     try {

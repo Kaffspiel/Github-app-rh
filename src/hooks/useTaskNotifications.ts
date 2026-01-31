@@ -145,9 +145,81 @@ export function useTaskNotifications() {
     }
   }, []);
 
+  // Notify manager when a checklist item is completed
+  const notifyChecklistItemCompleted = useCallback(async (params: {
+    taskId: string;
+    taskTitle: string;
+    employeeId: string;
+    employeeName: string;
+    companyId: string;
+    checklistItemText: string;
+  }) => {
+    try {
+      // Find managers/admins in the company
+      const { data: managers, error: managersError } = await supabase
+        .from('employees')
+        .select('id, name, notify_tasks, notify_in_app')
+        .eq('company_id', params.companyId)
+        .in('role', ['admin', 'gestor']);
+
+      if (managersError || !managers || managers.length === 0) {
+        return;
+      }
+
+      // Create notifications for each manager
+      const notifications = managers
+        .filter(m => m.notify_tasks && m.notify_in_app)
+        .map(manager => ({
+          type: 'checklist_completed', // Ensure this types matches DB enum or text
+          title: '☑️ Item de Checklist Concluído',
+          message: `${params.employeeName} marcou "${params.checklistItemText}" como feito na tarefa "${params.taskTitle}".`,
+          recipient_id: manager.id,
+          sender_name: params.employeeName,
+          channels: ['in_app'],
+          priority: 'low',
+          related_entity_type: 'task',
+          related_entity_id: params.taskId,
+          status: 'pending',
+          in_app_status: 'delivered',
+          in_app_delivered_at: new Date().toISOString(),
+        }));
+
+      if (notifications.length > 0) {
+        // We cast to any here because 'checklist_completed' might not be in the stricter frontend type definition yet
+        // but Postgres usually accepts text if the column is text or if it matches the enum.
+        // If it's a strict enum in DB, we'll see an error. Based on migration 20260129... it is an enum.
+        // Let's check the enum definition in the migration file.
+        // The enum is: 'task_assigned', 'task_due_reminder', 'task_overdue', 'task_completed', 'task_comment', ...
+        // It DOES NOT have 'checklist_completed'.
+        // I must use 'task_completed' or 'task_comment' or generic. 
+        // Or I should use 'task_completed' but with a specific title.
+        // Actually, looking at the migration, I can't easily add an enum value without a migration.
+        // I will use 'task_comment' as a proxy for "update" or just use 'task_completed' with a clear title.
+        // OR better, I should check if I can use a generic type?
+        // Let's use 'task_comment' as it is less intrusive than 'task_completed', or maybe 'task_assigned'?
+        // No, 'task_comment' seems best fit for "update on a task".
+
+        const safeNotifications = notifications.map(n => ({
+          ...n,
+          type: 'task_comment' // Fallback to existing enum
+        }));
+
+        const { error } = await supabase
+          .from('notifications')
+          .insert(safeNotifications as any);
+
+        if (error) throw error;
+        console.log('Checklist item notifications sent to managers');
+      }
+    } catch (err) {
+      console.error('Error notifying managers about checklist item:', err);
+    }
+  }, []);
+
   return {
     notifyTaskAssigned,
     logTaskProgress,
     notifyTaskCompleted,
+    notifyChecklistItemCompleted
   };
 }
