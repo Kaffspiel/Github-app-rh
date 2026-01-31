@@ -7,12 +7,14 @@ import { useState } from "react";
 import { useTasks, Task } from "@/hooks/useTasks";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
 import { useAuth } from "@/context/AuthContext";
+import { useApp } from "@/context/AppContext";
 import { format } from "date-fns";
 
 export function Dashboard() {
   const { tasks, isLoading } = useTasks();
   const { employees } = useEmployeesList();
   const { user } = useAuth();
+  const { setCurrentView } = useApp();
   const [period, setPeriod] = useState("hoje");
 
   // Find current employee
@@ -78,11 +80,20 @@ export function Dashboard() {
         </div>
 
         {isMine ? (
-          <Button size="sm" className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white w-24 rounded-full shadow-sm shadow-red-100">
+          <Button
+            size="sm"
+            className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white w-24 rounded-full shadow-sm shadow-red-100"
+            onClick={() => setCurrentView('tasks')}
+          >
             Resolver
           </Button>
         ) : (
-          <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-400 hover:text-blue-600 w-auto px-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-gray-400 hover:text-blue-600 w-auto px-2"
+            onClick={() => setCurrentView('tasks')}
+          >
             Ver detalhes <Users className="w-3 h-3 ml-1" />
           </Button>
         )}
@@ -128,13 +139,19 @@ export function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <Card className="shadow-sm border-gray-200 hover:border-gray-400 hover:shadow-md transition-all cursor-pointer group">
+        <Card
+          className="shadow-sm border-gray-200 hover:border-gray-400 hover:shadow-md transition-all cursor-pointer group"
+          onClick={() => setCurrentView('tasks')}
+        >
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 group-hover:text-gray-600 transition-colors">Pendentes</span>
             <div className="text-3xl font-bold text-gray-700">{stats.tasks.pendentes}</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-blue-100 bg-blue-50/30 hover:bg-blue-100 hover:shadow-md transition-all cursor-pointer group">
+        <Card
+          className="shadow-sm border-blue-100 bg-blue-50/30 hover:bg-blue-100 hover:shadow-md transition-all cursor-pointer group"
+          onClick={() => setCurrentView('tasks')}
+        >
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-1 group-hover:text-blue-600 transition-colors">Em Andamento</span>
             <div className="text-3xl font-bold text-blue-600">{stats.tasks.emAndamento}</div>
@@ -146,19 +163,28 @@ export function Dashboard() {
             <div className="text-3xl font-bold text-orange-600">{stats.tasks.prorrogadas}</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-red-100 bg-red-50/30 hover:bg-red-100 hover:shadow-md transition-all cursor-pointer group">
+        <Card
+          className="shadow-sm border-red-100 bg-red-50/30 hover:bg-red-100 hover:shadow-md transition-all cursor-pointer group"
+          onClick={() => setCurrentView('tasks')}
+        >
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-red-400 uppercase tracking-wider mb-1 group-hover:text-red-600 transition-colors">Atrasadas</span>
             <div className="text-3xl font-bold text-red-600">{stats.tasks.atrasadas}</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-green-100 bg-green-50/30 hover:bg-green-100 hover:shadow-md transition-all cursor-pointer group">
+        <Card
+          className="shadow-sm border-green-100 bg-green-50/30 hover:bg-green-100 hover:shadow-md transition-all cursor-pointer group"
+          onClick={() => setCurrentView('tasks')}
+        >
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-green-400 uppercase tracking-wider mb-1 group-hover:text-green-600 transition-colors">Concluídas</span>
             <div className="text-3xl font-bold text-green-600">{stats.tasks.concluidas}</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-gray-200">
+        <Card
+          className="shadow-sm border-gray-200 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+          onClick={() => setCurrentView('employees')}
+        >
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Equipe</span>
             <div className="text-3xl font-bold text-gray-700">{stats.performance}%</div>
