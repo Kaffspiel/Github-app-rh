@@ -68,7 +68,7 @@ export function useTasks() {
   const { user } = useAuth();
   const { companyId } = useCompany();
   const { toast } = useToast();
-  const { notifyTaskAssigned } = useTaskNotifications();
+  const { notifyTaskAssigned, notifyTaskUpdated } = useTaskNotifications();
 
   const fetchTasks = useCallback(async () => {
     if (!companyId) {
@@ -96,7 +96,7 @@ export function useTasks() {
 
       // Fetch checklists for all tasks
       const taskIds = tasksData?.map(t => t.id) || [];
-      
+
       let checklistsData: any[] = [];
       let commentsCountData: any[] = [];
 
@@ -243,19 +243,16 @@ export function useTasks() {
     }
   }, [companyId, user?.id, fetchTasks, toast, notifyTaskAssigned]);
 
+
+
   const updateTask = useCallback(async (taskId: string, input: UpdateTaskInput): Promise<boolean> => {
     try {
-      // Get current task data if assignee is being updated
-      let currentTask: { assignee_id: string | null, title: string } | null = null;
-      
-      if (input.assignee_id !== undefined) {
-         const { data } = await supabase
-           .from('tasks')
-           .select('assignee_id, title')
-           .eq('id', taskId)
-           .maybeSingle();
-         currentTask = data;
-      }
+      // Get current task data
+      const { data: currentTask } = await supabase
+        .from('tasks')
+        .select('assignee_id, title, description, priority, due_date, status')
+        .eq('id', taskId)
+        .maybeSingle();
 
       const { error } = await supabase
         .from('tasks')
@@ -269,33 +266,54 @@ export function useTasks() {
         description: 'As alterações foram salvas.',
       });
 
-      // Send notification if assignee changed and is not null
-      if (
-        input.assignee_id && 
-        currentTask && 
-        input.assignee_id !== currentTask.assignee_id
-      ) {
-         const assignee = await supabase
-           .from('employees')
-           .select('id, name')
-           .eq('id', input.assignee_id)
-           .single();
+      // Notifications Logic
+      if (currentTask && input.assignee_id && input.assignee_id !== currentTask.assignee_id) {
+        // Reassigned -> Notify New Assignee
+        const assignee = await supabase
+          .from('employees')
+          .select('id, name')
+          .eq('id', input.assignee_id)
+          .single();
 
-         if (assignee.data) {
-            const currentUser = await supabase
-               .from('employees')
-               .select('name')
-               .eq('user_id', user?.id)
-               .maybeSingle();
-            
-            notifyTaskAssigned({
-               taskId: taskId,
-               taskTitle: input.title || currentTask.title,
-               assigneeId: input.assignee_id,
-               assigneeName: assignee.data.name,
-               senderName: currentUser?.data?.name,
-            });
-         }
+        if (assignee.data) {
+          const currentUser = await supabase
+            .from('employees')
+            .select('name')
+            .eq('user_id', user?.id)
+            .maybeSingle();
+
+          notifyTaskAssigned({
+            taskId: taskId,
+            taskTitle: input.title || currentTask.title,
+            assigneeId: input.assignee_id,
+            assigneeName: assignee.data.name,
+            senderName: currentUser?.data?.name,
+          });
+        }
+      } else if (currentTask && currentTask.assignee_id) {
+        // Updated (same assignee) -> Notify Update
+        const changes: string[] = [];
+        if (input.title && input.title !== currentTask.title) changes.push('Título');
+        if (input.description && input.description !== currentTask.description) changes.push('Descrição');
+        if (input.priority && input.priority !== currentTask.priority) changes.push('Prioridade');
+        if (input.due_date && input.due_date !== currentTask.due_date) changes.push('Prazo');
+        if (input.status && input.status !== currentTask.status) changes.push('Status');
+
+        if (changes.length > 0) {
+          const currentUser = await supabase
+            .from('employees')
+            .select('name')
+            .eq('user_id', user?.id)
+            .maybeSingle();
+
+          notifyTaskUpdated({
+            taskId,
+            taskTitle: currentTask.title,
+            assigneeId: currentTask.assignee_id,
+            senderName: currentUser?.data?.name,
+            changes
+          });
+        }
       }
 
       await fetchTasks();
@@ -309,7 +327,7 @@ export function useTasks() {
       });
       return false;
     }
-  }, [fetchTasks, toast, user?.id, notifyTaskAssigned]);
+  }, [fetchTasks, toast, user?.id, notifyTaskAssigned, notifyTaskUpdated]);
 
   const deleteTask = useCallback(async (taskId: string): Promise<boolean> => {
     try {
@@ -379,7 +397,7 @@ export function useTasks() {
       // Recalculate task progress
       const task = tasks.find(t => t.checklist.some(c => c.id === itemId));
       if (task && task.checklist.length > 0) {
-        const updatedChecklist = task.checklist.map(c => 
+        const updatedChecklist = task.checklist.map(c =>
           c.id === itemId ? { ...c, completed } : c
         );
         const completedCount = updatedChecklist.filter(c => c.completed).length;

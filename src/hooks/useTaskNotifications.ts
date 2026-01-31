@@ -264,11 +264,66 @@ export function useTaskNotifications() {
     }
   }, []);
 
+  // Notify employee when task is updated
+  const notifyTaskUpdated = useCallback(async (params: {
+    taskId: string;
+    taskTitle: string;
+    assigneeId: string;
+    senderName?: string;
+    changes: string[]; // List of changed fields for the message
+  }) => {
+    try {
+      // Get recipient settings
+      const { data: recipient, error: recipientError } = await supabase
+        .from('employees')
+        .select('id, notify_tasks, notify_in_app, notify_whatsapp, whatsapp_verified, whatsapp_number')
+        .eq('id', params.assigneeId)
+        .single();
+
+      if (recipientError || !recipient || !recipient.notify_tasks) return;
+
+      const channels: string[] = [];
+      if (recipient.notify_in_app) channels.push('in_app');
+      if (recipient.notify_whatsapp && recipient.whatsapp_verified && recipient.whatsapp_number) {
+        channels.push('whatsapp');
+      }
+
+      if (channels.length === 0) return;
+
+      const changeText = params.changes.length > 0
+        ? `Alterações em: ${params.changes.join(', ')}`
+        : 'Detalhes atualizados';
+
+      const { error: notifError } = await supabase
+        .from('notifications')
+        .insert({
+          type: 'task_comment', // Using generic/comment type as fallback for update
+          title: '📝 Tarefa Atualizada',
+          message: `A tarefa "${params.taskTitle}" foi atualizada. ${changeText}.`,
+          recipient_id: params.assigneeId,
+          sender_name: params.senderName || 'Sistema',
+          channels,
+          priority: 'normal',
+          related_entity_type: 'task',
+          related_entity_id: params.taskId,
+          status: 'pending',
+          in_app_status: 'delivered',
+          in_app_delivered_at: new Date().toISOString(),
+        });
+
+      if (notifError) throw notifError;
+      console.log('Task updated notification sent to:', params.assigneeId);
+    } catch (err) {
+      console.error('Error sending task updated notification:', err);
+    }
+  }, []);
+
   return {
     notifyTaskAssigned,
     logTaskProgress,
     notifyTaskCompleted,
     notifyChecklistItemCompleted,
-    notifyTaskOverdue
+    notifyTaskOverdue,
+    notifyTaskUpdated
   };
 }
