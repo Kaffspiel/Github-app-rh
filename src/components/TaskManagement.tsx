@@ -21,7 +21,7 @@ export function TaskManagement() {
   const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem } = useTasks();
   const { employees } = useEmployeesList();
   const { user } = useAuth();
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("todas");
   const [filterCollaborator, setFilterCollaborator] = useState("todos");
@@ -229,19 +229,30 @@ export function TaskManagement() {
         </div>
 
         <div className="space-y-1">
-          <p className="text-xs font-medium text-gray-600">
-            Checklist ({task.checklist.filter((i) => i.completed).length}/{task.checklist.length})
-          </p>
-          {task.checklist.slice(0, 2).map((item) => (
-            <div key={item.id} className="flex items-center gap-2 text-sm">
-              <Checkbox 
-                checked={item.completed} 
-                onCheckedChange={() => handleChecklistToggle(task.id, item.id, item.completed)}
-              />
-              <span className={item.completed ? "line-through text-gray-400" : "text-gray-700"}>{item.text}</span>
-            </div>
-          ))}
-          {task.checklist.length > 2 && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-gray-600">
+              Checklist ({task.checklist.filter((i) => i.completed).length}/{task.checklist.length})
+            </p>
+            {task.is_daily_routine && (
+              <Badge variant="outline" className="text-[10px] h-5">Rotina</Badge>
+            )}
+          </div>
+
+          {task.checklist.length > 0 ? (
+            (task.is_daily_routine ? task.checklist : task.checklist.slice(0, 2)).map((item) => (
+              <div key={item.id} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={item.completed}
+                  onCheckedChange={() => handleChecklistToggle(task.id, item.id, item.completed)}
+                />
+                <span className={item.completed ? "line-through text-gray-400" : "text-gray-700"}>{item.text}</span>
+              </div>
+            ))
+          ) : (
+            task.is_daily_routine && <p className="text-sm text-gray-400 italic">Checklist vazio</p>
+          )}
+
+          {!task.is_daily_routine && task.checklist.length > 2 && (
             <p className="text-xs text-gray-400 ml-6">+{task.checklist.length - 2} itens</p>
           )}
         </div>
@@ -554,9 +565,9 @@ export function TaskManagement() {
                     <div className="space-y-2">
                       {selectedTask.checklist.map((item) => (
                         <div key={item.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100 transition-colors">
-                          <Checkbox 
-                            id={`todo-${item.id}`} 
-                            checked={item.completed} 
+                          <Checkbox
+                            id={`todo-${item.id}`}
+                            checked={item.completed}
                             onCheckedChange={() => handleChecklistToggle(selectedTask.id, item.id, item.completed)}
                           />
                           <label
@@ -577,8 +588,8 @@ export function TaskManagement() {
                     <Button variant="outline" size="sm" className="gap-2">
                       <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments_count})
                     </Button>
-                    <Select 
-                      value={selectedTask.status} 
+                    <Select
+                      value={selectedTask.status}
                       onValueChange={(value) => {
                         updateTask(selectedTask.id, { status: value as Task['status'] });
                         setSelectedTask({ ...selectedTask, status: value as Task['status'] });

@@ -266,6 +266,73 @@ export function useCollaboratorTasks() {
     }
   }, [employeeId, fetchMyTasks, toast, logTaskProgress]);
 
+  const createTask = useCallback(async (data: {
+    title: string;
+    description: string;
+    priority: string;
+    dueDate?: Date;
+    isDailyRoutine?: boolean;
+    checklist?: string[];
+  }) => {
+    try {
+      if (!companyId || !employeeId) {
+        throw new Error('Informações do colaborador incompletas');
+      }
+
+      // 1. Create the task
+      const { data: newTask, error: taskError } = await supabase
+        .from('tasks')
+        .insert({
+          title: data.title,
+          description: data.description,
+          priority: data.priority,
+          due_date: data.dueDate ? data.dueDate.toISOString() : null,
+          status: 'pendente',
+          company_id: companyId,
+          assignee_id: employeeId,
+          created_by: employeeId,
+          progress: 0,
+          is_daily_routine: data.isDailyRoutine || false
+        })
+        .select()
+        .single();
+
+      if (taskError) throw taskError;
+
+      // 2. Create checklist items if any
+      if (data.checklist && data.checklist.length > 0 && newTask) {
+        const checklistItems = data.checklist.map((text, index) => ({
+          task_id: newTask.id,
+          text: text,
+          completed: false,
+          sort_order: index
+        }));
+
+        const { error: checklistError } = await supabase
+          .from('task_checklist_items')
+          .insert(checklistItems);
+
+        if (checklistError) throw checklistError;
+      }
+
+      toast({
+        title: 'Tarefa criada',
+        description: 'Sua tarefa foi criada com sucesso.',
+      });
+
+      await fetchMyTasks();
+      return true;
+    } catch (err: any) {
+      console.error('Error creating task:', err);
+      toast({
+        title: 'Erro ao criar tarefa',
+        description: err.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [companyId, employeeId, fetchMyTasks, toast]);
+
   useEffect(() => {
     fetchMyTasks();
   }, [fetchMyTasks]);
@@ -279,5 +346,6 @@ export function useCollaboratorTasks() {
     toggleChecklistItem,
     updateTaskStatus,
     updateTaskProgress,
+    createTask,
   };
 }

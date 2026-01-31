@@ -2,6 +2,23 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -13,6 +30,9 @@ import {
   CheckCircle2, AlertCircle, Calendar, Trophy,
   ChevronRight, RefreshCw, Star, Flame, ClipboardList, Play
 } from "lucide-react";
+import CollaboratorTasks from "@/apps/collaborator/CollaboratorTasks";
+import CollaboratorTime from "@/apps/collaborator/CollaboratorTime";
+import CollaboratorProfile from "@/apps/collaborator/CollaboratorProfile";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useCollaboratorTasks } from "@/hooks/useCollaboratorTasks";
@@ -59,6 +79,7 @@ export default function CollaboratorMobileApp() {
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [todayRecord, setTodayRecord] = useState<TimeRecord | null>(null);
+
   const [stats, setStats] = useState({
     pendingTasks: 0,
     unreadNotifications: 0,
@@ -69,12 +90,9 @@ export default function CollaboratorMobileApp() {
   // Use the collaborator tasks hook
   const {
     tasks,
-    isLoading: tasksLoading,
-    toggleChecklistItem,
-    updateTaskStatus,
-    updateTaskProgress,
-    refetch: refetchTasks
   } = useCollaboratorTasks();
+
+
 
   const dailyRoutines = tasks.filter(t => t.is_daily_routine);
   const extraTasks = tasks.filter(t => !t.is_daily_routine);
@@ -405,340 +423,23 @@ export default function CollaboratorMobileApp() {
     </div>
   );
 
-  const renderTasksView = () => {
-    const handleStartTask = async (taskId: string) => {
-      await updateTaskStatus(taskId, 'andamento');
-    };
-
-    const handleChecklistToggle = async (itemId: string, currentState: boolean) => {
-      await toggleChecklistItem(itemId, !currentState);
-    };
-
-    const getPriorityColor = (priority: string) => {
-      switch (priority) {
-        case 'alta': return 'bg-red-500';
-        case 'média': return 'bg-orange-400';
-        default: return 'bg-blue-400';
-      }
-    };
-
-    return (
-      <div className="p-4 space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Minhas Tarefas</h2>
-          <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading}>
-            <RefreshCw className={`w-4 h-4 ${tasksLoading ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-
-        {/* Daily Routines Section */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <ClipboardList className="w-4 h-4 text-blue-600" />
-            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-              Rotinas Diárias
-            </h3>
-            {dailyRoutines.length > 0 && (
-              <Badge className="bg-blue-100 text-blue-700 text-[10px]">
-                {dailyRoutines.length}
-              </Badge>
-            )}
-          </div>
-
-          {dailyRoutines.length > 0 ? (
-            <div className="space-y-3">
-              {dailyRoutines.map(routine => (
-                <Card key={routine.id} className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-semibold text-gray-900">{routine.title}</h4>
-                      <Badge variant="outline" className="text-[10px] uppercase">
-                        {routine.priority}
-                      </Badge>
-                    </div>
-                    {routine.description && (
-                      <p className="text-sm text-gray-500 mb-3">{routine.description}</p>
-                    )}
-                    {routine.checklist.length > 0 ? (
-                      <div className="space-y-2">
-                        {routine.checklist.map(item => (
-                          <div key={item.id} className="flex items-center gap-2">
-                            <Checkbox
-                              checked={item.completed}
-                              onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
-                            />
-                            <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                              {item.text}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Progresso</span>
-                          <span>{routine.progress}%</span>
-                        </div>
-                        <Progress value={routine.progress} className="h-2" />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <p className="text-gray-400 text-sm">Nenhuma rotina diária pendente</p>
-              </CardContent>
-            </Card>
-          )}
-        </section>
-
-        {/* Extra Tasks Section */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <AlertCircle className="w-4 h-4 text-orange-500" />
-            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-              Tarefas Extra
-            </h3>
-            {extraTasks.length > 0 && (
-              <Badge className="bg-orange-100 text-orange-700 text-[10px]">
-                {extraTasks.length}
-              </Badge>
-            )}
-          </div>
-
-          {extraTasks.length > 0 ? (
-            <div className="space-y-3">
-              {extraTasks.map(task => (
-                <Card key={task.id} className="overflow-hidden">
-                  <div className={`h-1 ${getPriorityColor(task.priority)}`} />
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-semibold text-gray-900">{task.title}</h4>
-                      <Badge variant="outline" className="text-[10px] uppercase">
-                        {task.priority}
-                      </Badge>
-                    </div>
-                    {task.description && (
-                      <p className="text-sm text-gray-500 mb-3">{task.description}</p>
-                    )}
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>Progresso</span>
-                        <span>{task.progress}%</span>
-                      </div>
-
-                      {task.status === 'andamento' && (!task.checklist || task.checklist.length === 0) ? (
-                        <div className="py-2">
-                          <Slider
-                            defaultValue={[task.progress]}
-                            max={100}
-                            step={5}
-                            onValueCommit={(vals) => updateTaskProgress(task.id, vals[0])}
-                            className="w-full"
-                          />
-                        </div>
-                      ) : (
-                        <Progress value={task.progress} className="h-2" />
-                      )}
-
-                      <div className="flex gap-2">
-                        {task.status === 'pendente' ? (
-                          <Button
-                            size="sm"
-                            className="w-full bg-blue-600 hover:bg-blue-700"
-                            onClick={() => handleStartTask(task.id)}
-                          >
-                            <Play className="w-3 h-3 mr-1" />
-                            INICIAR
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="w-full bg-green-600 hover:bg-green-700"
-                            onClick={() => updateTaskStatus(task.id, 'concluido')}
-                          >
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            CONCLUIR
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <p className="text-gray-400 text-sm">Nenhuma tarefa extra atribuída</p>
-              </CardContent>
-            </Card>
-          )}
-        </section>
-      </div>
-    );
-  };
+  const renderTasksView = () => (
+    <CollaboratorTasks />
+  );
 
   const renderTimeView = () => (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Histórico de Ponto</h2>
-        <Button variant="ghost" size="sm" onClick={loadData}>
-          <RefreshCw className="w-4 h-4" />
-        </Button>
-      </div>
-
-      {/* Current Month Summary */}
-      <Card className="bg-gradient-to-r from-slate-800 to-slate-700 text-white border-none">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-slate-300 text-sm">
-                {format(new Date(), "MMMM yyyy", { locale: ptBR })}
-              </p>
-              <p className="text-2xl font-bold">{timeRecords.length} registros</p>
-            </div>
-            <Calendar className="w-10 h-10 text-slate-400" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Records List */}
-      <ScrollArea className="h-[calc(100vh-320px)]">
-        <div className="space-y-2">
-          {timeRecords.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-12">
-                <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-gray-500">Nenhum registro encontrado</p>
-              </CardContent>
-            </Card>
-          ) : (
-            timeRecords.map((record) => (
-              <Card key={record.id} className="overflow-hidden">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${record.status === "normal" ? "bg-green-500" :
-                        record.status === "delay" ? "bg-orange-500" :
-                          record.status === "absence" ? "bg-red-500" :
-                            "bg-gray-400"
-                        }`} />
-                      <span className="font-medium">
-                        {format(parseISO(record.record_date), "EEEE, d", { locale: ptBR })}
-                      </span>
-                    </div>
-                    <Badge variant="outline" className={getStatusColor(record.status)}>
-                      {getStatusLabel(record.status)}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1 text-center text-xs">
-                    <div>
-                      <p className="text-gray-400">E1</p>
-                      <p className="font-mono">{formatTime(record.entry_1)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">S1</p>
-                      <p className="font-mono">{formatTime(record.exit_1)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">E2</p>
-                      <p className="font-mono">{formatTime(record.entry_2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">S2</p>
-                      <p className="font-mono">{formatTime(record.exit_2)}</p>
-                    </div>
-                  </div>
-                  {record.anomalies && record.anomalies.length > 0 && (
-                    <div className="mt-2 flex items-center gap-1 text-orange-600">
-                      <AlertCircle className="w-3 h-3" />
-                      <span className="text-xs">{record.anomalies.join(", ")}</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-      </ScrollArea>
-    </div>
+    <CollaboratorTime
+      timeRecords={timeRecords}
+      isLoading={isLoading}
+      onRefresh={loadData}
+    />
   );
 
   const renderProfileView = () => (
-    <div className="p-4 space-y-4">
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center text-center">
-            <Avatar className="h-20 w-20 mb-4">
-              <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                {profile?.name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <h2 className="text-xl font-semibold">{profile?.name || "Colaborador"}</h2>
-            <p className="text-gray-500">{profile?.department || "Departamento"}</p>
-            <Badge className="mt-2" variant="secondary">{profile?.role || "colaborador"}</Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Informações</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Email</span>
-            <span className="font-medium">{profile?.email || user?.email}</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">WhatsApp</span>
-            <span className="font-medium">{profile?.whatsapp_number || "Não configurado"}</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Departamento</span>
-            <span className="font-medium">{profile?.department || "-"}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Estatísticas do Mês</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <Star className="w-6 h-6 mx-auto mb-1 text-green-600" />
-              <p className="text-2xl font-bold text-green-600">{stats.monthlyPresence}%</p>
-              <p className="text-xs text-gray-500">Taxa de Presença</p>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <Flame className="w-6 h-6 mx-auto mb-1 text-orange-600" />
-              <p className="text-2xl font-bold text-orange-600">{stats.streak}</p>
-              <p className="text-xs text-gray-500">Sequência Atual</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Button
-        variant="outline"
-        className="w-full text-red-600 border-red-200 hover:bg-red-50"
-        onClick={() => {
-          signOut();
-          toast.success("Logout realizado com sucesso!");
-        }}
-      >
-        <LogOut className="w-4 h-4 mr-2" />
-        Sair da Conta
-      </Button>
-    </div>
+    <CollaboratorProfile
+      profile={profile}
+      userEmail={user?.email}
+    />
   );
 
   const renderView = () => {
