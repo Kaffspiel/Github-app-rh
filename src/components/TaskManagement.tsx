@@ -517,7 +517,7 @@ export function TaskManagement() {
 
         <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
           <DialogContent className="max-w-2xl">
-            {selectedTask && (
+            {selectedTask ? (
               <>
                 <DialogHeader>
                   <div className="flex justify-between items-start pr-8">
@@ -610,6 +610,11 @@ export function TaskManagement() {
                   </div>
                 </div>
               </>
+            ) : (
+              <div className="sr-only">
+                <DialogTitle>Detalhes da Tarefa</DialogTitle>
+                <DialogDescription>Visualizando detalhes</DialogDescription>
+              </div>
             )}
           </DialogContent>
         </Dialog>
