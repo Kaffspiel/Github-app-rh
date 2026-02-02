@@ -7,79 +7,90 @@ export function parseExcel(
 ): ParseResult {
   const errors: ParseError[] = [];
   const records: ParsedTimeRecord[] = [];
+  let totalRows = 0;
 
   try {
     const workbook = XLSX.read(file, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
     
-    // Convert to JSON with header row
-    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-      raw: false,
-      defval: "",
+    // Process all sheets
+    workbook.SheetNames.forEach(sheetName => {
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Convert to JSON with header row
+      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+        raw: false,
+        defval: "",
+      });
+
+      if (data.length === 0) {
+        // Skip empty sheets but don't error unless all are empty
+        return;
+      }
+
+      totalRows += data.length;
+
+      data.forEach((row, index) => {
+        const rowNumber = index + 2; // +2 because of header row and 0-index
+
+        try {
+          const employeeId = String(row[mapping.employeeId] || "").trim();
+          const dateValue = row[mapping.date];
+          
+          if (!employeeId) {
+            errors.push({ row: rowNumber, message: `[${sheetName}] ID do funcionário vazio`, data: row });
+            return;
+          }
+
+          const date = parseDate(dateValue);
+          if (!date) {
+            errors.push({ row: rowNumber, message: `[${sheetName}] Data inválida`, data: row });
+            return;
+          }
+
+          // Collect all punches
+          const punches: string[] = [];
+          const punchFields = [
+            mapping.punch1, mapping.punch2, mapping.punch3, mapping.punch4,
+            mapping.punch5, mapping.punch6, mapping.punch7, mapping.punch8,
+          ].filter(Boolean) as string[];
+
+          for (const field of punchFields) {
+            const punchValue = row[field];
+            if (punchValue) {
+              const time = parseTime(punchValue);
+              if (time) {
+                punches.push(time);
+              }
+            }
+          }
+
+          records.push({
+            externalEmployeeId: employeeId,
+            employeeName: mapping.employeeName ? String(row[mapping.employeeName] || "") : undefined,
+            date,
+            punches,
+            rawData: row,
+          });
+        } catch (err) {
+          errors.push({ row: rowNumber, message: `[${sheetName}] Erro ao processar linha: ${err}`, data: row });
+        }
+      });
     });
 
-    if (data.length === 0) {
+    if (totalRows === 0) {
       return {
         success: false,
         records: [],
-        errors: [{ row: 0, message: "Arquivo vazio ou sem dados" }],
+        errors: [{ row: 0, message: "Arquivo vazio ou sem dados em nenhuma aba" }],
         totalRows: 0,
       };
     }
-
-    data.forEach((row, index) => {
-      const rowNumber = index + 2; // +2 because of header row and 0-index
-
-      try {
-        const employeeId = String(row[mapping.employeeId] || "").trim();
-        const dateValue = row[mapping.date];
-        
-        if (!employeeId) {
-          errors.push({ row: rowNumber, message: "ID do funcionário vazio", data: row });
-          return;
-        }
-
-        const date = parseDate(dateValue);
-        if (!date) {
-          errors.push({ row: rowNumber, message: "Data inválida", data: row });
-          return;
-        }
-
-        // Collect all punches
-        const punches: string[] = [];
-        const punchFields = [
-          mapping.punch1, mapping.punch2, mapping.punch3, mapping.punch4,
-          mapping.punch5, mapping.punch6, mapping.punch7, mapping.punch8,
-        ].filter(Boolean) as string[];
-
-        for (const field of punchFields) {
-          const punchValue = row[field];
-          if (punchValue) {
-            const time = parseTime(punchValue);
-            if (time) {
-              punches.push(time);
-            }
-          }
-        }
-
-        records.push({
-          externalEmployeeId: employeeId,
-          employeeName: mapping.employeeName ? String(row[mapping.employeeName] || "") : undefined,
-          date,
-          punches,
-          rawData: row,
-        });
-      } catch (err) {
-        errors.push({ row: rowNumber, message: `Erro ao processar linha: ${err}`, data: row });
-      }
-    });
 
     return {
       success: errors.length === 0,
       records,
       errors,
-      totalRows: data.length,
+      totalRows,
     };
   } catch (err) {
     return {
