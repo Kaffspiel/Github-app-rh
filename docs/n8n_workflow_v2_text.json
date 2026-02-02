@@ -1,0 +1,92 @@
+{
+    "name": "OpsControl - Envio Texto Simplificado",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "opscontrol-send",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "611780fe-110c-4ec1-b0bf-2332bb8331be",
+            "name": "Webhook (OpsControl)",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                -1392,
+                112
+            ],
+            "webhookId": "opscontrol-send"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "=https://evolution.kaffspiel.cloud/message/sendText/{{ $json.body.instanceName }}",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{\n  {\n    \"number\": $json.body.number,\n    \"text\": $json.body.text.message,\n    \"delay\": 1200\n  }\n}}",
+                "options": {}
+            },
+            "id": "561b9555-d21a-4d50-aadd-67398c1d2c79",
+            "name": "Enviar WhatsApp (Texto)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                -1100,
+                112
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={\n  \"success\": true,\n  \"messageId\": \"{{ $json.key?.id || 'sent' }}\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+                "options": {}
+            },
+            "id": "f9e5c562-88cd-4beb-8ce7-81b148bd9cc4",
+            "name": "Responder Sucesso",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                -800,
+                112
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook (OpsControl)": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar WhatsApp (Texto)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar WhatsApp (Texto)": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Sucesso",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "instanceId": "7caed1b99602a9339965e9b779169d710789abb0ebccde51ab7fc71dbe7bbf8c"
+    }
+}
