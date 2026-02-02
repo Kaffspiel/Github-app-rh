@@ -14,6 +14,9 @@ import { AuthProvider } from "./context/AuthContext";
 import { CompanyProvider } from "./context/CompanyContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
+import { NotificationProvider } from "./context/NotificationContext";
+import { NotificationQueueProcessor } from "./components/settings/NotificationQueueProcessor";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -21,59 +24,62 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                {/* Public route */}
-                <Route path="/auth" element={<Auth />} />
-                
-                {/* Admin Master route */}
-                <Route 
-                  path="/admin-master" 
-                  element={
-                    <ProtectedRoute allowedRoles={["admin_master"]}>
-                      <AdminMaster />
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                {/* Collaborator mobile app */}
-                <Route 
-                  path="/app" 
-                  element={
-                    <ProtectedRoute allowedRoles={["colaborador"]}>
-                      <CollaboratorMobileApp />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/app/*" 
-                  element={
-                    <ProtectedRoute allowedRoles={["colaborador"]}>
-                      <CollaboratorMobileApp />
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                {/* Company dashboard (admin/gestor) */}
-                <Route 
-                  path="/" 
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "gestor"]}>
-                      <CompanyProvider>
-                        <Index />
-                      </CompanyProvider>
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                {/* 404 */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
+          <NotificationProvider>
+            <NotificationQueueProcessor />
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  {/* Public route */}
+                  <Route path="/auth" element={<Auth />} />
+
+                  {/* Admin Master route */}
+                  <Route
+                    path="/admin-master"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin_master"]}>
+                        <AdminMaster />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Collaborator mobile app */}
+                  <Route
+                    path="/app"
+                    element={
+                      <ProtectedRoute allowedRoles={["colaborador"]}>
+                        <CollaboratorMobileApp />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/app/*"
+                    element={
+                      <ProtectedRoute allowedRoles={["colaborador"]}>
+                        <CollaboratorMobileApp />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Company dashboard (admin/gestor) */}
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin", "gestor"]}>
+                        <CompanyProvider>
+                          <Index />
+                        </CompanyProvider>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* 404 */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </NotificationProvider>
         </AppProvider>
       </AuthProvider>
     </QueryClientProvider>

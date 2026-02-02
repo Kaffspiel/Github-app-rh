@@ -1,9 +1,12 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export function useTaskNotifications() {
   const { user } = useAuth();
+
+  const { notifyTask } = useNotifications();
 
   // Notify collaborator when task is assigned
   const notifyTaskAssigned = useCallback(async (params: {
@@ -14,57 +17,25 @@ export function useTaskNotifications() {
     senderName?: string;
   }) => {
     try {
-      // Get the employee details for recipient
-      const { data: recipient, error: recipientError } = await supabase
-        .from('employees')
-        .select('id, notify_tasks, notify_in_app, notify_whatsapp, whatsapp_verified, whatsapp_number')
-        .eq('id', params.assigneeId)
-        .single();
+      // Use the unified notification hook which handles preferences and webhooks
+      notifyTask({
+        task: {
+          id: params.taskId,
+          title: params.taskTitle,
+          dueDate: "", // Optional in notification
+          priority: "média", // Defaults if not passed, or we could fetch
+          assignee: params.assigneeName
+        } as any, // Partial task object is sufficient for the template
+        recipientId: params.assigneeId,
+        type: "task_assigned",
+        senderName: params.senderName
+      });
 
-      if (recipientError || !recipient) {
-        console.warn('Recipient not found for notification:', params.assigneeId);
-        return;
-      }
-
-      // Check if notifications are enabled
-      if (!recipient.notify_tasks) {
-        console.log('Task notifications disabled for this employee');
-        return;
-      }
-
-      const channels: string[] = [];
-      if (recipient.notify_in_app) channels.push('in_app');
-      if (recipient.notify_whatsapp && recipient.whatsapp_verified && recipient.whatsapp_number) {
-        channels.push('whatsapp');
-      }
-
-      if (channels.length === 0) return;
-
-      // Create notification directly in the database
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert({
-          type: 'task_assigned',
-          title: '📋 Nova Tarefa Atribuída',
-          message: `Você recebeu a tarefa "${params.taskTitle}". Acesse o app para ver os detalhes.`,
-          recipient_id: params.assigneeId,
-          sender_name: params.senderName || 'Sistema',
-          channels,
-          priority: 'normal',
-          related_entity_type: 'task',
-          related_entity_id: params.taskId,
-          status: 'pending',
-          in_app_status: 'delivered',
-          in_app_delivered_at: new Date().toISOString(),
-        });
-
-      if (notifError) throw notifError;
-
-      console.log('Task assigned notification sent to:', params.assigneeName);
+      console.log('Task assigned notification sent (queued) to:', params.assigneeName);
     } catch (err) {
       console.error('Error sending task assigned notification:', err);
     }
-  }, []);
+  }, [notifyTask]);
 
   // Log progress and optionally notify manager
   const logTaskProgress = useCallback(async (params: {

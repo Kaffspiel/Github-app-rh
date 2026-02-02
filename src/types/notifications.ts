@@ -48,28 +48,28 @@ export interface Notification {
   type: NotificationType;
   title: string;
   message: string;
-  
+
   // Destinatário
   recipientId: string;
   recipientPhone: string;     // Para WhatsApp (formato: 5511999999999)
-  
+
   // Remetente (opcional)
   senderId?: string;
   senderName?: string;
-  
+
   // Canais de envio
   channels: NotificationChannel[];
   priority: NotificationPriority;
-  
+
   // Entidade relacionada (para deep link)
   relatedEntity?: RelatedEntity;
-  
+
   // Status geral
   status: NotificationStatus;
-  
+
   // Status por canal
   deliveryStatus: DeliveryStatus;
-  
+
   // Timestamps
   createdAt: string;
   scheduledFor?: string;
@@ -96,13 +96,13 @@ export interface MessageTemplate {
   id: string;
   type: NotificationType;
   name: string;
-  
+
   // Template de texto (suporta variáveis: {{nome}}, {{tarefa}}, etc.)
   textTemplate: string;
-  
+
   // Template com botões (opcional)
   buttonsTemplate?: ButtonsTemplate;
-  
+
   // Configuração
   defaultPriority: NotificationPriority;
   isActive: boolean;
@@ -246,7 +246,7 @@ export const defaultTemplates: MessageTemplate[] = [
 
 // Fila de Notificações (para processamento n8n)
 
-export type QueueStatus = "queued" | "processing" | "completed" | "failed";
+export type QueueStatus = "queued" | "processing" | "completed" | "sent" | "failed" | "retrying";
 
 export interface QueueResponse {
   success: boolean;
@@ -258,21 +258,21 @@ export interface QueueResponse {
 export interface NotificationQueueItem {
   id: string;
   notificationId: string;
-  
+
   // Webhook n8n
   webhookUrl: string;
-  
+
   // Payload para Evolution API
   payload: import("./evolution-api").EvolutionSendMessagePayload;
-  
+
   // Controle
   status: QueueStatus;
   attempts: number;
   maxAttempts: number;
-  
+
   // Resposta do webhook
   response?: QueueResponse;
-  
+
   // Timestamps
   createdAt: string;
   processedAt?: string;
