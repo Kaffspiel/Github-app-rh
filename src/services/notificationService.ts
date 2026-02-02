@@ -211,17 +211,18 @@ export const notificationService = {
     }
 
     // CONVERSION TO TEXT: Buttons are failing on some devices, so we convert them to text options.
+    let textMessage = message;
     if (buttons && buttons.length > 0) {
       const limitedButtons = buttons.slice(0, EVOLUTION_LIMITS.MAX_BUTTONS);
 
       // Append options to the message
-      message += "\n\nOpções disponíveis:";
+      textMessage += "\n\nOpções disponíveis:";
       limitedButtons.forEach(btn => {
-        message += `\n- ${btn.title}`;
+        textMessage += `\n- ${btn.title}`;
       });
 
       // Add instruction for interaction
-      message += "\n(Responda com a opção desejada)";
+      textMessage += "\n(Responda com a opção desejada)";
     }
 
     // Always return as text
@@ -230,7 +231,7 @@ export const notificationService = {
       number: cleanPhone,
       messageType: "text",
       text: {
-        message: message.substring(0, EVOLUTION_LIMITS.MAX_TEXT_LENGTH),
+        message: textMessage.substring(0, EVOLUTION_LIMITS.MAX_TEXT_LENGTH),
       },
       metadata: {
         notificationId,
