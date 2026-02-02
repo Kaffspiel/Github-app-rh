@@ -210,34 +210,21 @@ export const notificationService = {
       };
     }
 
+    // CONVERSION TO TEXT: Buttons are failing on some devices, so we convert them to text options.
     if (buttons && buttons.length > 0) {
-      // Limita a 3 botões (limite Evolution API)
       const limitedButtons = buttons.slice(0, EVOLUTION_LIMITS.MAX_BUTTONS);
 
-      return {
-        instanceName,
-        number: cleanPhone,
-        messageType: "buttons",
-        buttons: {
-          title: message.split('\n')[0].substring(0, 50), // Title: Use first line, max 50 chars
-          description: message.length > 50 ? message.substring(message.indexOf('\n') + 1 || 50, 300) : "Detalhes da notificação",
-          footer: "OpsControl", // Required by n8n workflow
-          buttons: limitedButtons.map((btn) => ({
-            type: "reply" as const,
-            reply: {
-              id: btn.id,
-              title: truncateButtonTitle(btn.title),
-            },
-          })),
-        },
-        metadata: {
-          notificationId,
-          notificationType: type,
-        },
-      };
+      // Append options to the message
+      message += "\n\nOpções disponíveis:";
+      limitedButtons.forEach(btn => {
+        message += `\n- ${btn.title}`;
+      });
+
+      // Add instruction for interaction
+      message += "\n(Responda com a opção desejada)";
     }
 
-    // Mensagem de texto simples
+    // Always return as text
     return {
       instanceName,
       number: cleanPhone,
