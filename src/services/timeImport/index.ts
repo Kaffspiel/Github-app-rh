@@ -1,3 +1,5 @@
+export * from "./excelParser";
+export * from "./csvParser";
+export * from "./repParser";
+export * from "./pdfParser";
 export * from "./types";
-export { parseExcel, getExcelHeaders } from "./excelParser";
-export { parseCsv, getCsvHeaders } from "./csvParser";

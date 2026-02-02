@@ -195,11 +195,13 @@ export function TaskManagement() {
     });
   };
 
-  const myTasks = tasks.filter(t => t.assignee_id === currentEmployee?.id);
-  const teamTasks = tasks.filter(t => t.assignee_id !== currentEmployee?.id);
+  const myTasks = tasks.filter(t => t.assignee_id === currentEmployee?.id && t.status !== 'concluido');
+  const teamTasks = tasks.filter(t => t.assignee_id !== currentEmployee?.id && t.status !== 'concluido');
+  const completedTasks = tasks.filter(t => t.status === 'concluido');
 
   const filteredMyTasks = filterTasks(myTasks);
   const filteredTeamTasks = filterTasks(teamTasks, true);
+  const filteredCompletedTasks = filterTasks(completedTasks, true);
 
   const handleChecklistToggle = async (taskId: string, itemId: string, currentValue: boolean) => {
     await toggleChecklistItem(itemId, !currentValue);
@@ -676,7 +678,7 @@ export function TaskManagement() {
       </Card>
 
       <Tabs defaultValue="minhas" className="space-y-6">
-        <TabsList className="grid w-full max-w-3xl grid-cols-4">
+        <TabsList className="grid w-full max-w-4xl grid-cols-5">
           <TabsTrigger value="minhas">
             Minhas Tarefas
             <Badge variant="secondary" className="ml-2">
@@ -687,6 +689,12 @@ export function TaskManagement() {
             Tarefas da Equipe
             <Badge variant="secondary" className="ml-2">
               {filteredTeamTasks.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="concluidas">
+            Concluídas
+            <Badge variant="secondary" className="ml-2">
+              {filteredCompletedTasks.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="colaboradores">
@@ -771,7 +779,28 @@ export function TaskManagement() {
               ))
             ) : (
               <div className="col-span-full py-8 text-center text-gray-500">
-                Nenhuma tarefa encontrada com os filtros atuais.
+                Yay! Nenhuma tarefa de equipe pendente.
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="concluidas" className="space-y-4">
+          <div className="p-4 bg-green-50 border border-green-100 rounded-lg mb-4">
+            <p className="text-sm text-green-800 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              Histórico de tarefas finalizadas.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCompletedTasks.length > 0 ? (
+              filteredCompletedTasks.map((task) => (
+                <TaskCard key={task.id} task={task} />
+              ))
+            ) : (
+              <div className="col-span-full py-8 text-center text-gray-500">
+                Nenhuma tarefa concluída ainda.
               </div>
             )}
           </div>

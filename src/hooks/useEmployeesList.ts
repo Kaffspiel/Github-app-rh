@@ -8,6 +8,7 @@ export interface EmployeeBasic {
   email: string;
   department: string;
   role: 'colaborador' | 'gestor' | 'admin';
+  external_id?: string | null;
 }
 
 export function useEmployeesList() {
@@ -26,7 +27,7 @@ export function useEmployeesList() {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('employees')
-        .select('id, name, email, department, role')
+        .select('id, name, email, department, role, external_id')
         .eq('company_id', companyId)
         .eq('is_active', true)
         .order('name');
@@ -39,6 +40,7 @@ export function useEmployeesList() {
         email: e.email,
         department: e.department,
         role: e.role as EmployeeBasic['role'],
+        external_id: e.external_id
       })));
     } catch (err) {
       console.error('Error fetching employees:', err);

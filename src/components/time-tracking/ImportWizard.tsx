@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/context/CompanyContext";
 import { toast } from "sonner";
+import { useEmployeesList } from "@/hooks/useEmployeesList";
 import {
   Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle,
   AlertTriangle, ArrowRight, Download, RefreshCw, Brain, FileType
@@ -20,6 +21,7 @@ import type { Json } from "@/integrations/supabase/types";
 import {
   parseExcel, getExcelHeaders,
   parseCsv, getCsvHeaders,
+  parsePDF, extractPDFText,
   type ParseResult, type ColumnMapping, type FileFormat, type ParsedTimeRecord
 } from "@/services/timeImport";
 
@@ -33,6 +35,7 @@ type ExtendedFileFormat = FileFormat | "pdf";
 
 export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const { companyId } = useCompany();
+  const { employees } = useEmployeesList();
   const [step, setStep] = useState<Step>("upload");
   const [fileFormat, setFileFormat] = useState<ExtendedFileFormat>("excel");
   const [file, setFile] = useState<File | null>(null);
@@ -55,7 +58,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
   const handleFileSelect = useCallback(async (selectedFile: File) => {
     setFile(selectedFile);
-    
+
     try {
       // For PDF, always use AI
       if (fileFormat === "pdf") {
@@ -98,7 +101,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
   const handleAIParse = async () => {
     if (!file) return;
-    
+
     setIsAIParsing(true);
     try {
       // Read file content for AI
@@ -112,9 +115,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         const worksheet = workbook.Sheets[sheetName];
         content = utils.sheet_to_csv(worksheet);
       } else if (fileFormat === "pdf") {
-        // For PDF, read as base64 text (AI will parse it)
-        const text = await file.text();
-        content = text;
+        // For PDF, extract text using PDF.js before sending to AI
+        const buffer = await file.arrayBuffer();
+        content = await extractPDFText(buffer);
       } else {
         content = await file.text();
       }
@@ -162,24 +165,42 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
   const handleParse = () => {
     // If using AI, use AI parsing
-    if (useAI || fileFormat === "pdf") {
+    if (useAI) {
       handleAIParse();
       return;
     }
 
-    if (!fileContent || !mapping.employeeId || !mapping.date) {
-      toast.error("Configure o mapeamento obrigatório");
+    if (!fileContent) {
+      toast.error("Erro ao ler arquivo");
       return;
     }
 
-    let result: ParseResult;
+    let result: ParseResult | Promise<ParseResult>;
+
     if (fileFormat === "excel") {
       result = parseExcel(fileContent as ArrayBuffer, mapping);
+    } else if (fileFormat === "pdf") {
+      // Standard PDF parsing (heuristic)
+      toast.info("Processando PDF...");
+      // Wrap async result for unified handling
+      parsePDF(fileContent as ArrayBuffer).then(res => {
+        setParseResult(res);
+        setStep("preview");
+      }).catch(err => {
+        toast.error("Erro ao processar PDF");
+        console.error(err);
+      });
+      return;
     } else {
+      if (!mapping.employeeId || !mapping.date) {
+        toast.error("Configure o mapeamento obrigatório");
+        return;
+      }
       result = parseCsv(fileContent as string, mapping);
     }
 
-    setParseResult(result);
+    // For sync results (Excel/CSV)
+    setParseResult(result as ParseResult);
     setStep("preview");
   };
 
@@ -211,38 +232,105 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       const batchSize = 50;
       const records = parseResult.records;
 
+      // PREVENT DUPLICATES: Fetch existing records for better filtering
+      const distinctDates = [...new Set(records.map(r => r.date).filter(Boolean))];
+
+      // We'll fetch in chunks if there are too many dates, but usually it's one month (30 dates)
+      const { data: existingRecords } = await supabase
+        .from("time_tracking_records")
+        .select("employee_id, external_employee_id, record_date")
+        .eq("company_id", companyId)
+        .in("record_date", distinctDates);
+
+      // Create lookup sets
+      const existingEmpSet = new Set(
+        existingRecords
+          ?.filter(r => r.employee_id)
+          .map(r => `${r.employee_id}_${r.record_date}`)
+      );
+
+      const existingExtSet = new Set(
+        existingRecords
+          ?.filter(r => r.external_employee_id)
+          .map(r => `${r.external_employee_id}_${r.record_date}`)
+      );
+
+      let skippedDuplicates = 0;
+
       for (let i = 0; i < records.length; i += batchSize) {
         const batch = records.slice(i, i + batchSize);
-        
-        const insertData = batch.map((record) => ({
-          company_id: companyId,
-          import_id: importRecord.id,
-          external_employee_id: record.externalEmployeeId,
-          record_date: record.date,
-          entry_1: record.punches[0] || null,
-          exit_1: record.punches[1] || null,
-          entry_2: record.punches[2] || null,
-          exit_2: record.punches[3] || null,
-          entry_3: record.punches[4] || null,
-          exit_3: record.punches[5] || null,
-          entry_4: record.punches[6] || null,
-          exit_4: record.punches[7] || null,
-          raw_data: record.rawData as Json,
-          status: "imported",
-        }));
 
-        const { error: batchError } = await supabase
-          .from("time_tracking_records")
-          .insert(insertData);
+        const insertData = batch.map((record) => {
+          // Try to link to an employee
+          let matchedEmployeeId = null;
 
-        if (batchError) {
-          failed += batch.length;
-          console.error("Batch error:", batchError);
-        } else {
-          imported += batch.length;
+          if (employees.length > 0) {
+            // 1. Try exact match on external_id
+            const byId = employees.find(e => e.external_id && e.external_id === String(record.externalEmployeeId));
+            if (byId) {
+              matchedEmployeeId = byId.id;
+            } else {
+              // 2. Try match on Name (case insensitive)
+              // Use record.employeeName if available, otherwise record.externalEmployeeId might actually be a name (for PDF reports)
+              const nameToSearch = record.employeeName || record.externalEmployeeId;
+              if (nameToSearch && typeof nameToSearch === 'string') {
+                const normalizedSearch = nameToSearch.toLowerCase().trim();
+                const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
+                if (byName) matchedEmployeeId = byName.id;
+              }
+            }
+          }
+
+
+          // Check for duplication
+          const isDuplicate = matchedEmployeeId
+            ? existingEmpSet.has(`${matchedEmployeeId}_${record.date}`)
+            : existingExtSet.has(`${record.externalEmployeeId}_${record.date}`);
+
+          if (isDuplicate) {
+            return null; // Will filter this out
+          }
+
+          return {
+            company_id: companyId,
+            import_id: importRecord.id,
+            external_employee_id: record.externalEmployeeId,
+            employee_id: matchedEmployeeId, // Added linkage
+            record_date: record.date,
+            entry_1: record.punches[0] || null,
+            exit_1: record.punches[1] || null,
+            entry_2: record.punches[2] || null,
+            exit_2: record.punches[3] || null,
+            entry_3: record.punches[4] || null,
+            exit_3: record.punches[5] || null,
+            entry_4: record.punches[6] || null,
+            exit_4: record.punches[7] || null,
+            raw_data: record.rawData as Json,
+            status: matchedEmployeeId ? "imported" : "pending_link", // Optional status update
+          };
+        }).filter(Boolean); // Filter out nulls (duplicates)
+
+        if (insertData.length > 0) {
+          const { error: batchError } = await supabase
+            .from("time_tracking_records")
+            .insert(insertData as any); // Cast to any to avoid strict type issues with filtered array
+
+          if (batchError) {
+            failed += batch.length; // Count full batch as failed if insert fails needed? or just the ones we tried
+            console.error("Batch error:", batchError);
+          } else {
+            imported += insertData.length;
+          }
         }
 
+        skippedDuplicates += (batch.length - insertData.length);
+
+
         setImportProgress(Math.round(((i + batch.length) / records.length) * 100));
+      }
+
+      if (skippedDuplicates > 0) {
+        toast.info(`${skippedDuplicates} registros duplicados foram ignorados.`);
       }
 
       // Update import record
@@ -299,13 +387,12 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           {["upload", "mapping", "preview", "complete"].map((s, i) => (
             <div key={s} className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step === s
-                    ? "bg-primary text-primary-foreground"
-                    : ["upload", "mapping", "preview", "importing", "complete"].indexOf(step) > i
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === s
+                  ? "bg-primary text-primary-foreground"
+                  : ["upload", "mapping", "preview", "importing", "complete"].indexOf(step) > i
                     ? "bg-green-500 text-white"
                     : "bg-gray-200 text-gray-500"
-                }`}
+                  }`}
               >
                 {i + 1}
               </div>
@@ -453,12 +540,15 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
                   <div className="space-y-2">
                     <Label>Nome do Funcionário</Label>
-                    <Select value={mapping.employeeName || ""} onValueChange={(v) => setMapping({ ...mapping, employeeName: v })}>
+                    <Select
+                      value={mapping.employeeName || "ignore"}
+                      onValueChange={(v) => setMapping({ ...mapping, employeeName: v === "ignore" ? "" : v })}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
+                        <SelectItem value="ignore">Nenhum</SelectItem>
                         {headers.map((h) => (
                           <SelectItem key={h} value={h}>{h}</SelectItem>
                         ))}
@@ -487,14 +577,14 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
                     {[1, 2, 3, 4].map((n) => (
                       <Select
                         key={n}
-                        value={(mapping as any)[`punch${n}`] || ""}
-                        onValueChange={(v) => setMapping({ ...mapping, [`punch${n}`]: v })}
+                        value={(mapping as any)[`punch${n}`] || "ignore"}
+                        onValueChange={(v) => setMapping({ ...mapping, [`punch${n}`]: v === "ignore" ? "" : v })}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={`Batida ${n}`} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nenhum</SelectItem>
+                          <SelectItem value="ignore">Nenhum</SelectItem>
                           {headers.map((h) => (
                             <SelectItem key={h} value={h}>{h}</SelectItem>
                           ))}
@@ -639,7 +729,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           <div className="space-y-6 text-center py-8">
             <CheckCircle2 className="w-16 h-16 mx-auto text-green-500" />
             <p className="text-xl font-bold">Importação Concluída!</p>
-            
+
             <div className="flex justify-center gap-4">
               <Badge className="bg-green-100 text-green-800 text-lg py-2 px-4">
                 {importResult.imported} importados
