@@ -71,7 +71,12 @@ export function TaskManagement() {
   const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
 
   const handleRequestExtension = async () => {
-    if (!selectedTask || !extensionDate || !extensionReason || !currentEmployee) return;
+    if (!selectedTask || !extensionDate || !extensionReason) return;
+
+    if (!currentEmployee) {
+      alert("Erro: Seu perfil de funcionário não foi carregado corretamente. Tente recarregar a página.");
+      return;
+    }
 
     setIsSubmittingExtension(true);
     try {
@@ -84,7 +89,7 @@ export function TaskManagement() {
         reason: extensionReason
       });
 
-      alert("Solicitação enviada ao gestor!"); // Using alert for simplicity/consistency with previous context, or allow toast if available.
+      alert("Solicitação enviada ao gestor!");
       setIsExtensionDialogOpen(false);
       setExtensionDate("");
       setExtensionReason("");
@@ -95,6 +100,8 @@ export function TaskManagement() {
       setIsSubmittingExtension(false);
     }
   };
+
+
 
   useEffect(() => {
     const saved = localStorage.getItem("dailyRoutines");
@@ -621,52 +628,53 @@ export function TaskManagement() {
                   </div>
 
                   <div className="flex gap-2 justify-end pt-4 border-t items-center">
-                    {/* Extension Request Button (for overdue or nearly overdue tasks) */}
-                    {(selectedTask.status === 'atrasada' || selectedTask.status === 'pendente') && (
-                      <Dialog open={isExtensionDialogOpen} onOpenChange={setIsExtensionDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="secondary" size="sm" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200">
-                            <Clock className="w-4 h-4 mr-2" />
-                            Pedir Mais Prazo
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Solicitar Prorrogação de Prazo</DialogTitle>
-                            <DialogDescription>
-                              O gestor receberá uma notificação com o seu pedido.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="ext-date">Nova Data Sugerida</Label>
-                              <Input
-                                id="ext-date"
-                                type="datetime-local"
-                                value={extensionDate}
-                                onChange={(e) => setExtensionDate(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="ext-reason">Motivo do Atraso</Label>
-                              <Textarea
-                                id="ext-reason"
-                                placeholder="Explique por que precisa de mais tempo..."
-                                value={extensionReason}
-                                onChange={(e) => setExtensionReason(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsExtensionDialogOpen(false)}>Cancelar</Button>
-                            <Button onClick={handleRequestExtension} disabled={!extensionDate || !extensionReason || isSubmittingExtension}>
-                              {isSubmittingExtension ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                              Enviar Pedido
+                    {/* Extension Request Button (Restricted to Assignee only) */}
+                    {(selectedTask.status === 'atrasada' || selectedTask.status === 'pendente') &&
+                      currentEmployee?.id === selectedTask.assignee_id && (
+                        <Dialog open={isExtensionDialogOpen} onOpenChange={setIsExtensionDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button variant="secondary" size="sm" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200">
+                              <Clock className="w-4 h-4 mr-2" />
+                              Pedir Mais Prazo
                             </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    )}
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Solicitar Prorrogação de Prazo</DialogTitle>
+                              <DialogDescription>
+                                O gestor receberá uma notificação com o seu pedido.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="ext-date">Nova Data Sugerida</Label>
+                                <Input
+                                  id="ext-date"
+                                  type="datetime-local"
+                                  value={extensionDate}
+                                  onChange={(e) => setExtensionDate(e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="ext-reason">Motivo do Atraso</Label>
+                                <Textarea
+                                  id="ext-reason"
+                                  placeholder="Explique por que precisa de mais tempo..."
+                                  value={extensionReason}
+                                  onChange={(e) => setExtensionReason(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => setIsExtensionDialogOpen(false)}>Cancelar</Button>
+                              <Button onClick={handleRequestExtension} disabled={!extensionDate || !extensionReason || isSubmittingExtension}>
+                                {isSubmittingExtension ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                Enviar Pedido
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      )}
 
                     <Button variant="outline" size="sm" className="gap-2">
                       <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments_count})

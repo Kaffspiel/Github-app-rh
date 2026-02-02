@@ -220,12 +220,17 @@ export function useCollaboratorTasks() {
 
   const updateTaskStatus = useCallback(async (taskId: string, status: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      const { data: updatedData, error } = await supabase
         .from('tasks')
         .update({ status })
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .select();
 
       if (error) throw error;
+
+      if (!updatedData || updatedData.length === 0) {
+        throw new Error('Permissão negada: Não foi possível atualizar a tarefa.');
+      }
 
       const task = tasks.find(t => t.id === taskId);
 

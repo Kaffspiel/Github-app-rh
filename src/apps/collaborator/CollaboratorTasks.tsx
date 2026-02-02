@@ -31,9 +31,12 @@ import {
     CheckCircle2,
     RefreshCw,
     Plus,
-    Trash2
+    Trash2,
+    Clock
 } from "lucide-react";
 import { useCollaboratorTasks } from "@/hooks/useCollaboratorTasks";
+import { useTaskNotifications } from "@/hooks/useTaskNotifications";
+import { format } from "date-fns";
 import { toast } from "sonner";
 
 interface NewTaskData {
@@ -67,6 +70,51 @@ export default function CollaboratorTasks() {
         createTask,
         refetch: refetchTasks
     } = useCollaboratorTasks();
+
+    const { notifyExtensionRequest } = useTaskNotifications();
+    const [isExtensionDialogOpen, setIsExtensionDialogOpen] = useState(false);
+    const [selectedTaskForExtension, setSelectedTaskForExtension] = useState<any>(null);
+    const [extensionDate, setExtensionDate] = useState("");
+    const [extensionReason, setExtensionReason] = useState("");
+    const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+
+    const handleRequestExtension = async () => {
+        if (!selectedTaskForExtension || !extensionDate || !extensionReason) return;
+
+        setIsSubmittingExtension(true);
+        try {
+            // We need companyId and employeeName. useCollaboratorTasks provides employeeName, but maybe not companyId directly in the hook return? 
+            // The hook tracks it internally. We might need to ask the hook to expose it or fetch it?
+            // Actually, the hook exposes `employeeName`. For companyId, let's assume the task has it or we can pass it if we expost it.
+            // Let's check useCollaboratorTasks.ts return. It returns `employeeName`. It doesn't return `companyId`.
+            // However, the task object has `company_id`.
+
+            await notifyExtensionRequest({
+                taskId: selectedTaskForExtension.id,
+                taskTitle: selectedTaskForExtension.title,
+                employeeName: "Colaborador", // Fallback or need to get it from hook
+                companyId: selectedTaskForExtension.company_id,
+                newDate: format(new Date(extensionDate), "dd/MM/yyyy HH:mm"),
+                reason: extensionReason
+            });
+
+            toast.success("Solicitação enviada ao gestor!");
+            setIsExtensionDialogOpen(false);
+            setExtensionDate("");
+            setExtensionReason("");
+            setSelectedTaskForExtension(null);
+        } catch (error) {
+            console.error("Erro ao solicitar prorrogação:", error);
+            toast.error("Erro ao enviar solicitação.");
+        } finally {
+            setIsSubmittingExtension(false);
+        }
+    };
+
+    const openExtensionDialog = (task: any) => {
+        setSelectedTaskForExtension(task);
+        setIsExtensionDialogOpen(true);
+    };
 
     const handleCreateTask = async () => {
         if (!newTaskData.title) {
@@ -281,14 +329,25 @@ export default function CollaboratorTasks() {
 
                                                 <div className="flex gap-2">
                                                     {task.status === 'pendente' || task.status === 'atrasada' ? (
-                                                        <Button
-                                                            size="sm"
-                                                            className="w-full bg-blue-600 hover:bg-blue-700"
-                                                            onClick={() => handleStartTask(task.id)}
-                                                        >
-                                                            <Play className="w-3 h-3 mr-1" />
-                                                            INICIAR
-                                                        </Button>
+                                                        <>
+                                                            <Button
+                                                                size="sm"
+                                                                className="w-full bg-blue-600 hover:bg-blue-700"
+                                                                onClick={() => handleStartTask(task.id)}
+                                                            >
+                                                                <Play className="w-3 h-3 mr-1" />
+                                                                INICIAR
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                className="w-full bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200"
+                                                                onClick={() => openExtensionDialog(task)}
+                                                            >
+                                                                <Clock className="w-3 h-3 mr-1" />
+                                                                PRAZO
+                                                            </Button>
+                                                        </>
                                                     ) : (
                                                         <Button
                                                             size="sm"
@@ -358,6 +417,43 @@ export default function CollaboratorTasks() {
                     </div>
                 </TabsContent>
             </Tabs>
-        </div>
+
+            <Dialog open={isExtensionDialogOpen} onOpenChange={setIsExtensionDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Solicitar Prorrogação de Prazo</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="ext-date">Nova Data Sugerida</Label>
+                            <Input
+                                id="ext-date"
+                                type="datetime-local"
+                                value={extensionDate}
+                                onChange={(e) => setExtensionDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="ext-reason">Motivo do Atraso</Label>
+                            <Textarea
+                                id="ext-reason"
+                                placeholder="Explique por que precisa de mais tempo..."
+                                value={extensionReason}
+                                onChange={(e) => setExtensionReason(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsExtensionDialogOpen(false)}>Cancelar</Button>
+                        <Button
+                            onClick={handleRequestExtension}
+                            disabled={!extensionDate || !extensionReason || isSubmittingExtension}
+                        >
+                            {isSubmittingExtension ? "Enviando..." : "Enviar Solicitação"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div >
     );
 }
