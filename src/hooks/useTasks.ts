@@ -68,7 +68,7 @@ export function useTasks() {
   const { user } = useAuth();
   const { companyId } = useCompany();
   const { toast } = useToast();
-  const { notifyTaskAssigned, notifyTaskUpdated } = useTaskNotifications();
+  const { notifyTaskAssigned, notifyTaskUpdated, notifyTaskCompleted, notifyTaskOverdue } = useTaskNotifications();
 
   const fetchTasks = useCallback(async () => {
     if (!companyId) {
@@ -117,6 +117,14 @@ export function useTasks() {
           // Update local data immediate reflection
           overdueTasks.forEach(t => {
             t.status = 'atrasada';
+
+            // Notify manager about overdue task
+            notifyTaskOverdue({
+              taskId: t.id,
+              taskTitle: t.title,
+              employeeName: t.assignee?.name || 'Não atribuído',
+              companyId: t.company_id
+            });
           });
 
           toast({
@@ -195,7 +203,7 @@ export function useTasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, toast]);
+  }, [companyId, toast, notifyTaskOverdue]);
 
   const createTask = useCallback(async (input: CreateTaskInput): Promise<Task | null> => {
     if (!companyId) {
@@ -282,7 +290,7 @@ export function useTasks() {
       // Get current task data
       const { data: currentTask } = await supabase
         .from('tasks')
-        .select('assignee_id, title, description, priority, due_date, status')
+        .select('assignee_id, title, description, priority, due_date, status, company_id')
         .eq('id', taskId)
         .maybeSingle();
 
@@ -304,52 +312,63 @@ export function useTasks() {
       });
 
       // Notifications Logic
-      if (currentTask && input.assignee_id && input.assignee_id !== currentTask.assignee_id) {
-        // Reassigned -> Notify New Assignee
-        const assignee = await supabase
+      if (currentTask) {
+        const currentEmployee = await supabase
           .from('employees')
           .select('id, name')
-          .eq('id', input.assignee_id)
-          .single();
+          .eq('user_id', user?.id)
+          .maybeSingle();
 
-        if (assignee.data) {
-          const currentUser = await supabase
+        // 1. Reassigned -> Notify New Assignee
+        if (input.assignee_id && input.assignee_id !== currentTask.assignee_id) {
+          const assignee = await supabase
             .from('employees')
-            .select('name')
-            .eq('user_id', user?.id)
-            .maybeSingle();
+            .select('id, name')
+            .eq('id', input.assignee_id)
+            .single();
 
-          notifyTaskAssigned({
-            taskId: taskId,
-            taskTitle: input.title || currentTask.title,
-            assigneeId: input.assignee_id,
-            assigneeName: assignee.data.name,
-            senderName: currentUser?.data?.name,
-          });
+          if (assignee.data) {
+            notifyTaskAssigned({
+              taskId: taskId,
+              taskTitle: input.title || currentTask.title,
+              assigneeId: input.assignee_id,
+              assigneeName: assignee.data.name,
+              senderName: currentEmployee?.data?.name,
+            });
+          }
         }
-      } else if (currentTask && currentTask.assignee_id) {
-        // Updated (same assignee) -> Notify Update
-        const changes: string[] = [];
-        if (input.title && input.title !== currentTask.title) changes.push('Título');
-        if (input.description && input.description !== currentTask.description) changes.push('Descrição');
-        if (input.priority && input.priority !== currentTask.priority) changes.push('Prioridade');
-        if (input.due_date && input.due_date !== currentTask.due_date) changes.push('Prazo');
-        if (input.status && input.status !== currentTask.status) changes.push('Status');
 
-        if (changes.length > 0) {
-          const currentUser = await supabase
-            .from('employees')
-            .select('name')
-            .eq('user_id', user?.id)
-            .maybeSingle();
+        // 2. Completed -> Notify Manager (if changed to concluded)
+        else if (input.status === 'concluido' && currentTask.status !== 'concluido') {
+          if (currentEmployee.data) {
+            notifyTaskCompleted({
+              taskId,
+              taskTitle: currentTask.title,
+              employeeId: currentEmployee.data.id,
+              employeeName: currentEmployee.data.name,
+              companyId: currentTask.company_id
+            });
+          }
+        }
 
-          notifyTaskUpdated({
-            taskId,
-            taskTitle: currentTask.title,
-            assigneeId: currentTask.assignee_id,
-            senderName: currentUser?.data?.name,
-            changes
-          });
+        // 3. Updated (same assignee) -> Notify Update
+        else if (currentTask.assignee_id) {
+          const changes: string[] = [];
+          if (input.title && input.title !== currentTask.title) changes.push('Título');
+          if (input.description && input.description !== currentTask.description) changes.push('Descrição');
+          if (input.priority && input.priority !== currentTask.priority) changes.push('Prioridade');
+          if (input.due_date && input.due_date !== currentTask.due_date) changes.push('Prazo');
+          if (input.status && input.status !== currentTask.status) changes.push('Status');
+
+          if (changes.length > 0) {
+            notifyTaskUpdated({
+              taskId,
+              taskTitle: currentTask.title,
+              assigneeId: currentTask.assignee_id,
+              senderName: currentEmployee?.data?.name,
+              changes
+            });
+          }
         }
       }
 
@@ -364,7 +383,7 @@ export function useTasks() {
       });
       return false;
     }
-  }, [fetchTasks, toast, user?.id, notifyTaskAssigned, notifyTaskUpdated]);
+  }, [fetchTasks, toast, user?.id, notifyTaskAssigned, notifyTaskUpdated, notifyTaskCompleted]);
 
   const deleteTask = useCallback(async (taskId: string): Promise<boolean> => {
     try {
