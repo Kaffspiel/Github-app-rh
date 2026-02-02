@@ -219,8 +219,9 @@ export const notificationService = {
         number: cleanPhone,
         messageType: "buttons",
         buttons: {
-          title: message.substring(0, 60), // Título curto
-          description: message.length > 60 ? message.substring(60, 260) : undefined,
+          title: message.split('\n')[0].substring(0, 50), // Title: Use first line, max 50 chars
+          description: message.length > 50 ? message.substring(message.indexOf('\n') + 1 || 50, 300) : "Detalhes da notificação",
+          footer: "OpsControl", // Required by n8n workflow
           buttons: limitedButtons.map((btn) => ({
             type: "reply" as const,
             reply: {

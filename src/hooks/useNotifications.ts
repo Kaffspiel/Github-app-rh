@@ -102,7 +102,7 @@ export const useNotifications = () => {
       // Se WhatsApp está habilitado, prepara payload para n8n
       if (channels.includes("whatsapp") && employee.whatsapp.isVerified) {
         const payload = notificationService.prepareEvolutionPayload({
-          instanceName: "default", // Configurar conforme ambiente
+          instanceName: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste",
           recipientPhone: employee.whatsapp.number,
           type: params.type,
           message: processed.message,
@@ -201,7 +201,7 @@ export const useNotifications = () => {
       senderName?: string;
     }) => {
       const recipients = params.recipientIds || employees.map((e) => e.id);
-      
+
       return notifyMany(recipients, {
         type: "announcement",
         variables: {
@@ -223,13 +223,13 @@ export const useNotifications = () => {
     notifyClock,
     notifyMany,
     sendAnnouncement,
-    
+
     // Gerenciamento
     markAsRead,
     markAllAsRead,
     deleteNotification,
     updateDeliveryStatus,
-    
+
     // Consultas
     getUnreadCount,
     getNotificationsByRecipient,
