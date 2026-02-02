@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   Notification,
   NotificationType,
@@ -32,25 +33,25 @@ interface NotificationContextType {
   notifications: Notification[];
   queue: NotificationQueueItem[];
   employees: Employee[];
-  
+
   // Notificações
   createNotification: (params: CreateNotificationParams) => Notification;
   markAsRead: (notificationId: string) => void;
   markAllAsRead: (recipientId: string) => void;
   deleteNotification: (notificationId: string) => void;
-  
+
   // Status de entrega
   updateDeliveryStatus: (
     notificationId: string,
     channel: NotificationChannel,
     status: Partial<DeliveryStatus[typeof channel]>
   ) => void;
-  
+
   // Fila
   addToQueue: (item: Omit<NotificationQueueItem, "id" | "createdAt">) => void;
   updateQueueItem: (itemId: string, updates: Partial<NotificationQueueItem>) => void;
   removeFromQueue: (itemId: string) => void;
-  
+
   // Consultas
   getUnreadCount: (recipientId: string) => number;
   getNotificationsByRecipient: (recipientId: string) => Notification[];
@@ -75,7 +76,71 @@ interface NotificationProviderProps {
 export const NotificationProvider = ({ children }: NotificationProviderProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [queue, setQueue] = useState<NotificationQueueItem[]>([]);
-  const [employees] = useState<Employee[]>(mockEmployees);
+  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+
+  // Fetch employees from Supabase
+  const fetchEmployees = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching employees for notifications:', error);
+        return;
+      }
+
+      if (data) {
+        const mappedEmployees: Employee[] = data.map(emp => ({
+          id: emp.id,
+          name: emp.name,
+          role: emp.role as "admin" | "gestor" | "colaborador",
+          avatar: emp.whatsapp_profile_pic || undefined,
+          email: emp.email || "",
+          phone: emp.whatsapp_number || "",
+          department: emp.department || "Geral",
+          isActive: emp.is_active,
+          whatsapp: {
+            number: emp.whatsapp_number || "",
+            isVerified: emp.whatsapp_verified || false,
+          },
+          notificationPreferences: {
+            enableEmail: false, // Not in schema currently
+            enableWhatsApp: emp.notify_whatsapp || false,
+            enableInApp: emp.notify_in_app || true,
+            quietHoursStart: emp.quiet_hours_start || "22:00",
+            quietHoursEnd: emp.quiet_hours_end || "07:00",
+            daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            categories: {
+              tasks: emp.notify_tasks || true,
+              timeTracking: emp.notify_time_tracking || true,
+              reminders: emp.notify_reminders || true,
+              announcements: emp.notify_announcements || true
+            }
+          }
+        }));
+        setEmployees(mappedEmployees);
+      }
+    } catch (err) {
+      console.error('Error in fetchEmployees:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEmployees();
+
+    // Subscribe to employee changes
+    const channel = supabase
+      .channel('public:employees')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
+        fetchEmployees();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchEmployees]);
 
   // Gera ID único
   const generateId = useCallback(() => {
@@ -103,7 +168,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   const createNotification = useCallback(
     (params: CreateNotificationParams): Notification => {
       const employee = getEmployeeById(params.recipientId);
-      
+
       const notification: Notification = {
         id: generateId(),
         type: params.type,
@@ -134,18 +199,18 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       prev.map((notif) =>
         notif.id === notificationId
           ? {
-              ...notif,
-              status: "read" as NotificationStatus,
-              readAt: new Date().toISOString(),
-              deliveryStatus: {
-                ...notif.deliveryStatus,
-                in_app: {
-                  ...notif.deliveryStatus.in_app,
-                  status: "read" as const,
-                  readAt: new Date().toISOString(),
-                },
+            ...notif,
+            status: "read" as NotificationStatus,
+            readAt: new Date().toISOString(),
+            deliveryStatus: {
+              ...notif.deliveryStatus,
+              in_app: {
+                ...notif.deliveryStatus.in_app,
+                status: "read" as const,
+                readAt: new Date().toISOString(),
               },
-            }
+            },
+          }
           : notif
       )
     );
@@ -158,18 +223,18 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       prev.map((notif) =>
         notif.recipientId === recipientId && notif.status !== "read"
           ? {
-              ...notif,
-              status: "read" as NotificationStatus,
-              readAt: now,
-              deliveryStatus: {
-                ...notif.deliveryStatus,
-                in_app: {
-                  ...notif.deliveryStatus.in_app,
-                  status: "read" as const,
-                  readAt: now,
-                },
+            ...notif,
+            status: "read" as NotificationStatus,
+            readAt: now,
+            deliveryStatus: {
+              ...notif.deliveryStatus,
+              in_app: {
+                ...notif.deliveryStatus.in_app,
+                status: "read" as const,
+                readAt: now,
               },
-            }
+            },
+          }
           : notif
       )
     );

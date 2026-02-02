@@ -94,6 +94,38 @@ export function useTasks() {
 
       if (tasksError) throw tasksError;
 
+      // Check for overdue tasks and update them
+      if (tasksData) {
+        const now = new Date();
+        const overdueTasks = tasksData.filter(task => {
+          if (!task.due_date) return false;
+          const dueDate = new Date(task.due_date);
+          // Check if due date is in the past, and status is not 'concluido' or 'atrasada'
+          return dueDate < now && task.status !== 'concluido' && task.status !== 'atrasada';
+        });
+
+        if (overdueTasks.length > 0) {
+          const overdueIds = overdueTasks.map(t => t.id);
+          console.log('Marking overdue tasks:', overdueIds);
+
+          // Update in Supabase
+          await supabase
+            .from('tasks')
+            .update({ status: 'atrasada' })
+            .in('id', overdueIds);
+
+          // Update local data immediate reflection
+          overdueTasks.forEach(t => {
+            t.status = 'atrasada';
+          });
+
+          toast({
+            title: 'Tarefas Atualizadas',
+            description: `${overdueTasks.length} tarefa(s) marcada(s) como atrasada(s).`,
+          });
+        }
+      }
+
       // Fetch checklists for all tasks
       const taskIds = tasksData?.map(t => t.id) || [];
 
@@ -190,7 +222,7 @@ export function useTasks() {
           title: input.title,
           description: input.description || null,
           priority: input.priority || 'média',
-          due_date: input.due_date || null,
+          due_date: input.due_date ? new Date(input.due_date).toISOString() : null,
           assignee_id: input.assignee_id || null,
           is_daily_routine: input.is_daily_routine || false,
           created_by: employee?.id || null,
@@ -254,9 +286,14 @@ export function useTasks() {
         .eq('id', taskId)
         .maybeSingle();
 
+      const updateData = {
+        ...input,
+        due_date: input.due_date ? new Date(input.due_date).toISOString() : input.due_date
+      };
+
       const { error } = await supabase
         .from('tasks')
-        .update(input)
+        .update(updateData)
         .eq('id', taskId);
 
       if (error) throw error;
