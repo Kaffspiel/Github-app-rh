@@ -297,7 +297,7 @@ export function TaskManagement() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Gestão de Tarefas</h1>
@@ -617,8 +617,8 @@ export function TaskManagement() {
 
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[300px]">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="w-full md:flex-1 md:min-w-[300px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
@@ -635,7 +635,7 @@ export function TaskManagement() {
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="w-[160px]"
+                className="flex-1 md:w-[160px]"
               />
               {filterDate && (
                 <Button
@@ -649,7 +649,7 @@ export function TaskManagement() {
               )}
             </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full md:w-[180px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue />
               </SelectTrigger>
@@ -662,7 +662,7 @@ export function TaskManagement() {
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full md:w-[180px]">
                 <ArrowUpDown className="w-4 h-4 mr-2" />
                 <SelectValue />
               </SelectTrigger>
@@ -678,7 +678,7 @@ export function TaskManagement() {
       </Card>
 
       <Tabs defaultValue="minhas" className="space-y-6">
-        <TabsList className="grid w-full max-w-4xl grid-cols-5">
+        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap h-auto p-1 gap-2 md:grid md:grid-cols-5 md:gap-0">
           <TabsTrigger value="minhas">
             Minhas Tarefas
             <Badge variant="secondary" className="ml-2">

@@ -18,6 +18,11 @@ export function NotificationQueueProcessor() {
                 // Mark as processing
                 updateQueueItem(pendingItem.id, { status: 'processing' });
 
+                console.log('🚀 Sending to n8n:', {
+                    url: pendingItem.webhookUrl,
+                    payload: pendingItem.payload
+                });
+
                 // Send to n8n
                 const response = await fetch(pendingItem.webhookUrl, {
                     method: 'POST',
@@ -27,12 +32,16 @@ export function NotificationQueueProcessor() {
                     body: JSON.stringify(pendingItem.payload),
                 });
 
+                console.log('📡 n8n Response:', response.status, response.statusText);
+
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('❌ n8n Error Body:', errorText);
+                    throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
                 }
 
                 // Success
-                console.log('Notification sent successfully:', pendingItem.id);
+                console.log('✅ Notification sent successfully:', pendingItem.id);
                 updateQueueItem(pendingItem.id, { status: 'sent' });
 
                 // Remove from queue after short delay to keep history clean? 
