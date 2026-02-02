@@ -100,8 +100,9 @@ export function useTasks() {
         const overdueTasks = tasksData.filter(task => {
           if (!task.due_date) return false;
           const dueDate = new Date(task.due_date);
-          // Check if due date is in the past, and status is not 'concluido' or 'atrasada'
-          return dueDate < now && task.status !== 'concluido' && task.status !== 'atrasada';
+          // Check if due date is in the past, and status is 'pendente'
+          // We allow 'andamento' tasks to remain as is, even if overdue, so user can work on them without auto-revert.
+          return dueDate < now && task.status === 'pendente';
         });
 
         if (overdueTasks.length > 0) {
@@ -109,10 +110,19 @@ export function useTasks() {
           console.log('Marking overdue tasks:', overdueIds);
 
           // Update in Supabase
-          await supabase
+          const { error: updateError } = await supabase
             .from('tasks')
             .update({ status: 'atrasada' })
             .in('id', overdueIds);
+
+          if (updateError) {
+            console.error('CRITICAL DB ERROR: Failed to update overdue tasks', updateError);
+            toast({
+              title: 'Erro de Banco de Dados',
+              description: `Falha ao atualizar tarefas: ${updateError.message}`,
+              variant: 'destructive',
+            });
+          }
 
           // Update local data immediate reflection
           overdueTasks.forEach(t => {
@@ -299,12 +309,17 @@ export function useTasks() {
         due_date: input.due_date ? new Date(input.due_date).toISOString() : input.due_date
       };
 
-      const { error } = await supabase
+      const { data: updatedData, error } = await supabase
         .from('tasks')
         .update(updateData)
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .select();
 
       if (error) throw error;
+
+      if (!updatedData || updatedData.length === 0) {
+        throw new Error('Permissão negada (RLS): Nenhuma tarefa foi atualizada.');
+      }
 
       toast({
         title: 'Tarefa atualizada',

@@ -13,6 +13,7 @@ import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, Check
 import { useState, useEffect } from "react";
 import { useTasks, Task } from "@/hooks/useTasks";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
+import { useTaskNotifications } from "@/hooks/useTaskNotifications";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
 import { RoutineTemplatesTab } from "@/components/tasks/RoutineTemplatesTab";
@@ -61,6 +62,39 @@ export function TaskManagement() {
 
   // Get current employee info
   const currentEmployee = employees.find(e => e.email === user?.email);
+  const { notifyExtensionRequest } = useTaskNotifications();
+
+  // Extension Request State
+  const [isExtensionDialogOpen, setIsExtensionDialogOpen] = useState(false);
+  const [extensionDate, setExtensionDate] = useState("");
+  const [extensionReason, setExtensionReason] = useState("");
+  const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+
+  const handleRequestExtension = async () => {
+    if (!selectedTask || !extensionDate || !extensionReason || !currentEmployee) return;
+
+    setIsSubmittingExtension(true);
+    try {
+      await notifyExtensionRequest({
+        taskId: selectedTask.id,
+        taskTitle: selectedTask.title,
+        employeeName: currentEmployee.name,
+        companyId: selectedTask.company_id,
+        newDate: format(new Date(extensionDate), "dd/MM/yyyy HH:mm"),
+        reason: extensionReason
+      });
+
+      alert("Solicitação enviada ao gestor!"); // Using alert for simplicity/consistency with previous context, or allow toast if available.
+      setIsExtensionDialogOpen(false);
+      setExtensionDate("");
+      setExtensionReason("");
+    } catch (error) {
+      console.error("Erro ao solicitar prorrogação:", error);
+      alert("Erro ao enviar solicitação.");
+    } finally {
+      setIsSubmittingExtension(false);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem("dailyRoutines");
@@ -586,15 +620,75 @@ export function TaskManagement() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 justify-end pt-4 border-t">
+                  <div className="flex gap-2 justify-end pt-4 border-t items-center">
+                    {/* Extension Request Button (for overdue or nearly overdue tasks) */}
+                    {(selectedTask.status === 'atrasada' || selectedTask.status === 'pendente') && (
+                      <Dialog open={isExtensionDialogOpen} onOpenChange={setIsExtensionDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="secondary" size="sm" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200">
+                            <Clock className="w-4 h-4 mr-2" />
+                            Pedir Mais Prazo
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Solicitar Prorrogação de Prazo</DialogTitle>
+                            <DialogDescription>
+                              O gestor receberá uma notificação com o seu pedido.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="ext-date">Nova Data Sugerida</Label>
+                              <Input
+                                id="ext-date"
+                                type="datetime-local"
+                                value={extensionDate}
+                                onChange={(e) => setExtensionDate(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="ext-reason">Motivo do Atraso</Label>
+                              <Textarea
+                                id="ext-reason"
+                                placeholder="Explique por que precisa de mais tempo..."
+                                value={extensionReason}
+                                onChange={(e) => setExtensionReason(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsExtensionDialogOpen(false)}>Cancelar</Button>
+                            <Button onClick={handleRequestExtension} disabled={!extensionDate || !extensionReason || isSubmittingExtension}>
+                              {isSubmittingExtension ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                              Enviar Pedido
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+
                     <Button variant="outline" size="sm" className="gap-2">
                       <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments_count})
                     </Button>
                     <Select
                       value={selectedTask.status}
-                      onValueChange={(value) => {
-                        updateTask(selectedTask.id, { status: value as Task['status'] });
-                        setSelectedTask({ ...selectedTask, status: value as Task['status'] });
+                      onValueChange={async (value) => {
+                        try {
+                          await updateTask(selectedTask.id, { status: value as Task['status'] });
+                          setSelectedTask({ ...selectedTask, status: value as Task['status'] });
+                        } catch (error: any) {
+                          console.error("Erro ao atualizar status:", error);
+                          // We need to import 'toast' or use 'useToast' hook here if not already available in the component scope?
+                          // Checking imports... 'use-toast' is not imported in the original file view I saw.
+                          // Wait, I should confirm imports first. 
+                          // Assuming I can't see the top, I'll alert for now or assumed it's passed or available.
+                          // Actually, useTasks probably handles the optimistic update or toast? No, useTasks throws.
+                          // Let's use simple alert for now if toast isn't available, OR just console.error heavily.
+                          // Actually, looking at imports in previous turn (Step 1344 view), 'use-toast' was NOT imported in TaskManagement.tsx
+                          // I should probably add the import too, but for a quick fix let's use alert() or console.
+                          alert(`Erro ao atualizar: ${error.message || 'Erro desconhecido'}`);
+                        }
                       }}
                     >
                       <SelectTrigger className="w-[180px]">
