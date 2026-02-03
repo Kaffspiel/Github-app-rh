@@ -15,7 +15,6 @@ import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts";
 
 export function Reports() {
   const { employees } = useEmployeesList();
@@ -436,30 +435,6 @@ export function Reports() {
         </TabsContent>
 
         <TabsContent value="generate" className="space-y-6">
-          {/* Visual Dashboard */}
-          {companyStats && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <Card className="col-span-1 md:col-span-2">
-                <CardHeader>
-                  <CardTitle>Visão Geral de Performance</CardTitle>
-                </CardHeader>
-                <CardContent className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={companyStats.departments.map(d => ({ name: d.name, ocorrencias: d.totalOccurrences, tarefas: d.totalTasks }))}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <RechartsTooltip />
-                      <Legend />
-                      <Bar dataKey="ocorrencias" name="Ocorrências" fill="#ea580c" />
-                      <Bar dataKey="tarefas" name="Tarefas Totais" fill="#2563eb" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
           <Card className="col-span-1 md:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle>Painel de Gestão (Equipes & Reincidências)</CardTitle>
