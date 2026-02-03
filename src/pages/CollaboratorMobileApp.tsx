@@ -127,13 +127,26 @@ export default function CollaboratorMobileApp() {
   };
 
   const loadProfile = async () => {
+    console.log("Loading profile for user:", user?.id);
     const { data, error } = await supabase
       .from("employees")
       .select("*")
       .eq("user_id", user?.id)
-      .single();
+      .maybeSingle(); // Changed to maybeSingle to handle 0 rows gracefully
 
-    if (!error && data) {
+    if (error) {
+      console.error("Error loading profile:", error);
+      toast.error(`Erro ao carregar perfil: ${error.message}`);
+      return;
+    }
+
+    if (!data) {
+      console.warn("No profile found for user:", user?.id);
+      toast.warning("Perfil não encontrado. Verifique se o email do login confere com o cadastro.");
+    }
+
+    if (data) {
+      console.log("Profile loaded:", data);
       setProfile(data as EmployeeProfile);
     }
   };
