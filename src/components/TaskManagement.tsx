@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { useTasks, Task } from "@/hooks/useTasks";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
 import { useTaskNotifications } from "@/hooks/useTaskNotifications";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
 import { RoutineTemplatesTab } from "@/components/tasks/RoutineTemplatesTab";
@@ -21,7 +22,7 @@ import { RoutineTemplatesTab } from "@/components/tasks/RoutineTemplatesTab";
 export function TaskManagement() {
   const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem } = useTasks();
   const { employees } = useEmployeesList();
-  const { user } = useAuth();
+  const { user, currentRole } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("todas");
@@ -69,6 +70,82 @@ export function TaskManagement() {
   const [extensionDate, setExtensionDate] = useState("");
   const [extensionReason, setExtensionReason] = useState("");
   const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+  const { notifications, markAsRead, notify } = useNotifications();
+
+  // Filter extension requests
+  const extensionRequests = notifications.filter(n =>
+    n.title === '⏳ Pedido de Prorrogação' && n.status === 'pending'
+  );
+
+  const handleApproveExtension = async (notification: any) => {
+    try {
+      // Parse message
+      const dateMatch = notification.message?.match(/Nova Data: (.*)\n/);
+      const newDateStr = dateMatch ? dateMatch[1] : null;
+
+      if (!newDateStr) {
+        alert("Erro ao identificar a nova data no pedido.");
+        return;
+      }
+
+      // Convert Brazil format dd/MM/yyyy HH:mm to ISO if needed, or if it is already ISO?
+      // format() in handleRequestExtension uses "dd/MM/yyyy HH:mm".
+      // We need to parse "dd/MM/yyyy HH:mm" back to ISO for Supabase 'timestamp' (which is ISO).
+
+      const [datePart, timePart] = newDateStr.split(' ');
+      const [day, month, year] = datePart.split('/');
+
+      // Construct ISO string: YYYY-MM-DDTHH:mm:00
+      const isoDate = `${year}-${month}-${day}T${timePart || '00:00'}:00`;
+
+      // Update Task
+      await updateTask(notification.relatedEntity?.id || notification.related_entity_id, {
+        due_date: isoDate,
+        status: 'pendente' // Reset status if it was delayed
+      });
+
+      // Notify Requester
+      notify({
+        type: 'task_comment',
+        title: '✅ Prorrogação Aprovada',
+        message: `Seu pedido de prorrogação para a tarefa foi aprovado. Novo prazo: ${newDateStr}.`,
+        recipientId: notification.senderId || notification.sender_id || "", // Sender of request is recipient of answer
+        priority: 'normal',
+        relatedEntity: { type: 'task', id: notification.related_entity_id }
+      });
+
+      // Mark request as read
+      await markAsRead(notification.id);
+
+      alert("Prorrogação aprovada com sucesso!");
+
+    } catch (error) {
+      console.error("Erro ao aprovar:", error);
+      alert("Erro ao aprovar prorrogação.");
+    }
+  };
+
+  const handleRejectExtension = async (notification: any) => {
+    try {
+      // Mark request as read
+      await markAsRead(notification.id);
+
+      // Notify Requester
+      notify({
+        type: 'task_comment', // or task_update
+        title: '❌ Prorrogação Negada',
+        message: `Seu pedido de prorrogação foi negado pelo gestor. O prazo original permanece.`,
+        recipientId: notification.senderId || notification.sender_id || "",
+        priority: 'high',
+        relatedEntity: { type: 'task', id: notification.related_entity_id }
+      });
+
+      alert("Prorrogação negada.");
+
+    } catch (error) {
+      console.error("Erro ao rejeitar:", error);
+    }
+  };
 
   const handleRequestExtension = async () => {
     if (!selectedTask || !extensionDate || !extensionReason) return;
@@ -811,7 +888,77 @@ export function TaskManagement() {
             <Copy className="w-4 h-4 mr-1" />
             Templates
           </TabsTrigger>
+          {(currentRole === 'admin' || currentRole === 'gestor') && (
+            <TabsTrigger value="solicitacoes" className="relative">
+              <Clock className="w-4 h-4 mr-1" />
+              Solicitações
+              {extensionRequests.length > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full text-[10px]">
+                  {extensionRequests.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
+
+        <TabsContent value="solicitacoes" className="space-y-6">
+          <div className="flex items-center gap-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="w-1 h-12 bg-yellow-500 rounded" />
+            <div>
+              <p className="font-medium text-yellow-900">Solicitações de Prorrogação</p>
+              <p className="text-sm text-yellow-700">
+                Aprove ou rejeite os pedidos de mais prazo feitos pela equipe.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {extensionRequests.length > 0 ? (
+              extensionRequests.map((req) => (
+                <Card key={req.id} className="border-l-4 border-l-yellow-400 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                        Prorrogação
+                      </Badge>
+                      <span className="text-xs text-gray-500">{format(new Date(req.createdAt), "dd/MM HH:mm")}</span>
+                    </div>
+                    <CardTitle className="text-base mt-2">{req.senderName || "Colaborador"}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
+                      {req.message?.split('\n').map((line, i) => (
+                        <p key={i} className={i === 0 ? "font-medium mb-1" : ""}>{line}</p>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        size="sm"
+                        onClick={() => handleApproveExtension(req)}
+                      >
+                        Aprovar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1 text-red-600 hover:bg-red-50 border-red-200"
+                        size="sm"
+                        onClick={() => handleRejectExtension(req)}
+                      >
+                        Rejeitar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="col-span-full py-12 text-center text-gray-400 bg-gray-50 rounded-lg border-2 border-dashed">
+                <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                <p>Nenhuma solicitação pendente.</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
 
         <TabsContent value="minhas" className="space-y-6">
           <div className="flex items-center gap-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
