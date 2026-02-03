@@ -1,0 +1,35 @@
+# Task List
+
+- [x] Explore project structure and routing <!-- id: 0 -->
+- [x] Design Database Schema for Occurrences and Rules <!-- id: 1 -->
+- [x] Create Implementation Plan <!-- id: 2 -->
+- [x] Implement "Ocorrências" (Occurrences) Tab <!-- id: 3 -->
+    - [x] Create Database Table for Occurrences (SQL File) <!-- id: 4 -->
+    - [x] Create UI for Occurrences <!-- id: 5 -->
+    - [x] Implement Logic for Adding/Removing Points (Backend Trigger) <!-- id: 6 -->
+- [x] Implement "Regras e Diretrizes" (Rules and Guidelines) Tab <!-- id: 7 -->
+    - [x] Create Database Table for specific Rules (SQL File) <!-- id: 8 -->
+    - [x] Implement File Upload (Supabase Storage) <!-- id: 9 -->
+    - [x] Create UI for Rules and Guidelines <!-- id: 10 -->
+- [x] Update Navigation/Sidebar to include new tabs <!-- id: 11 -->
+- [x] Verify Changes <!-- id: 12 -->
+    - [x] Fix TypeScript Errors (types.ts) <!-- id: 13 -->
+    - [x] Create 'documents' Storage Bucket (storage_setup.sql) <!-- id: 14 -->
+    - [x] Verify Database Integrity (script verification) <!-- id: 15 -->
+- [x] Implement Automated Points for Tasks (automation_triggers.sql) <!-- id: 16 -->
+- [x] Refactor Time Tracking (Entry Only & Justification) <!-- id: 17 -->
+- [x] Implement "Create User for Existing Employees" <!-- id: 18 -->
+- [x] Fix Invalid Button Message Error (Backend Conversion) <!-- id: 19 -->
+- [x] Configure WhatsApp Webhook for Responses <!-- id: 20 -->
+- [x] Organize SQL Files and Project Structure <!-- id: 21 -->
+- [x] Fix Profile Data Loading (RLS Permissions) <!-- id: 22 -->
+- [x] Fix "Create User" Error Handling (Edge Function) <!-- id: 23 -->
+- [x] Sync Gamification and Occurrences for Collaborators <!-- id: 24 -->
+    - [x] Create `CollaboratorOccurrences` component <!-- id: 25 -->
+    - [x] Implement Ranking Logic (RPC Function) <!-- id: 26 -->
+    - [x] Update Mobile App Navigation <!-- id: 27 -->
+    - [x] Replace Mock Data in Admin Gamification Dashboard <!-- id: 28 -->
+- [x] Implement Task Extension Approval for Managers (UI & Logic) <!-- id: 31 -->
+- [x] Implement Automated Punctuality Points (SQL Trigger) <!-- id: 29 -->
+- [x] Backfill Historical Punctuality Points (SQL Script) <!-- id: 30 -->
+- [x] Review and Fix Collaborator Mobile App Extension Request <!-- id: 32 -->

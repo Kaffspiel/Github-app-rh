@@ -23,6 +23,7 @@ export interface CollaboratorTask {
   created_at: string;
   checklist: ChecklistItem[];
   company_id?: string;
+  extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
 }
 
 export function useCollaboratorTasks() {
@@ -139,6 +140,7 @@ export function useCollaboratorTasks() {
             completed: c.completed,
             sort_order: c.sort_order,
           })),
+          extension_status: task.extension_status
         };
       });
 
@@ -312,6 +314,30 @@ export function useCollaboratorTasks() {
     }
   }, [employeeId, fetchMyTasks, toast, logTaskProgress]);
 
+  const updateTask = useCallback(async (taskId: string, updates: Partial<CollaboratorTask>): Promise<boolean> => {
+    try {
+      // Filter out fields that shouldn't be updated directly or map properly
+      const { data: updatedData, error } = await supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', taskId)
+        .select();
+
+      if (error) throw error;
+
+      await fetchMyTasks();
+      return true;
+    } catch (err: any) {
+      console.error('Error updating task:', err);
+      toast({
+        title: 'Erro ao atualizar tarefa',
+        description: err.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [fetchMyTasks, toast]);
+
   const createTask = useCallback(async (data: {
     title: string;
     description: string;
@@ -393,5 +419,6 @@ export function useCollaboratorTasks() {
     updateTaskStatus,
     updateTaskProgress,
     createTask,
+    updateTask
   };
 }

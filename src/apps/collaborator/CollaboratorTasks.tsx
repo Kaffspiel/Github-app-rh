@@ -68,6 +68,7 @@ export default function CollaboratorTasks() {
         updateTaskStatus,
         updateTaskProgress,
         createTask,
+        updateTask,
         refetch: refetchTasks
     } = useCollaboratorTasks();
 
@@ -97,6 +98,12 @@ export default function CollaboratorTasks() {
                 newDate: format(new Date(extensionDate), "dd/MM/yyyy HH:mm"),
                 reason: extensionReason
             });
+
+            // Update local task status to pending
+            // We need updateTask from hook
+            if (updateTask) {
+                await updateTask(selectedTaskForExtension.id, { extension_status: 'pending' });
+            }
 
             toast.success("Solicitação enviada ao gestor!");
             setIsExtensionDialogOpen(false);
@@ -302,6 +309,12 @@ export default function CollaboratorTasks() {
                                                     <Badge variant="outline" className="text-[10px] uppercase">
                                                         {task.priority}
                                                     </Badge>
+                                                    {task.extension_status === 'pending' && (
+                                                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 text-[10px] gap-1">
+                                                            <Clock className="w-3 h-3" />
+                                                            Solicitação Pendente
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </div>
                                             {task.description && (

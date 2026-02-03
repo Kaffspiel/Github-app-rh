@@ -261,6 +261,8 @@ export function useTaskNotifications() {
           type: 'task_comment', // Using generic type as proxy
           title: '⏳ Pedido de Prorrogação',
           message: `${params.employeeName} pediu mais prazo na tarefa "${params.taskTitle}".\nNova Data: ${params.newDate}\nMotivo: ${params.reason}`,
+          // DEBUG: Log
+          _debug: console.log('DEBUG: Creating extension notification for', manager.name, manager.id),
           recipient_id: manager.id,
           sender_name: params.employeeName,
           channels: ['in_app'],
