@@ -256,7 +256,7 @@ export function useTaskNotifications() {
 
       // Create notifications
       const notifications = managers
-        .filter(m => m.notify_tasks && m.notify_in_app)
+        // .filter(m => m.notify_tasks && m.notify_in_app) // Removed filter: Extension requests are mandatory work items
         .map(manager => ({
           type: 'task_comment', // Using generic type as proxy
           title: '⏳ Pedido de Prorrogação',
