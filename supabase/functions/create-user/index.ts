@@ -190,7 +190,7 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
+        status: 200, // Return 200 even on error so client can parse the message
       }
     );
   }
