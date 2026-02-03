@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut } from "lucide-react";
+import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut, AlertTriangle, BookOpen } from "lucide-react";
+import { Occurrences } from "@/components/Occurrences";
+import { RulesAndGuidelines } from "@/components/RulesAndGuidelines";
 import { Dashboard } from "@/components/Dashboard";
 import { TaskManagement } from "@/components/TaskManagement";
 import { CollaboratorAppAdmin } from "@/components/CollaboratorAppAdmin";
@@ -26,6 +28,9 @@ const Index = () => {
     { id: "collaborator" as View, name: "App Colaborador", icon: Users },
     { id: "timetracking" as View, name: "Controle de Ponto", icon: Clock },
     { id: "gamification" as View, name: "Gamificação", icon: Trophy },
+    { id: "gamification" as View, name: "Gamificação", icon: Trophy },
+    { id: "occurrences" as View, name: "Ocorrências", icon: AlertTriangle },
+    { id: "rules" as View, name: "Regras e Diretrizes", icon: BookOpen },
     { id: "reports" as View, name: "Relatórios", icon: FileText },
   ];
 
@@ -37,6 +42,9 @@ const Index = () => {
       case "collaborator": return <CollaboratorAppAdmin />;
       case "timetracking": return <TimeTracking />;
       case "gamification": return <Gamification />;
+      case "gamification": return <Gamification />;
+      case "occurrences": return <Occurrences />;
+      case "rules": return <RulesAndGuidelines />;
       case "reports": return <Reports />;
       default: return <Dashboard />;
     }
@@ -88,8 +96,8 @@ const Index = () => {
                 <p>{currentRole === "admin" ? "Administrador" : "Gestor"}</p>
               </div>
               <Button
-                variant="ghost" 
-                size="sm" 
+                variant="ghost"
+                size="sm"
                 onClick={signOut}
                 className="w-full justify-start text-blue-200 hover:text-white hover:bg-blue-800"
               >
@@ -98,9 +106,9 @@ const Index = () => {
               </Button>
             </div>
           ) : (
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={signOut}
               className="w-full text-blue-200 hover:text-white hover:bg-blue-800"
             >
