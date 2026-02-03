@@ -105,7 +105,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
             isVerified: emp.whatsapp_verified || false,
           },
           notificationPreferences: {
-            enableEmail: false, // Not in schema currently
+            enableEmail: false,
             enableWhatsApp: emp.notify_whatsapp || false,
             enableInApp: emp.notify_in_app || true,
             quietHoursStart: emp.quiet_hours_start || "22:00",
@@ -126,21 +126,80 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, []);
 
+  // Fetch notifications from Supabase
+  const fetchNotifications = useCallback(async () => {
+    try {
+      // Fetch 100 most recent notifications
+      // In a real app we might filter by user, but context seems global or we rely on RLS
+      // Assuming RLS will filter for current user automatically if configured
+      // But here we might want all if we are admin? 
+      // Let's assume we fetch all visible to user.
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return;
+      }
+
+      if (data) {
+        const mappedNotifications: Notification[] = data.map((n: any) => ({
+          id: n.id,
+          type: n.type as NotificationType,
+          title: n.title,
+          message: n.message,
+          recipientId: n.recipient_id,
+          recipientPhone: "", // We can try to map from employees if needed, but not critical for display
+          senderId: n.sender_id,
+          senderName: n.sender_name,
+          channels: n.channels || ["in_app"],
+          priority: n.priority as NotificationPriority,
+          relatedEntity: n.related_entity_type ? {
+            type: n.related_entity_type as any,
+            id: n.related_entity_id
+          } : undefined,
+          status: n.status as NotificationStatus,
+          deliveryStatus: {}, // Simplified
+          createdAt: n.created_at,
+          readAt: n.read_at,
+          scheduledFor: n.scheduled_for
+        }));
+        setNotifications(mappedNotifications);
+      }
+    } catch (err) {
+      console.error('Error in fetchNotifications:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchEmployees();
+    fetchNotifications();
 
     // Subscribe to employee changes
-    const channel = supabase
+    const empChannel = supabase
       .channel('public:employees')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
         fetchEmployees();
       })
       .subscribe();
 
+    // Subscribe to notification changes
+    const notifChannel = supabase
+      .channel('public:notifications')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        fetchNotifications();
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(empChannel);
+      supabase.removeChannel(notifChannel);
     };
-  }, [fetchEmployees]);
+  }, [fetchEmployees, fetchNotifications]);
 
   // Gera ID único
   const generateId = useCallback(() => {
