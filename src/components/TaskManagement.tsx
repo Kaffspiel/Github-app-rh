@@ -101,7 +101,8 @@ export function TaskManagement() {
       // Update Task
       await updateTask(notification.relatedEntity?.id || notification.related_entity_id, {
         due_date: isoDate,
-        status: 'pendente' // Reset status if it was delayed
+        status: 'pendente', // Reset status if it was delayed
+        extension_status: 'approved'
       });
 
       // Notify Requester
@@ -129,6 +130,11 @@ export function TaskManagement() {
     try {
       // Mark request as read
       await markAsRead(notification.id);
+
+      // Update task status to rejected
+      await updateTask(notification.relatedEntity?.id || notification.related_entity_id, {
+        extension_status: 'rejected'
+      });
 
       // Notify Requester
       notify({
@@ -166,6 +172,10 @@ export function TaskManagement() {
         reason: extensionReason
       });
 
+      await updateTask(selectedTask.id, {
+        extension_status: 'pending'
+      });
+
       alert("Solicitação enviada ao gestor!");
       setIsExtensionDialogOpen(false);
       setExtensionDate("");
@@ -175,6 +185,8 @@ export function TaskManagement() {
       alert("Erro ao enviar solicitação.");
     } finally {
       setIsSubmittingExtension(false);
+      // Optimistic update for UI
+      if (selectedTask) setSelectedTask({ ...selectedTask, extension_status: 'pending' });
     }
   };
 
@@ -752,6 +764,13 @@ export function TaskManagement() {
                           </DialogContent>
                         </Dialog>
                       )}
+
+                    {selectedTask.extension_status === 'pending' && (
+                      <Badge variant="outline" className="bg-yellow-50 text-yellow-600 border-yellow-200 gap-1 py-1 px-2 h-9">
+                        <Clock className="w-3 h-3" />
+                        Solicitação de Prazo Pendente
+                      </Badge>
+                    )}
 
                     <Button variant="outline" size="sm" className="gap-2">
                       <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments_count})

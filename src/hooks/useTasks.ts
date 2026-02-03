@@ -39,6 +39,7 @@ export interface Task {
   company_id: string;
   checklist: ChecklistItem[];
   comments_count: number;
+  extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
 }
 
 export interface CreateTaskInput {
@@ -59,6 +60,7 @@ export interface UpdateTaskInput {
   assignee_id?: string;
   progress?: number;
   is_daily_routine?: boolean;
+  extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
 }
 
 export function useTasks() {
@@ -300,7 +302,7 @@ export function useTasks() {
       // Get current task data
       const { data: currentTask } = await supabase
         .from('tasks')
-        .select('assignee_id, title, description, priority, due_date, status, company_id')
+        .select('assignee_id, title, description, priority, due_date, status, company_id, extension_status')
         .eq('id', taskId)
         .maybeSingle();
 
