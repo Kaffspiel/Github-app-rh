@@ -14,6 +14,7 @@ interface CreateUserRequest {
   role: "admin" | "gestor" | "colaborador";
   department?: string;
   companyId: string;
+  employeeId?: string;
 }
 
 serve(async (req) => {
@@ -64,7 +65,7 @@ serve(async (req) => {
     }
 
     const body: CreateUserRequest = await req.json();
-    const { email, password, name, role, department, companyId } = body;
+    const { email, password, name, role, department, companyId, employeeId } = body;
 
     // Validate that requester is admin and belongs to the same company
     if (requesterRole.role !== "admin" && requesterRole.role !== "admin_master") {
@@ -125,18 +126,37 @@ serve(async (req) => {
       throw new Error("Falha ao atribuir permissões");
     }
 
-    // Create employee record
-    const { error: employeeError } = await supabaseAdmin
-      .from("employees")
-      .insert({
-        user_id: userId,
-        name,
-        email,
-        company_id: companyId,
-        role: role === "admin" ? "admin" : role === "gestor" ? "gestor" : "colaborador",
-        department: department || "Geral",
-        is_active: true,
-      });
+    // Create/Update employee record
+    let employeeError;
+
+    if (employeeId) {
+      // Update existing employee
+      const { error } = await supabaseAdmin
+        .from("employees")
+        .update({
+          user_id: userId,
+          // Update other fields to match if they were edited during user creation flow, 
+          // or just rely on them being correct. Ideally we shouldn't overwrite name/email/role unless necessary,
+          // but for consistency let's ensure they match the user account.
+          role: role === "admin" ? "admin" : role === "gestor" ? "gestor" : "colaborador",
+        })
+        .eq("id", employeeId);
+      employeeError = error;
+    } else {
+      // Create new employee
+      const { error } = await supabaseAdmin
+        .from("employees")
+        .insert({
+          user_id: userId,
+          name,
+          email,
+          company_id: companyId,
+          role: role === "admin" ? "admin" : role === "gestor" ? "gestor" : "colaborador",
+          department: department || "Geral",
+          is_active: true,
+        });
+      employeeError = error;
+    }
 
     if (employeeError) {
       console.error("Error creating employee:", employeeError);
@@ -164,9 +184,9 @@ serve(async (req) => {
   } catch (error: any) {
     console.error("Error creating user:", error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
-        error: error.message || "Erro ao criar usuário" 
+        error: error.message || "Erro ao criar usuário"
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

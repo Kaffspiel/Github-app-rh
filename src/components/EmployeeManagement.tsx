@@ -11,8 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/context/CompanyContext";
-import { 
-  Users, Plus, Search, Phone, Mail, Building2, Shield, 
+import {
+  Users, Plus, Search, Phone, Mail, Building2, Shield,
   MessageSquare, Bell, Clock, CheckCircle2, XCircle,
   Pencil, Trash2, MoreVertical, Send, UserPlus, Key, Loader2, KeyRound
 } from "lucide-react";
@@ -59,6 +59,7 @@ export function EmployeeManagement() {
     notify_announcements: true,
     quiet_hours_start: "",
     quiet_hours_end: "",
+    work_schedule_start: "09:00",
     is_active: true,
   });
 
@@ -72,6 +73,10 @@ export function EmployeeManagement() {
     role: "colaborador" as "colaborador" | "gestor" | "admin",
   });
 
+  const [isCreateAccessDialogOpen, setIsCreateAccessDialogOpen] = useState(false);
+  const [createAccessEmployee, setCreateAccessEmployee] = useState<Employee | null>(null);
+  const [createAccessForm, setCreateAccessForm] = useState({ password: "", confirmPassword: "" });
+
   useEffect(() => {
     if (companyId) {
       fetchEmployees();
@@ -80,7 +85,7 @@ export function EmployeeManagement() {
 
   const fetchEmployees = async () => {
     if (!companyId) return;
-    
+
     setLoading(true);
     const { data, error } = await supabase
       .from("employees")
@@ -126,6 +131,7 @@ export function EmployeeManagement() {
       notify_announcements: formData.notify_announcements,
       quiet_hours_start: formData.quiet_hours_start || null,
       quiet_hours_end: formData.quiet_hours_end || null,
+      work_schedule_start: formData.work_schedule_start || "09:00",
       is_active: formData.is_active,
     };
 
@@ -238,6 +244,7 @@ export function EmployeeManagement() {
       notify_announcements: employee.notify_announcements ?? true,
       quiet_hours_start: employee.quiet_hours_start || "",
       quiet_hours_end: employee.quiet_hours_end || "",
+      work_schedule_start: employee.work_schedule_start || "09:00",
       is_active: employee.is_active,
     });
     setIsDialogOpen(true);
@@ -312,6 +319,7 @@ export function EmployeeManagement() {
       notify_announcements: true,
       quiet_hours_start: "",
       quiet_hours_end: "",
+      work_schedule_start: "09:00",
       is_active: true,
     });
   };
@@ -388,6 +396,76 @@ export function EmployeeManagement() {
       });
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  const handleCreateAccess = async () => {
+    if (!createAccessEmployee) return;
+
+    if (!createAccessForm.password) {
+      toast({
+        title: "Senha obrigatória",
+        description: "Digite a senha para o novo usuário",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (createAccessForm.password.length < 6) {
+      toast({
+        title: "Senha muito curta",
+        description: "A senha deve ter pelo menos 6 caracteres",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (createAccessForm.password !== createAccessForm.confirmPassword) {
+      toast({
+        title: "Senhas não conferem",
+        description: "A senha e confirmação devem ser iguais",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingUser(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: {
+          email: createAccessEmployee.email,
+          password: createAccessForm.password,
+          name: createAccessEmployee.name,
+          role: createAccessEmployee.role, // Maintain existing role
+          department: createAccessEmployee.department,
+          companyId: companyId,
+          employeeId: createAccessEmployee.id, // Link to existing employee
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Acesso criado com sucesso!",
+          description: `${createAccessEmployee.name} agora pode acessar o sistema.`,
+        });
+        setIsCreateAccessDialogOpen(false);
+        setCreateAccessEmployee(null);
+        setCreateAccessForm({ password: "", confirmPassword: "" });
+        fetchEmployees();
+      } else {
+        throw new Error(data?.error || "Erro ao criar acesso");
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erro ao criar acesso",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -570,7 +648,7 @@ export function EmployeeManagement() {
                   {editingEmployee ? "Editar Colaborador" : "Novo Colaborador"}
                 </DialogTitle>
                 <DialogDescription>
-                  {editingEmployee 
+                  {editingEmployee
                     ? "Atualize as informações do colaborador"
                     : "Cadastre um colaborador (sem acesso ao sistema). Para dar acesso, use 'Criar Usuário com Acesso'."
                   }
@@ -606,6 +684,14 @@ export function EmployeeManagement() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Horário Entrada Previsto</Label>
+                      <Input
+                        type="time"
+                        value={formData.work_schedule_start}
+                        onChange={(e) => setFormData({ ...formData, work_schedule_start: e.target.value })}
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label>Departamento</Label>
                       <Input
@@ -811,130 +897,211 @@ export function EmployeeManagement() {
       </Card>
 
       {/* Employee List */}
-      {loading ? (
-        <div className="text-center py-12 text-gray-500">Carregando...</div>
-      ) : filteredEmployees.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center text-gray-500">
-            <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhum colaborador encontrado</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredEmployees.map((employee) => (
-            <Card
-              key={employee.id}
-              className={`border transition-all hover:shadow-md ${
-                !employee.is_active ? "opacity-60 bg-gray-50" : "bg-white"
-              }`}
-            >
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
-                      {employee.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join("")}
+      {
+        loading ? (
+          <div className="text-center py-12 text-gray-500">Carregando...</div>
+        ) : filteredEmployees.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center text-gray-500">
+              <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhum colaborador encontrado</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredEmployees.map((employee) => (
+              <Card
+                key={employee.id}
+                className={`border transition-all hover:shadow-md ${!employee.is_active ? "opacity-60 bg-gray-50" : "bg-white"
+                  }`}
+              >
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                        {employee.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join("")}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                          {employee.name}
+                          {employee.user_id && (
+                            <span title="Tem acesso ao sistema">
+                              <Key className="w-3 h-3 text-green-600" />
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-gray-500 flex items-center gap-1">
+                          <Building2 className="w-3 h-3" />
+                          {employee.department}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        {employee.name}
-                        {employee.user_id && (
-                          <span title="Tem acesso ao sistema">
-                            <Key className="w-3 h-3 text-green-600" />
-                          </span>
-                        )}
-                      </h3>
-                      <p className="text-sm text-gray-500 flex items-center gap-1">
-                        <Building2 className="w-3 h-3" />
-                        {employee.department}
-                      </p>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                        <Pencil className="w-4 h-4 mr-2" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleSendTestMessage(employee)}
-                        disabled={!employee.whatsapp_number || sendingTest === employee.id}
-                      >
-                        <Send className="w-4 h-4 mr-2" />
-                        {sendingTest === employee.id ? "Enviando..." : "Enviar Teste"}
-                      </DropdownMenuItem>
-                      {employee.user_id && (
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setResetPasswordEmployee(employee);
-                            setIsResetPasswordDialogOpen(true);
-                          }}
-                        >
-                          <KeyRound className="w-4 h-4 mr-2" />
-                          Redefinir Senha
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Editar
                         </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => handleDelete(employee.id)}
-                        className="text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Mail className="w-4 h-4" />
-                    <span className="truncate">{employee.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Phone className="w-4 h-4" />
-                    {employee.whatsapp_number ? (
-                      <span className="flex items-center gap-1">
-                        {employee.whatsapp_number}
-                        {employee.whatsapp_verified ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-yellow-500" />
+                        {!employee.user_id && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setCreateAccessEmployee(employee);
+                              setIsCreateAccessDialogOpen(true);
+                            }}
+                          >
+                            <Key className="w-4 h-4 mr-2" />
+                            Criar Acesso
+                          </DropdownMenuItem>
                         )}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 italic">Não configurado</span>
-                    )}
+                        <DropdownMenuItem
+                          onClick={() => handleSendTestMessage(employee)}
+                          disabled={!employee.whatsapp_number || sendingTest === employee.id}
+                        >
+                          <Send className="w-4 h-4 mr-2" />
+                          {sendingTest === employee.id ? "Enviando..." : "Enviar Teste"}
+                        </DropdownMenuItem>
+                        {employee.user_id && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setResetPasswordEmployee(employee);
+                              setIsResetPasswordDialogOpen(true);
+                            }}
+                          >
+                            <KeyRound className="w-4 h-4 mr-2" />
+                            Redefinir Senha
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(employee.id)}
+                          className="text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-between mt-4 pt-3 border-t">
-                  {getRoleBadge(employee.role)}
-                  <div className="flex items-center gap-1">
-                    {employee.notify_whatsapp && (
-                      <MessageSquare className="w-4 h-4 text-green-500" />
-                    )}
-                    {employee.notify_in_app && <Bell className="w-4 h-4 text-blue-500" />}
-                    {!employee.is_active && (
-                      <Badge variant="outline" className="text-gray-500 ml-2">
-                        Inativo
-                      </Badge>
-                    )}
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Mail className="w-4 h-4" />
+                      <span className="truncate">{employee.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Phone className="w-4 h-4" />
+                      {employee.whatsapp_number ? (
+                        <span className="flex items-center gap-1">
+                          {employee.whatsapp_number}
+                          {employee.whatsapp_verified ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-yellow-500" />
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 italic">Não configurado</span>
+                      )}
+                    </div>
                   </div>
-                </div>
+
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                    {getRoleBadge(employee.role)}
+                    <div className="flex items-center gap-1">
+                      {employee.notify_whatsapp && (
+                        <MessageSquare className="w-4 h-4 text-green-500" />
+                      )}
+                      {employee.notify_in_app && <Bell className="w-4 h-4 text-blue-500" />}
+                      {!employee.is_active && (
+                        <Badge variant="outline" className="text-gray-500 ml-2">
+                          Inativo
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      }
+
+      {/* Create Access Dialog */}
+      <Dialog open={isCreateAccessDialogOpen} onOpenChange={setIsCreateAccessDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5" />
+              Criar Acesso para {createAccessEmployee?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Defina a senha para acessar o sistema. O login será: <strong>{createAccessEmployee?.email}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="createAccessPassword">Senha *</Label>
+              <Input
+                id="createAccessPassword"
+                type="password"
+                value={createAccessForm.password}
+                onChange={(e) => setCreateAccessForm({ ...createAccessForm, password: e.target.value })}
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="createAccessConfirmPassword">Confirmar Senha *</Label>
+              <Input
+                id="createAccessConfirmPassword"
+                type="password"
+                value={createAccessForm.confirmPassword}
+                onChange={(e) => setCreateAccessForm({ ...createAccessForm, confirmPassword: e.target.value })}
+                placeholder="Repita a senha"
+              />
+            </div>
+
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-3 text-sm text-blue-800">
+                <p>O perfil será mantido como <strong>{createAccessEmployee?.role}</strong>.</p>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCreateAccessDialogOpen(false);
+                setCreateAccessEmployee(null);
+                setCreateAccessForm({ password: "", confirmPassword: "" });
+              }}
+              disabled={creatingUser}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateAccess} disabled={creatingUser}>
+              {creatingUser ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                "Criar Acesso"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset Password Dialog */}
       <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
@@ -998,6 +1165,6 @@ export function EmployeeManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

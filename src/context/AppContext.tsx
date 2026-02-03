@@ -39,6 +39,7 @@ export interface TimeRecord {
         attachment?: string;
         status: "pending" | "approved" | "rejected";
     };
+    expectedStart?: string;
 }
 
 interface AppContextType {

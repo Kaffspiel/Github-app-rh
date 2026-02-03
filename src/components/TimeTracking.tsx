@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, AlertCircle, CheckCircle, XCircle, Clock, Download, Play, Plus, FileSpreadsheet, History } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle, XCircle, Clock, Download, Plus, FileSpreadsheet, History } from "lucide-react";
 import { useApp, TimeRecord } from "@/context/AppContext";
 import { ImportWizard } from "@/components/time-tracking/ImportWizard";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,13 +30,9 @@ const parseTime = (timeStr: string) => {
   return h * 60 + m;
 };
 
-const calculateStatus = (e1: string, s1: string, e2: string, s2: string): { status: TimeRecord["status"]; issue?: string } => {
+const calculateStatus = (e1: string, scheduleStart: string): { status: TimeRecord["status"]; issue?: string } => {
   const tE1 = parseTime(e1);
-  const tS1 = parseTime(s1);
-  const tE2 = parseTime(e2);
-  const tS2 = parseTime(s2);
-
-  const schedE1 = parseTime(WORK_SCHEDULE.entry1)!;
+  const schedE1 = parseTime(scheduleStart)!;
 
   if (tE1 === null) {
     return { status: "absence", issue: "Falta Integral" };
@@ -44,12 +40,7 @@ const calculateStatus = (e1: string, s1: string, e2: string, s2: string): { stat
 
   if (tE1 > schedE1 + WORK_SCHEDULE.tolerance) {
     const diff = tE1 - schedE1;
-    return { status: "delay", issue: `Atraso de ${diff} minutos na entrada` };
-  }
-
-  // Simplified check: only flag missing punch if entry exists but exit is missing
-  if ((tE1 && !tS1) || (tE2 && !tS2)) {
-    return { status: "missing-punch", issue: "Marcação ímpar (esqueceu saída)" };
+    return { status: "delay", issue: `Atraso de ${diff} minutos` };
   }
 
   return { status: "normal" };
@@ -72,7 +63,10 @@ export function TimeTracking() {
         .from('time_tracking_records')
         .select(`
           *,
-          employees (name)
+          employees (
+            name,
+            work_schedule_start
+          )
         `)
         .eq('company_id', companyId)
         .order('record_date', { ascending: false });
@@ -81,26 +75,22 @@ export function TimeTracking() {
 
       const mappedRecords: TimeRecord[] = (data || []).map(r => {
         const entry1 = r.entry_1 || "-";
-        const exit1 = r.exit_1 || "-";
-        const entry2 = r.entry_2 || "-";
-        const exit2 = r.exit_2 || "-";
+        const scheduleStart = r.employees?.work_schedule_start || "09:00";
 
-        // Calculate status based on rules
-        const calculated = calculateStatus(entry1, exit1, entry2, exit2);
-
-        // Use calculated status unless DB has a specific "error" that overrides it? 
-        // For now, let's trust the calculation for consistency with the user request.
+        // Calculate status based on rules (Entry only)
+        const calculated = calculateStatus(entry1, scheduleStart);
 
         return {
           id: r.id,
           employee: r.employees?.name || r.external_employee_id || "Desconhecido",
           date: r.record_date,
           entry1,
-          exit1,
-          entry2,
-          exit2,
+          exit1: "-", // Unused
+          entry2: "-", // Unused
+          exit2: "-", // Unused
           status: calculated.status,
-          issue: calculated.issue || (r.anomalies && r.anomalies.length > 0 ? r.anomalies.join(", ") : undefined)
+          issue: calculated.issue || (r.anomalies && r.anomalies.length > 0 ? r.anomalies.join(", ") : undefined),
+          expectedStart: scheduleStart
         };
       });
 
@@ -128,39 +118,12 @@ export function TimeTracking() {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [activeTab, setActiveTab] = useState("records");
 
-  const [simEmployee, setSimEmployee] = useState("Novo Funcionário");
-  const [simEntry1, setSimEntry1] = useState("");
-  const [simExit1, setSimExit1] = useState("");
-  const [simEntry2, setSimEntry2] = useState("");
-  const [simExit2, setSimExit2] = useState("");
+
 
   // Helper functions moved to module scope
 
 
-  const handleSimulatePunch = () => {
-    if (!simEntry1 && !simExit1 && !simEntry2 && !simExit2) return;
 
-    const { status, issue } = calculateStatus(simEntry1, simExit1, simEntry2, simExit2);
-
-    const newRecord: TimeRecord = {
-      id: Math.random().toString(),
-      employee: simEmployee,
-      date: new Date().toLocaleDateString("pt-BR"),
-      entry1: simEntry1 || "-",
-      exit1: simExit1 || "-",
-      entry2: simEntry2 || "-",
-      exit2: simExit2 || "-",
-      status,
-      issue
-    };
-
-    addTimeRecord(newRecord);
-
-    setSimEntry1("");
-    setSimExit1("");
-    setSimEntry2("");
-    setSimExit2("");
-  };
 
   const getStatusIcon = (status: TimeRecord["status"]) => {
     switch (status) {
@@ -215,66 +178,7 @@ export function TimeTracking() {
         </div>
       </div>
 
-      {/* SIMULATOR */}
-      <Card className="bg-gradient-to-r from-slate-900 to-slate-800 text-white border-none shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Play className="w-5 h-5 text-green-400" />
-            Simulador de Teste (Engine de Regras)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex flex-col space-y-1.5">
-              <Label className="text-slate-300">Colaborador</Label>
-              <Input
-                value={simEmployee}
-                onChange={(e) => setSimEmployee(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white w-full md:w-1/3"
-                placeholder="Nome do Funcionário"
-              />
-            </div>
 
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="space-y-1.5">
-                <Label className="text-slate-300">Entrada</Label>
-                <Input
-                  type="time"
-                  value={simEntry1}
-                  onChange={(e) => setSimEntry1(e.target.value)}
-                  className="bg-slate-700 border-slate-600 text-white w-[110px]"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-slate-300">Entrada</Label>
-                <Input
-                  type="time"
-                  value={simEntry1}
-                  onChange={(e) => setSimEntry1(e.target.value)}
-                  className="bg-slate-700 border-slate-600 text-white w-[110px]"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-slate-300">Saída</Label>
-                <Input
-                  type="time"
-                  value={simExit1}
-                  onChange={(e) => setSimExit1(e.target.value)}
-                  className="bg-slate-700 border-slate-600 text-white w-[110px]"
-                />
-              </div>
-
-              <Button onClick={handleSimulatePunch} className="bg-green-600 hover:bg-green-700 text-white h-10 px-6">
-                <Plus className="w-4 h-4 mr-2" /> Simular Dia
-              </Button>
-            </div>
-
-            <div className="text-xs text-slate-400 pt-2 border-t border-slate-700">
-              Regras Ativas: Tolerância de 10 minutos (09:00). Batidas ímpares geram "Batida Ausente".
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -323,9 +227,9 @@ export function TimeTracking() {
                 <TableHead>Status</TableHead>
                 <TableHead>Colaborador</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead>Previsto</TableHead>
                 <TableHead>Entrada</TableHead>
-                <TableHead>Saída</TableHead>
-                <TableHead>Ocorrência</TableHead>
+                <TableHead>Observação</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -335,8 +239,8 @@ export function TimeTracking() {
                   <TableCell>{getStatusIcon(record.status)}</TableCell>
                   <TableCell className="font-medium">{record.employee}</TableCell>
                   <TableCell>{record.date}</TableCell>
-                  <TableCell>{record.entry1}</TableCell>
-                  <TableCell>{record.exit1}</TableCell>
+                  <TableCell className="text-gray-500">{record.expectedStart}</TableCell>
+                  <TableCell className={record.status === 'delay' ? "font-bold text-orange-600" : ""}>{record.entry1}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       {getStatusBadge(record.status)}
