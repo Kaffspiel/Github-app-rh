@@ -33,6 +33,7 @@ import {
 import CollaboratorTasks from "@/apps/collaborator/CollaboratorTasks";
 import CollaboratorTime from "@/apps/collaborator/CollaboratorTime";
 import CollaboratorProfile from "@/apps/collaborator/CollaboratorProfile";
+import CollaboratorOccurrences from "@/apps/collaborator/CollaboratorOccurrences"; // New Import
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useCollaboratorTasks } from "@/hooks/useCollaboratorTasks";
@@ -40,7 +41,7 @@ import { format, isToday, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
-type MobileView = "home" | "tasks" | "time" | "profile";
+type MobileView = "home" | "tasks" | "time" | "profile" | "points"; // Added points
 
 interface TimeRecord {
   id: string;
@@ -272,6 +273,7 @@ export default function CollaboratorMobileApp() {
     { id: "home" as MobileView, name: "Início", icon: Home },
     { id: "tasks" as MobileView, name: "Tarefas", icon: ListChecks },
     { id: "time" as MobileView, name: "Ponto", icon: Clock },
+    { id: "points" as MobileView, name: "Pontos", icon: Trophy }, // Added Point Navigation
     { id: "profile" as MobileView, name: "Perfil", icon: User },
   ];
 
@@ -448,6 +450,10 @@ export default function CollaboratorMobileApp() {
     />
   );
 
+  const renderPointsView = () => (
+    <CollaboratorOccurrences />
+  );
+
   const renderProfileView = () => (
     <CollaboratorProfile
       profile={profile}
@@ -468,6 +474,7 @@ export default function CollaboratorMobileApp() {
       case "home": return renderHomeView();
       case "tasks": return renderTasksView();
       case "time": return renderTimeView();
+      case "points": return renderPointsView();
       case "profile": return renderProfileView();
       default: return null;
     }
