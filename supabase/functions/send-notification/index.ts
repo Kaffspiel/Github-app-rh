@@ -36,7 +36,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const evolutionUrl = Deno.env.get("EVOLUTION_URL");
     const evolutionKey = Deno.env.get("EVOLUTION_KEY");
-    
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const request: SendNotificationRequest = await req.json();
@@ -46,9 +46,9 @@ serve(async (req) => {
     if (!evolutionUrl || !evolutionKey) {
       console.error("❌ Evolution API credentials not configured");
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Evolution API credentials not configured (EVOLUTION_URL or EVOLUTION_KEY missing)" 
+        JSON.stringify({
+          success: false,
+          error: "Evolution API credentials not configured (EVOLUTION_URL or EVOLUTION_KEY missing)"
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -74,16 +74,16 @@ serve(async (req) => {
       }
 
       // Verificar preferências de notificação
-      const canSendWhatsApp = 
-        recipient.notify_whatsapp && 
-        recipient.whatsapp_verified && 
+      const canSendWhatsApp =
+        recipient.notify_whatsapp &&
+        recipient.whatsapp_verified &&
         recipient.whatsapp_number;
 
       if (!canSendWhatsApp) {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: "WhatsApp notifications disabled or not configured for this recipient" 
+          JSON.stringify({
+            success: false,
+            error: "WhatsApp notifications disabled or not configured for this recipient"
           }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -96,13 +96,13 @@ serve(async (req) => {
       if (recipient.quiet_hours_start && recipient.quiet_hours_end) {
         const now = new Date();
         const currentTime = now.getHours() * 60 + now.getMinutes();
-        
+
         const [startHour, startMin] = recipient.quiet_hours_start.split(":").map(Number);
         const [endHour, endMin] = recipient.quiet_hours_end.split(":").map(Number);
-        
+
         const startTime = startHour * 60 + startMin;
         const endTime = endHour * 60 + endMin;
-        
+
         const inQuietHours = startTime > endTime
           ? currentTime >= startTime || currentTime <= endTime
           : currentTime >= startTime && currentTime <= endTime;
@@ -110,9 +110,9 @@ serve(async (req) => {
         if (inQuietHours) {
           console.log("🔕 Quiet hours active, notification blocked");
           return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: "Recipient is in quiet hours" 
+            JSON.stringify({
+              success: false,
+              error: "Recipient is in quiet hours"
             }),
             {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -128,9 +128,9 @@ serve(async (req) => {
 
     if (!recipientPhone) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "No recipient phone number provided" 
+        JSON.stringify({
+          success: false,
+          error: "No recipient phone number provided"
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -175,8 +175,25 @@ serve(async (req) => {
     let evolutionEndpoint: string;
     let evolutionBody: Record<string, unknown>;
 
+    // CONVERSION TO TEXT: Buttons are failing (invalid message), so we convert them to text options automatically.
     if (request.buttons && request.buttons.length > 0) {
-      // Mensagem com botões
+      console.log("🔄 Converting buttons to text to avoid API errors");
+      request.message += "\n\nOpções disponíveis:";
+
+      request.buttons.forEach((btn, index) => {
+        // Handle different button structures if necessary, but standard is type='reply'
+        const title = btn.reply?.title || "Opção";
+        request.message += `\n${index + 1} - ${title}`;
+      });
+
+      request.message += "\n(Responda com o número opção desejada)";
+
+      // Clear buttons to force text endpoint usage
+      request.buttons = [];
+    }
+
+    if (request.buttons && request.buttons.length > 0) {
+      // Mensagem com botões (Mantido apenas como fallback se a conversão acima for removida)
       evolutionEndpoint = `${evolutionUrl.replace(/\/$/, "")}/message/sendButtons/${instanceName}`;
       evolutionBody = {
         number: formattedPhone,
@@ -221,7 +238,7 @@ serve(async (req) => {
 
     if (evolutionResponse.ok) {
       const messageId = evolutionData.key?.id || "sent";
-      
+
       // Atualizar notificação com sucesso
       await supabase
         .from("notifications")
@@ -251,7 +268,7 @@ serve(async (req) => {
       );
     } else {
       const errorMsg = evolutionData.error || evolutionData.message || responseText;
-      
+
       // Atualizar notificação com erro
       await supabase
         .from("notifications")
