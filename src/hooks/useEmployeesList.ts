@@ -7,7 +7,7 @@ export interface EmployeeBasic {
   name: string;
   email: string;
   department: string;
-  role: 'colaborador' | 'gestor' | 'admin';
+  role: 'colaborador' | 'gestor' | 'admin' | 'admin_master';
   external_id?: string | null;
 }
 

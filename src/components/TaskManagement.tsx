@@ -907,7 +907,7 @@ export function TaskManagement() {
             <Copy className="w-4 h-4 mr-1" />
             Templates
           </TabsTrigger>
-          {(currentRole === 'admin' || currentRole === 'gestor') && (
+          {(currentRole === 'admin' || currentRole === 'admin_master' || currentRole === 'gestor') && (
             <TabsTrigger value="solicitacoes" className="relative">
               <Clock className="w-4 h-4 mr-1" />
               Solicitações

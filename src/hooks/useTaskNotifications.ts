@@ -78,7 +78,7 @@ export function useTaskNotifications() {
         .from('employees')
         .select('id, name, notify_tasks, notify_in_app')
         .eq('company_id', params.companyId)
-        .in('role', ['admin', 'gestor']);
+        .in('role', ['admin', 'admin_master', 'gestor']);
 
       if (managersError || !managers || managers.length === 0) {
         console.log('No managers found to notify');
@@ -131,7 +131,7 @@ export function useTaskNotifications() {
         .from('employees')
         .select('id, name, notify_tasks, notify_in_app')
         .eq('company_id', params.companyId)
-        .in('role', ['admin', 'gestor']);
+        .in('role', ['admin', 'admin_master', 'gestor']);
 
       if (managersError || !managers || managers.length === 0) {
         return;
@@ -200,7 +200,7 @@ export function useTaskNotifications() {
         .from('employees')
         .select('id, name, notify_tasks, notify_in_app')
         .eq('company_id', params.companyId)
-        .in('role', ['admin', 'gestor']);
+        .in('role', ['admin', 'admin_master', 'gestor']);
 
       if (managersError || !managers || managers.length === 0) return;
 
@@ -250,7 +250,7 @@ export function useTaskNotifications() {
         .from('employees')
         .select('id, name, notify_tasks, notify_in_app')
         .eq('company_id', params.companyId)
-        .in('role', ['admin', 'gestor']);
+        .in('role', ['admin', 'admin_master', 'gestor']);
 
       if (managersError || !managers || managers.length === 0) return;
 
