@@ -58,12 +58,7 @@ const Index = () => {
                 {companyLoading ? (
                   <Skeleton className="h-6 w-32 bg-blue-700" />
                 ) : (
-                  <div className="flex flex-col gap-2">
-                    <img src="/logo.png" alt="OPS Control" className="h-8 w-auto object-contain" />
-                    {(company?.trade_name || company?.name) && (
-                      <span className="text-sm text-blue-200 truncate">{company.trade_name || company.name}</span>
-                    )}
-                  </div>
+                  <h1 className="text-xl font-bold truncate">{company?.trade_name || company?.name || "OpsControl"}</h1>
                 )}
                 <p className="text-xs text-blue-200">Sistema de Gestão</p>
               </div>
