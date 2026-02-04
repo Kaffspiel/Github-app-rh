@@ -35,6 +35,7 @@ export interface Database {
                     updated_at?: string
                 }
                 Update: Partial<Database['public']['Tables']['employees']['Insert']>
+                Relationships: []
             }
             tasks: {
                 Row: {
@@ -68,6 +69,7 @@ export interface Database {
                     updated_at?: string
                 }
                 Update: Partial<Database['public']['Tables']['tasks']['Insert']>
+                Relationships: []
             }
             task_checklist_items: {
                 Row: {
@@ -87,6 +89,7 @@ export interface Database {
                     created_at?: string
                 }
                 Update: Partial<Database['public']['Tables']['task_checklist_items']['Insert']>
+                Relationships: []
             }
             task_progress_logs: {
                 Row: {
@@ -108,6 +111,7 @@ export interface Database {
                     created_at?: string
                 }
                 Update: Partial<Database['public']['Tables']['task_progress_logs']['Insert']>
+                Relationships: []
             }
             time_tracking_imports: {
                 Row: {
@@ -137,6 +141,7 @@ export interface Database {
                     completed_at?: string | null
                 }
                 Update: Partial<Database['public']['Tables']['time_tracking_imports']['Insert']>
+                Relationships: []
             }
             time_tracking_records: {
                 Row: {
@@ -170,6 +175,7 @@ export interface Database {
                     created_at?: string
                 }
                 Update: Partial<Database['public']['Tables']['time_tracking_records']['Insert']>
+                Relationships: []
             }
             notifications: {
                 Row: {
@@ -178,6 +184,7 @@ export interface Database {
                 }
                 Insert: any // Allow loose typing for now
                 Update: any
+                Relationships: []
             }
         }
         Views: {
