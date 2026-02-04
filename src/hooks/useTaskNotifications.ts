@@ -141,9 +141,9 @@ export function useTaskNotifications() {
       const notifications = managers
         .filter(m => m.notify_tasks && m.notify_in_app)
         .map(manager => ({
-          type: 'checklist_completed', // Ensure this types matches DB enum or text
-          title: '☑️ Item de Checklist Concluído',
-          message: `${params.employeeName} marcou "${params.checklistItemText}" como feito na tarefa "${params.taskTitle}".`,
+          type: 'routine_item_completed',
+          title: 'Item de Rotina Concluído',
+          message: `✅ ${params.employeeName} cumpriu *${params.checklistItemText}* da rotina *${params.taskTitle}*.`,
           recipient_id: manager.id,
           sender_name: params.employeeName,
           channels: ['in_app'],
@@ -172,12 +172,44 @@ export function useTaskNotifications() {
 
         const safeNotifications = notifications.map(n => ({
           ...n,
-          type: 'task_comment' // Fallback to existing enum
+          type: 'routine_item_completed', // Now supported
+          variables: {
+            colaborador: params.employeeName,
+            item: params.checklistItemText,
+            rotina: params.taskTitle
+          }
+        }));
+
+        // We use the 'notify' service structure usually, but here we are inserting directly into 'notifications' table?
+        // Wait, the other methods in this file use 'notifyTask' from 'useNotifications' OR direct insert.
+        // Direct insert bypasses the template processing in 'useNotifications' hook!
+        // The 'useNotifications' hook has 'notify' which does template processing.
+        // 'notifyTaskCompleted' above does direct insert.
+        // 'notifyTaskAssigned' uses 'notifyTask'.
+
+        // I should probably use 'notify' from 'useNotifications' to get template processing for free!
+        // But this function 'notifyChecklistItemCompleted' is currently doing direct insert manually constructing the message.
+        // The previous code verified 'managers' manually.
+
+        // Let's refactor to use 'notify' from useNotifications if possible, OR fix the direct insert to match the template logic (but direct insert expects processed message).
+        // Actually, 'useNotifications' -> 'notify' -> 'createNotification' -> inserts into DB.
+        // If I insert directly, I have to format the message myself.
+
+        // RECOMMENDATION: Refactor to use 'notify' or manual formatting based on the template text I defined in types.
+
+        // Template: "✅ {{colaborador}} cumpriu *{{item}}* da rotina *{{rotina}}*."
+        const message = `✅ ${params.employeeName} cumpriu *${params.checklistItemText}* da rotina *${params.taskTitle}*.`;
+
+        const finalNotifications = safeNotifications.map(n => ({
+          ...n,
+          type: 'routine_item_completed',
+          message: message,
+          title: 'Item de Rotina Concluído'
         }));
 
         const { error } = await supabase
           .from('notifications')
-          .insert(safeNotifications as any);
+          .insert(finalNotifications as any);
 
         if (error) throw error;
         console.log('Checklist item notifications sent to managers');

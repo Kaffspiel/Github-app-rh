@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/context/CompanyContext";
 import { toast } from "sonner";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
+import { useNotifications } from "@/hooks/useNotifications";
 import {
   Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle,
   AlertTriangle, ArrowRight, Download, RefreshCw, Brain, FileType
@@ -36,6 +37,7 @@ type ExtendedFileFormat = FileFormat | "pdf";
 export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const { companyId } = useCompany();
   const { employees } = useEmployeesList();
+  const { notify, notifyClock } = useNotifications();
   const [step, setStep] = useState<Step>("upload");
   const [fileFormat, setFileFormat] = useState<ExtendedFileFormat>("excel");
   const [file, setFile] = useState<File | null>(null);
@@ -310,6 +312,51 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           };
         }).filter(Boolean); // Filter out nulls (duplicates)
 
+        // SEND NOTIFICATIONS FOR MISSING PUNCHES
+        for (const record of batch) {
+          let matchedEmployeeId = null;
+          if (employees.length > 0) {
+            const byId = employees.find(e => e.external_id && e.external_id === String(record.externalEmployeeId));
+            if (byId) {
+              matchedEmployeeId = byId.id;
+            } else {
+              const nameToSearch = record.employeeName || record.externalEmployeeId;
+              if (nameToSearch && typeof nameToSearch === 'string') {
+                const normalizedSearch = nameToSearch.toLowerCase().trim();
+                const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
+                if (byName) matchedEmployeeId = byName.id;
+              }
+            }
+          }
+
+          const hasMissingEntry = !record.punches[0] || record.punches[0].trim() === "";
+
+          if (matchedEmployeeId && hasMissingEntry) {
+            // 1. Notify Collaborator
+            notifyClock({
+              recipientId: matchedEmployeeId,
+              type: "justification_required",
+              data: {
+                data: record.date,
+                descricao: "Ponto de entrada não registrado no arquivo importado."
+              }
+            });
+
+            // 2. Notify Managers
+            const managers = employees.filter(e => e.role === 'admin' || e.role === 'gestor');
+            managers.forEach(manager => {
+              notify({
+                type: "manager_missing_punch",
+                recipientId: manager.id,
+                variables: {
+                  colaborador: record.employeeName || record.externalEmployeeId || "Colaborador",
+                  data: record.date
+                }
+              });
+            });
+          }
+        }
+
         if (insertData.length > 0) {
           const { error: batchError } = await supabase
             .from("time_tracking_records")
@@ -343,6 +390,108 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           completed_at: new Date().toISOString(),
         })
         .eq("id", importRecord.id);
+
+      // --- NEW: DETECT MISSING EMPLOYEES (ROWS) ---
+      // The user specified that some reports only show who clocked in.
+      // We need to match existing active employees against the imported dates.
+
+      // distinctDates already exists from outer scope
+      const activeEmployees = employees.filter(e => e.role === 'colaborador' || e.role === 'gestor'); // Assuming admins don't punch clock? Or everyone? Let's stick to active employees from the list. 
+      // Actually useEmployeesList returns "is_active" filtered already in the hook usually, but let's be safe if logic changes.
+      // The hook source showed .eq('is_active', true). so 'employees' are all active.
+
+      for (const date of distinctDates) {
+        // 1. Identify who IS in the import for this date
+        const presentEmployeeIds = new Set<string>();
+
+        // We need to resolve records to employee IDs again (or reuse some map if optimization needed, but this is fine for now)
+        records.forEach(r => {
+          if (r.date !== date) return;
+
+          let eId = null;
+          // Try exact match external
+          const byId = employees.find(e => e.external_id && e.external_id === String(r.externalEmployeeId));
+          if (byId) {
+            eId = byId.id;
+          } else {
+            // Try match name
+            const nameToSearch = r.employeeName || r.externalEmployeeId;
+            if (nameToSearch && typeof nameToSearch === 'string') {
+              const normalizedSearch = nameToSearch.toLowerCase().trim();
+              const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
+              if (byName) eId = byName.id;
+            }
+          }
+          if (eId) presentEmployeeIds.add(eId);
+        });
+
+        // 2. Find who is MISSING
+        const missingEmployees = activeEmployees.filter(e => !presentEmployeeIds.has(e.id));
+
+        // 3. Notify Missing Employees AND Create Absence Records
+        const absenceRecords = missingEmployees.map(missingEmp => ({
+          company_id: companyId,
+          import_id: importRecord.id,
+          employee_id: missingEmp.id,
+          // external_employee_id: missingEmp.external_id, // Optional
+          record_date: date,
+          entry_1: null,
+          exit_1: null,
+          entry_2: null,
+          exit_2: null,
+          entry_3: null,
+          exit_3: null,
+          entry_4: null,
+          exit_4: null,
+          raw_data: { generated_absence: true },
+          status: "imported"
+        }));
+
+        if (absenceRecords.length > 0) {
+          const { error: absenceError } = await supabase
+            .from("time_tracking_records")
+            .insert(absenceRecords as any);
+
+          if (absenceError) {
+            console.error("Error creating absence records:", absenceError);
+            toast.error(`Erro ao criar registros de falta para ${date}`);
+          } else {
+            // Count these as imported/processed?
+            // imported += absenceRecords.length; // Optional: user might confusing seeing more imported records than rows in file. 
+            // Let's Log it.
+            console.log(`Created ${absenceRecords.length} absence records for ${date}`);
+          }
+        }
+
+        for (const missingEmp of missingEmployees) {
+          // Notify Collaborator
+          notifyClock({
+            recipientId: missingEmp.id,
+            type: "justification_required",
+            data: {
+              data: date,
+              descricao: "Ausência de registro de ponto nesta data."
+            }
+          });
+
+          // Notify Managers
+          const managers = employees.filter(e => e.role === 'admin' || e.role === 'gestor');
+          managers.forEach(manager => {
+            notify({
+              type: "manager_missing_punch",
+              recipientId: manager.id,
+              variables: {
+                colaborador: missingEmp.name,
+                data: date
+              }
+            });
+          });
+        }
+
+        if (missingEmployees.length > 0) {
+          console.log(`[Import] Date ${date}: ${missingEmployees.length} missing employees notified.`);
+        }
+      }
 
       setImportResult({ imported, failed });
       setStep("complete");

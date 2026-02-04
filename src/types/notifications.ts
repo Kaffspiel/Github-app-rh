@@ -11,7 +11,9 @@ export type NotificationType =
   | "justification_required"
   | "justification_response"
   | "announcement"
-  | "gamification_badge";
+  | "gamification_badge"
+  | "manager_missing_punch"
+  | "routine_item_completed";
 
 export type NotificationChannel = "whatsapp" | "in_app";
 export type NotificationPriority = "low" | "normal" | "high" | "urgent";
@@ -242,6 +244,22 @@ export const defaultTemplates: MessageTemplate[] = [
     defaultPriority: "low",
     isActive: true,
   },
+  {
+    id: "manager_missing_punch",
+    type: "manager_missing_punch",
+    name: "Alerta de Ponto Ausente (Gestor)",
+    textTemplate: "📣 Gestor, o colaborador *{{colaborador}}* não registrou o ponto de entrada hoje ({{data}}).",
+    defaultPriority: "high",
+    isActive: true,
+  },
+  {
+    id: "routine_item_completed",
+    type: "routine_item_completed",
+    name: "Item de Rotina Concluído",
+    textTemplate: "✅ {{colaborador}} cumpriu *{{item}}* da rotina *{{rotina}}*.",
+    defaultPriority: "low",
+    isActive: true,
+  },
 ];
 
 // Fila de Notificações (para processamento n8n)
@@ -281,8 +299,8 @@ export interface NotificationQueueItem {
 
 // Categorias de notificação para preferências
 export const notificationCategories: Record<string, NotificationType[]> = {
-  tasks: ["task_assigned", "task_due_reminder", "task_overdue", "task_completed", "task_comment"],
-  timeTracking: ["clock_reminder", "clock_anomaly", "justification_required", "justification_response"],
+  tasks: ["task_assigned", "task_due_reminder", "task_overdue", "task_completed", "task_comment", "routine_item_completed"],
+  timeTracking: ["clock_reminder", "clock_anomaly", "justification_required", "justification_response", "manager_missing_punch"],
   reminders: ["task_due_reminder", "clock_reminder"],
   announcements: ["announcement", "gamification_badge"],
 };

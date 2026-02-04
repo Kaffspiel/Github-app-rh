@@ -181,7 +181,8 @@ export function useCollaboratorTasks() {
         });
 
         // Notify manager each time a checklist item is completed
-        if (companyId) {
+        // Only for routines as requested ("rotina")
+        if (companyId && task.is_daily_routine) {
           notifyChecklistItemCompleted({
             taskId: task.id,
             taskTitle: task.title,
