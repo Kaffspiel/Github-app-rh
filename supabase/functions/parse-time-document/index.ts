@@ -95,18 +95,11 @@ serve(async (req: Request) => {
       );
     }
 
-    console.log(`Processing ${fileType} file: ${fileName} using OpenAI GPT-4o-mini`);
+    console.log(`Processing ${fileType} file: ${fileName} (${fileContent.length} chars)`);
 
     // Build prompt for AI to parse the document
     const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto.
 Sua tarefa é extrair registros de ponto de documentos (Excel, CSV ou PDF) e retornar EXCLUSIVAMENTE um objeto JSON.
-
-Regras de extração:
-1. Identifique o ID ou matrícula do funcionário
-2. Identifique o nome do funcionário (se disponível)
-3. Identifique a data do registro (converter para formato YYYY-MM-DD)
-4. Identifique as batidas/marcações de ponto (horários no formato HH:MM)
-5. Cada linha representa um dia de trabalho de um funcionário
 
 O retorno deve ser um JSON válido no seguinte formato:
 {
@@ -131,11 +124,11 @@ O retorno deve ser um JSON válido no seguinte formato:
 
 Se não conseguir identificar registros válidos, retorne um array vazio em records e descreva o problema em errors.`;
 
-    const userPrompt = `Analise o seguinte conteúdo de um arquivo de ponto (${fileType}) chamado "${fileName}" e extraia todos os registros de ponto:
+    const userPrompt = `Analise o arquivo "${fileName}" e extraia todos os registros de ponto:
 
-${fileContent}
+${fileContent.substring(0, 40000)}
 
-Retorne APENAS o JSON com os registros extraídos.`;
+Retorne APENAS o JSON.`;
 
     console.log('Sending request to OpenAI API...');
 
@@ -153,6 +146,7 @@ Retorne APENAS o JSON com os registros extraídos.`;
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
+        max_tokens: 4000,
       }),
     });
 

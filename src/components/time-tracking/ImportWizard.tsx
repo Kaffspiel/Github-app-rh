@@ -106,6 +106,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
     setIsAIParsing(true);
     try {
+      console.log('AI Parse started for format:', fileFormat);
       // Read file content for AI
       let content: string;
       if (fileFormat === "excel") {
@@ -124,6 +125,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         content = await file.text();
       }
 
+      console.log('Document content extracted, length:', content.length);
+      console.log('Content preview:', content.substring(0, 500) + '...');
+
       toast.info("Analisando documento com IA...");
 
       const { data, error } = await supabase.functions.invoke('parse-time-document', {
@@ -134,6 +138,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         },
       });
 
+      console.log('Supabase function response received:', { data, error });
       if (error) throw error;
 
       if (!data.success) {
