@@ -26,6 +26,52 @@ interface ParseResult {
   };
 }
 
+// Robust JSON extraction from AI responses
+function extractJsonFromResponse(response: string): unknown {
+  // Step 1: Try direct parse first
+  try {
+    return JSON.parse(response.trim());
+  } catch {
+    // Continue to other methods
+  }
+
+  // Step 2: Remove markdown code blocks
+  let cleaned = response
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  // Step 3: Try parse after cleaning markdown
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Continue to extraction
+  }
+
+  // Step 4: Find JSON boundaries
+  const jsonStart = cleaned.indexOf("{");
+  const jsonEnd = cleaned.lastIndexOf("}");
+
+  if (jsonStart === -1 || jsonEnd === -1) {
+    throw new Error("No JSON object found in response");
+  }
+
+  cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+
+  // Step 5: Attempt parse with error handling
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Step 6: Try to fix common issues
+    cleaned = cleaned
+      .replace(/,\s*}/g, "}") // Remove trailing commas before }
+      .replace(/,\s*]/g, "]") // Remove trailing commas before ]
+      .replace(/[\x00-\x1F\x7F]/g, ""); // Remove control characters
+
+    return JSON.parse(cleaned);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -124,17 +170,11 @@ Retorne APENAS o JSON com os registros extraídos, sem explicações adicionais.
     console.log('AI response received, parsing...');
 
     // Extract JSON from response (handle markdown code blocks)
-    let jsonContent = content;
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonContent = jsonMatch[1].trim();
-    }
-
     let parsedResult;
     try {
-      parsedResult = JSON.parse(jsonContent);
+      parsedResult = extractJsonFromResponse(content);
     } catch (parseError) {
-      console.error('Failed to parse AI response:', jsonContent);
+      console.error('Failed to parse AI response:', content.substring(0, 500));
       throw new Error('Failed to parse AI response as JSON');
     }
 
