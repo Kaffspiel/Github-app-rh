@@ -1,322 +1,1280 @@
 export type Json =
-    | string
-    | number
-    | boolean
-    | null
-    | { [key: string]: Json | undefined }
-    | Json[]
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export interface Database {
-    public: {
-        Tables: {
-            employees: {
-                Row: {
-                    id: string
-                    company_id: string
-                    user_id: string | null
-                    name: string
-                    email: string | null
-                    role: "colaborador" | "gestor" | "admin"
-                    department: string | null
-                    is_active: boolean
-                    created_at: string
-                    updated_at: string
-                    notify_tasks: boolean | null
-                    notify_in_app: boolean | null
-                    notify_whatsapp: boolean | null
-                    notify_time_tracking: boolean | null
-                    notify_reminders: boolean | null
-                    notify_announcements: boolean | null
-                    whatsapp_number: string | null
-                    whatsapp_verified: boolean | null
-                    quiet_hours_start: string | null
-                    quiet_hours_end: string | null
-                    work_schedule_start: string | null
-                }
-                Insert: {
-                    id?: string
-                    company_id: string
-                    user_id?: string | null
-                    name: string
-                    email?: string | null
-                    role?: "colaborador" | "gestor" | "admin"
-                    department?: string | null
-                    is_active?: boolean
-                    created_at?: string
-                    updated_at?: string
-                    notify_tasks?: boolean | null
-                    notify_in_app?: boolean | null
-                    notify_whatsapp?: boolean | null
-                    notify_time_tracking?: boolean | null
-                    notify_reminders?: boolean | null
-                    notify_announcements?: boolean | null
-                    whatsapp_number?: string | null
-                    whatsapp_verified?: boolean | null
-                    quiet_hours_start?: string | null
-                    quiet_hours_end?: string | null
-                    work_schedule_start?: string | null
-                }
-                Update: Partial<Database['public']['Tables']['employees']['Insert']>
-                Relationships: []
-            }
-            tasks: {
-                Row: {
-                    id: string
-                    title: string
-                    description: string | null
-                    priority: string
-                    status: string
-                    due_date: string | null
-                    company_id: string
-                    assignee_id: string
-                    created_by: string
-                    progress: number
-                    is_daily_routine: boolean
-                    created_at: string
-                    updated_at: string
-                }
-                Insert: {
-                    id?: string
-                    title: string
-                    description?: string | null
-                    priority?: string
-                    status?: string
-                    due_date?: string | null
-                    company_id: string
-                    assignee_id: string
-                    created_by?: string
-                    progress?: number
-                    is_daily_routine?: boolean
-                    created_at?: string
-                    updated_at?: string
-                }
-                Update: Partial<Database['public']['Tables']['tasks']['Insert']>
-                Relationships: []
-            }
-            task_checklist_items: {
-                Row: {
-                    id: string
-                    task_id: string
-                    text: string
-                    completed: boolean
-                    sort_order: number
-                    created_at: string
-                }
-                Insert: {
-                    id?: string
-                    task_id: string
-                    text: string
-                    completed?: boolean
-                    sort_order?: number
-                    created_at?: string
-                }
-                Update: Partial<Database['public']['Tables']['task_checklist_items']['Insert']>
-                Relationships: []
-            }
-            task_progress_logs: {
-                Row: {
-                    id: string
-                    task_id: string
-                    employee_id: string
-                    action_type: string
-                    checklist_item_id: string | null
-                    checklist_item_text: string | null
-                    created_at: string
-                }
-                Insert: {
-                    id?: string
-                    task_id: string
-                    employee_id: string
-                    action_type: string
-                    checklist_item_id?: string | null
-                    checklist_item_text?: string | null
-                    created_at?: string
-                }
-                Update: Partial<Database['public']['Tables']['task_progress_logs']['Insert']>
-                Relationships: []
-            }
-            time_tracking_imports: {
-                Row: {
-                    id: string
-                    company_id: string
-                    source_type: string
-                    source_name: string
-                    total_records: number
-                    imported_records: number
-                    failed_records: number
-                    status: string
-                    column_mapping: Json
-                    created_at: string
-                    completed_at: string | null
-                }
-                Insert: {
-                    id?: string
-                    company_id: string
-                    source_type: string
-                    source_name: string
-                    total_records: number
-                    imported_records?: number
-                    failed_records?: number
-                    status?: string
-                    column_mapping?: Json
-                    created_at?: string
-                    completed_at?: string | null
-                }
-                Update: Partial<Database['public']['Tables']['time_tracking_imports']['Insert']>
-                Relationships: []
-            }
-            time_tracking_records: {
-                Row: {
-                    id: string
-                    company_id: string
-                    employee_id: string | null
-                    external_employee_id: string | null
-                    import_id: string | null
-                    record_date: string
-                    entry_1: string | null
-                    exit_1: string | null
-                    entry_2: string | null
-                    exit_2: string | null
-                    raw_data: Json | null
-                    status: string
-                    created_at: string
-                }
-                Insert: {
-                    id?: string
-                    company_id: string
-                    employee_id?: string | null
-                    external_employee_id?: string | null
-                    import_id?: string | null
-                    record_date: string
-                    entry_1?: string | null
-                    exit_1?: string | null
-                    entry_2?: string | null
-                    exit_2?: string | null
-                    raw_data?: Json | null
-                    status?: string
-                    created_at?: string
-                }
-                Update: Partial<Database['public']['Tables']['time_tracking_records']['Insert']>
-                Relationships: []
-            }
-            notifications: {
-                Row: {
-                    id: string
-                    // Add sparse definition
-                }
-                Insert: any // Allow loose typing for now
-                Update: any
-                Relationships: []
-            }
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  public: {
+    Tables: {
+      api_integrations: {
+        Row: {
+          api_base_url: string | null
+          auth_type: string
+          company_id: string
+          created_at: string
+          credentials_ref: string | null
+          display_name: string | null
+          id: string
+          is_active: boolean
+          last_sync_at: string | null
+          last_sync_status: string | null
+          provider_name: string
+          settings: Json | null
+          sync_frequency: string | null
+          updated_at: string
         }
-        Views: {
-            [_ in never]: never
+        Insert: {
+          api_base_url?: string | null
+          auth_type?: string
+          company_id: string
+          created_at?: string
+          credentials_ref?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          provider_name: string
+          settings?: Json | null
+          sync_frequency?: string | null
+          updated_at?: string
         }
-        Functions: {
-            [_ in never]: never
+        Update: {
+          api_base_url?: string | null
+          auth_type?: string
+          company_id?: string
+          created_at?: string
+          credentials_ref?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          provider_name?: string
+          settings?: Json | null
+          sync_frequency?: string | null
+          updated_at?: string
         }
-        Enums: {
-            [_ in never]: never
+        Relationships: [
+          {
+            foreignKeyName: "api_integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      column_mappings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          integration_id: string | null
+          is_default: boolean | null
+          mapping: Json
+          name: string
+          source_type: string
+          updated_at: string
         }
-        CompositeTypes: {
-            [_ in never]: never
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          integration_id?: string | null
+          is_default?: boolean | null
+          mapping: Json
+          name: string
+          source_type: string
+          updated_at?: string
         }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          integration_id?: string | null
+          is_default?: boolean | null
+          mapping?: Json
+          name?: string
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "column_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "column_mappings_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "api_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          address: string | null
+          city: string | null
+          cnpj: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          phone: string | null
+          settings: Json | null
+          state: string | null
+          trade_name: string | null
+          updated_at: string
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          settings?: Json | null
+          state?: string | null
+          trade_name?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          settings?: Json | null
+          state?: string | null
+          trade_name?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
+      company_rules: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          file_url: string
+          id: string
+          title: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          file_url: string
+          id?: string
+          title: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          file_url?: string
+          id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          department: string
+          email: string
+          external_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notify_announcements: boolean | null
+          notify_in_app: boolean | null
+          notify_reminders: boolean | null
+          notify_tasks: boolean | null
+          notify_time_tracking: boolean | null
+          notify_whatsapp: boolean | null
+          points: number | null
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          role: Database["public"]["Enums"]["employee_role"]
+          updated_at: string
+          user_id: string | null
+          whatsapp_last_seen: string | null
+          whatsapp_number: string | null
+          whatsapp_profile_pic: string | null
+          whatsapp_verified: boolean | null
+          work_schedule_start: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          department?: string
+          email: string
+          external_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notify_announcements?: boolean | null
+          notify_in_app?: boolean | null
+          notify_reminders?: boolean | null
+          notify_tasks?: boolean | null
+          notify_time_tracking?: boolean | null
+          notify_whatsapp?: boolean | null
+          points?: number | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          role?: Database["public"]["Enums"]["employee_role"]
+          updated_at?: string
+          user_id?: string | null
+          whatsapp_last_seen?: string | null
+          whatsapp_number?: string | null
+          whatsapp_profile_pic?: string | null
+          whatsapp_verified?: boolean | null
+          work_schedule_start?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          department?: string
+          email?: string
+          external_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notify_announcements?: boolean | null
+          notify_in_app?: boolean | null
+          notify_reminders?: boolean | null
+          notify_tasks?: boolean | null
+          notify_time_tracking?: boolean | null
+          notify_whatsapp?: boolean | null
+          points?: number | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          role?: Database["public"]["Enums"]["employee_role"]
+          updated_at?: string
+          user_id?: string | null
+          whatsapp_last_seen?: string | null
+          whatsapp_number?: string | null
+          whatsapp_profile_pic?: string | null
+          whatsapp_verified?: boolean | null
+          work_schedule_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_queue: {
+        Row: {
+          attempts: number | null
+          created_at: string
+          id: string
+          max_attempts: number | null
+          next_retry_at: string | null
+          notification_id: string
+          payload: Json
+          processed_at: string | null
+          response_error: string | null
+          response_message_id: string | null
+          response_success: boolean | null
+          response_timestamp: string | null
+          status: Database["public"]["Enums"]["queue_status"] | null
+          webhook_url: string
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string
+          id?: string
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          notification_id: string
+          payload: Json
+          processed_at?: string | null
+          response_error?: string | null
+          response_message_id?: string | null
+          response_success?: boolean | null
+          response_timestamp?: string | null
+          status?: Database["public"]["Enums"]["queue_status"] | null
+          webhook_url: string
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string
+          id?: string
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          notification_id?: string
+          payload?: Json
+          processed_at?: string | null
+          response_error?: string | null
+          response_message_id?: string | null
+          response_success?: boolean | null
+          response_timestamp?: string | null
+          status?: Database["public"]["Enums"]["queue_status"] | null
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_queue_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          channels: string[] | null
+          company_id: string | null
+          created_at: string
+          id: string
+          in_app_delivered_at: string | null
+          in_app_read_at: string | null
+          in_app_status: string | null
+          message: string
+          priority: Database["public"]["Enums"]["notification_priority"] | null
+          read_at: string | null
+          recipient_id: string
+          recipient_phone: string | null
+          related_entity_id: string | null
+          related_entity_type: string | null
+          scheduled_for: string | null
+          sender_id: string | null
+          sender_name: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["notification_status"] | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          whatsapp_delivered_at: string | null
+          whatsapp_error: string | null
+          whatsapp_instance: string | null
+          whatsapp_message_id: string | null
+          whatsapp_read_at: string | null
+          whatsapp_sent_at: string | null
+          whatsapp_status: string | null
+        }
+        Insert: {
+          channels?: string[] | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          in_app_delivered_at?: string | null
+          in_app_read_at?: string | null
+          in_app_status?: string | null
+          message: string
+          priority?: Database["public"]["Enums"]["notification_priority"] | null
+          read_at?: string | null
+          recipient_id: string
+          recipient_phone?: string | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          scheduled_for?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"] | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          whatsapp_delivered_at?: string | null
+          whatsapp_error?: string | null
+          whatsapp_instance?: string | null
+          whatsapp_message_id?: string | null
+          whatsapp_read_at?: string | null
+          whatsapp_sent_at?: string | null
+          whatsapp_status?: string | null
+        }
+        Update: {
+          channels?: string[] | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          in_app_delivered_at?: string | null
+          in_app_read_at?: string | null
+          in_app_status?: string | null
+          message?: string
+          priority?: Database["public"]["Enums"]["notification_priority"] | null
+          read_at?: string | null
+          recipient_id?: string
+          recipient_phone?: string | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          scheduled_for?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"] | null
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          whatsapp_delivered_at?: string | null
+          whatsapp_error?: string | null
+          whatsapp_instance?: string | null
+          whatsapp_message_id?: string | null
+          whatsapp_read_at?: string | null
+          whatsapp_sent_at?: string | null
+          whatsapp_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      occurrences: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          employee_id: string
+          id: string
+          points: number
+          type: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id: string
+          id?: string
+          points: number
+          type: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id?: string
+          id?: string
+          points?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "occurrences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "occurrences_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_template_assignments: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          is_active: boolean
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          is_active?: boolean
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          is_active?: boolean
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_template_assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_template_assignments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "routine_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_templates: {
+        Row: {
+          auto_assign: boolean
+          auto_assign_time: string | null
+          checklist_items: Json
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          auto_assign?: boolean
+          auto_assign_time?: string | null
+          checklist_items?: Json
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          auto_assign?: boolean
+          auto_assign_time?: string | null
+          checklist_items?: Json
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_checklist_items: {
+        Row: {
+          completed: boolean
+          created_at: string
+          id: string
+          sort_order: number
+          task_id: string
+          text: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          sort_order?: number
+          task_id: string
+          text: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          sort_order?: number
+          task_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comments: {
+        Row: {
+          content: string
+          created_at: string
+          employee_id: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_progress_logs: {
+        Row: {
+          action_type: string
+          checklist_item_id: string | null
+          checklist_item_text: string | null
+          created_at: string
+          employee_id: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          action_type: string
+          checklist_item_id?: string | null
+          checklist_item_text?: string | null
+          created_at?: string
+          employee_id: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          action_type?: string
+          checklist_item_id?: string | null
+          checklist_item_text?: string | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_progress_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_progress_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assignee_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          extension_status: string | null
+          id: string
+          is_daily_routine: boolean
+          priority: string
+          progress: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          extension_status?: string | null
+          id?: string
+          is_daily_routine?: boolean
+          priority?: string
+          progress?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          extension_status?: string | null
+          id?: string
+          is_daily_routine?: boolean
+          priority?: string
+          progress?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_tracking_imports: {
+        Row: {
+          column_mapping: Json | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          failed_records: number | null
+          file_url: string | null
+          id: string
+          imported_by: string | null
+          imported_records: number | null
+          period_end: string | null
+          period_start: string | null
+          source_name: string | null
+          source_type: string
+          status: string
+          total_records: number | null
+        }
+        Insert: {
+          column_mapping?: Json | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_records?: number | null
+          file_url?: string | null
+          id?: string
+          imported_by?: string | null
+          imported_records?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          source_name?: string | null
+          source_type: string
+          status?: string
+          total_records?: number | null
+        }
+        Update: {
+          column_mapping?: Json | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_records?: number | null
+          file_url?: string | null
+          id?: string
+          imported_by?: string | null
+          imported_records?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          source_name?: string | null
+          source_type?: string
+          status?: string
+          total_records?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_tracking_imports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_tracking_records: {
+        Row: {
+          anomalies: string[] | null
+          company_id: string
+          created_at: string
+          employee_id: string | null
+          entry_1: string | null
+          entry_2: string | null
+          entry_3: string | null
+          entry_4: string | null
+          exit_1: string | null
+          exit_2: string | null
+          exit_3: string | null
+          exit_4: string | null
+          external_employee_id: string | null
+          id: string
+          import_id: string | null
+          notes: string | null
+          overtime: unknown
+          raw_data: Json | null
+          record_date: string
+          status: string | null
+          total_hours: unknown
+          updated_at: string
+        }
+        Insert: {
+          anomalies?: string[] | null
+          company_id: string
+          created_at?: string
+          employee_id?: string | null
+          entry_1?: string | null
+          entry_2?: string | null
+          entry_3?: string | null
+          entry_4?: string | null
+          exit_1?: string | null
+          exit_2?: string | null
+          exit_3?: string | null
+          exit_4?: string | null
+          external_employee_id?: string | null
+          id?: string
+          import_id?: string | null
+          notes?: string | null
+          overtime?: unknown
+          raw_data?: Json | null
+          record_date: string
+          status?: string | null
+          total_hours?: unknown
+          updated_at?: string
+        }
+        Update: {
+          anomalies?: string[] | null
+          company_id?: string
+          created_at?: string
+          employee_id?: string | null
+          entry_1?: string | null
+          entry_2?: string | null
+          entry_3?: string | null
+          entry_4?: string | null
+          exit_1?: string | null
+          exit_2?: string | null
+          exit_3?: string | null
+          exit_4?: string | null
+          external_employee_id?: string | null
+          id?: string
+          import_id?: string | null
+          notes?: string | null
+          overtime?: unknown
+          raw_data?: Json | null
+          record_date?: string
+          status?: string | null
+          total_hours?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_tracking_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_tracking_records_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_responses: {
+        Row: {
+          created_at: string
+          employee_id: string | null
+          id: string
+          instance: string | null
+          message_id: string | null
+          notification_id: string | null
+          phone: string
+          processed: boolean | null
+          processed_at: string | null
+          push_name: string | null
+          raw_message: Json | null
+          response_type: string
+          response_value: string | null
+        }
+        Insert: {
+          created_at?: string
+          employee_id?: string | null
+          id?: string
+          instance?: string | null
+          message_id?: string | null
+          notification_id?: string | null
+          phone: string
+          processed?: boolean | null
+          processed_at?: string | null
+          push_name?: string | null
+          raw_message?: Json | null
+          response_type: string
+          response_value?: string | null
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string | null
+          id?: string
+          instance?: string | null
+          message_id?: string | null
+          notification_id?: string | null
+          phone?: string
+          processed?: boolean | null
+          processed_at?: string | null
+          push_name?: string | null
+          raw_message?: Json | null
+          response_type?: string
+          response_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_responses_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_responses_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      get_company_ranking: {
+        Args: never
+        Returns: {
+          employee_id: string
+          name: string
+          ranking: number
+          total_score: number
+        }[]
+      }
+      get_user_company: { Args: { _user_id: string }; Returns: string }
+      get_user_role: {
+        Args: { user_uuid: string }
+        Returns: Database["public"]["Enums"]["employee_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: { user_uuid: string }; Returns: boolean }
+      is_admin_master: { Args: { _user_id: string }; Returns: boolean }
+      is_admin_or_gestor: { Args: { user_uuid: string }; Returns: boolean }
+      user_belongs_to_company: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      app_role: "admin_master" | "admin" | "gestor" | "colaborador"
+      employee_role: "colaborador" | "gestor" | "admin"
+      notification_priority: "low" | "normal" | "high" | "urgent"
+      notification_status:
+        | "pending"
+        | "queued"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "failed"
+      notification_type:
+        | "task_assigned"
+        | "task_due_reminder"
+        | "task_overdue"
+        | "task_completed"
+        | "task_comment"
+        | "clock_reminder"
+        | "clock_anomaly"
+        | "justification_required"
+        | "justification_response"
+        | "announcement"
+        | "gamification_badge"
+      queue_status: "queued" | "processing" | "completed" | "failed"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-    PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-            Row: infer R
-        }
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
     ? R
     : never
-    : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
-            Row: infer R
-        }
-    ? R
-    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
     : never
 
 export type TablesInsert<
-    PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-        Insert: infer I
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
     }
     ? I
     : never
-    : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
-    }
-    ? I
-    : never
+      }
+      ? I
+      : never
     : never
 
 export type TablesUpdate<
-    PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-        Update: infer U
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
     }
     ? U
     : never
-    : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
-    }
-    ? U
-    : never
+      }
+      ? U
+      : never
     : never
 
 export type Enums<
-    PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-    EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-    : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
-    PublicCompositeTypeNameOrOptions extends
-    | keyof PublicSchema["CompositeTypes"]
-    | { schema: keyof Database },
-    CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-        schema: keyof Database
-    }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-    : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["admin_master", "admin", "gestor", "colaborador"],
+      employee_role: ["colaborador", "gestor", "admin"],
+      notification_priority: ["low", "normal", "high", "urgent"],
+      notification_status: [
+        "pending",
+        "queued",
+        "sent",
+        "delivered",
+        "read",
+        "failed",
+      ],
+      notification_type: [
+        "task_assigned",
+        "task_due_reminder",
+        "task_overdue",
+        "task_completed",
+        "task_comment",
+        "clock_reminder",
+        "clock_anomaly",
+        "justification_required",
+        "justification_response",
+        "announcement",
+        "gamification_badge",
+      ],
+      queue_status: ["queued", "processing", "completed", "failed"],
+    },
+  },
+} as const
