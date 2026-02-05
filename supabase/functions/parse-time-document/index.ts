@@ -81,9 +81,9 @@ serve(async (req: Request) => {
 
   try {
     // @ts-ignore: Deno global not recognized in local IDE
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     const { fileContent, fileType, fileName } = await req.json();
@@ -95,11 +95,11 @@ serve(async (req: Request) => {
       );
     }
 
-    console.log(`Processing ${fileType} file: ${fileName}`);
+    console.log(`Processing ${fileType} file: ${fileName} using OpenAI GPT-4o-mini`);
 
     // Build prompt for AI to parse the document
     const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto.
-Sua tarefa é extrair registros de ponto de documentos (Excel, CSV ou PDF).
+Sua tarefa é extrair registros de ponto de documentos (Excel, CSV ou PDF) e retornar EXCLUSIVAMENTE um objeto JSON.
 
 Regras de extração:
 1. Identifique o ID ou matrícula do funcionário
@@ -108,7 +108,7 @@ Regras de extração:
 4. Identifique as batidas/marcações de ponto (horários no formato HH:MM)
 5. Cada linha representa um dia de trabalho de um funcionário
 
-Responda APENAS com um JSON válido no seguinte formato:
+O retorno deve ser um JSON válido no seguinte formato:
 {
   "records": [
     {
@@ -135,35 +135,35 @@ Se não conseguir identificar registros válidos, retorne um array vazio em reco
 
 ${fileContent}
 
-Retorne APENAS o JSON com os registros extraídos, sem explicações adicionais.`;
+Retorne APENAS o JSON com os registros extraídos.`;
 
-    console.log('Sending request to Lovable AI Gateway...');
+    console.log('Sending request to OpenAI API...');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
+        response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 8000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', errorText);
-      throw new Error(`AI Gateway request failed: ${response.status}`);
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API request failed: ${response.status}`);
     }
 
-    const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
+    const openaiResponse = await response.json();
+    const content = openaiResponse.choices?.[0]?.message?.content;
 
     if (!content) {
       throw new Error('No response from AI');
