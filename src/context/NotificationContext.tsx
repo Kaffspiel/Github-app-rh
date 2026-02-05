@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./AuthContext";
 import type {
   Notification,
   NotificationType,
@@ -74,16 +75,20 @@ interface NotificationProviderProps {
 }
 
 export const NotificationProvider = ({ children }: NotificationProviderProps) => {
+  const { currentCompanyId } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [queue, setQueue] = useState<NotificationQueueItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
 
   // Fetch employees from Supabase
   const fetchEmployees = useCallback(async () => {
+    if (!currentCompanyId) return;
+
     try {
       const { data, error } = await supabase
         .from('employees')
-        .select('*');
+        .select('*')
+        .eq('company_id', currentCompanyId);
 
       if (error) {
         console.error('Error fetching employees for notifications:', error);
@@ -128,16 +133,14 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
   // Fetch notifications from Supabase
   const fetchNotifications = useCallback(async () => {
-    try {
-      // Fetch 100 most recent notifications
-      // In a real app we might filter by user, but context seems global or we rely on RLS
-      // Assuming RLS will filter for current user automatically if configured
-      // But here we might want all if we are admin? 
-      // Let's assume we fetch all visible to user.
+    if (!currentCompanyId) return;
 
+    try {
+      // Fetch 100 most recent notifications for the current company
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
+        .eq('company_id', currentCompanyId)
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -176,30 +179,42 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   }, []);
 
   useEffect(() => {
-    fetchEmployees();
-    fetchNotifications();
+    if (currentCompanyId) {
+      fetchEmployees();
+      fetchNotifications();
 
-    // Subscribe to employee changes
-    const empChannel = supabase
-      .channel('public:employees')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
-        fetchEmployees();
-      })
-      .subscribe();
+      // Subscribe to employee changes for current company
+      const empChannel = supabase
+        .channel(`public:employees:${currentCompanyId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'employees',
+          filter: `company_id=eq.${currentCompanyId}`
+        }, () => {
+          fetchEmployees();
+        })
+        .subscribe();
 
-    // Subscribe to notification changes
-    const notifChannel = supabase
-      .channel('public:notifications')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        fetchNotifications();
-      })
-      .subscribe();
+      // Subscribe to notification changes for current company
+      const notifChannel = supabase
+        .channel(`public:notifications:${currentCompanyId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `company_id=eq.${currentCompanyId}`
+        }, () => {
+          fetchNotifications();
+        })
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(empChannel);
-      supabase.removeChannel(notifChannel);
-    };
-  }, [fetchEmployees, fetchNotifications]);
+      return () => {
+        supabase.removeChannel(empChannel);
+        supabase.removeChannel(notifChannel);
+      };
+    }
+  }, [currentCompanyId, fetchEmployees, fetchNotifications]);
 
   // Gera ID único
   const generateId = useCallback(() => {

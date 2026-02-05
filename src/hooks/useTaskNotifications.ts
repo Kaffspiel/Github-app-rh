@@ -94,6 +94,7 @@ export function useTaskNotifications() {
           message: `${params.employeeName} concluiu a tarefa "${params.taskTitle}".`,
           recipient_id: manager.id,
           sender_name: params.employeeName,
+          company_id: params.companyId,
           channels: ['in_app'],
           priority: 'normal' as const,
           related_entity_type: 'task',
@@ -146,6 +147,7 @@ export function useTaskNotifications() {
           message: `✅ ${params.employeeName} cumpriu *${params.checklistItemText}* da rotina *${params.taskTitle}*.`,
           recipient_id: manager.id,
           sender_name: params.employeeName,
+          company_id: params.companyId,
           channels: ['in_app'],
           priority: 'low',
           related_entity_type: 'task',
@@ -245,6 +247,7 @@ export function useTaskNotifications() {
           message: `A tarefa "${params.taskTitle}" de ${params.employeeName} está atrasada.`,
           recipient_id: manager.id,
           sender_name: 'Sistema',
+          company_id: params.companyId,
           channels: ['in_app'],
           priority: 'high',
           related_entity_type: 'task',
@@ -293,10 +296,9 @@ export function useTaskNotifications() {
           type: 'task_comment', // Using generic type as proxy
           title: '⏳ Pedido de Prorrogação',
           message: `${params.employeeName} pediu mais prazo na tarefa "${params.taskTitle}".\nNova Data: ${params.newDate}\nMotivo: ${params.reason}`,
-          // DEBUG: Log
-          _debug: console.log('DEBUG: Creating extension notification for', manager.name, manager.id),
           recipient_id: manager.id,
           sender_name: params.employeeName,
+          company_id: params.companyId,
           channels: ['in_app'],
           priority: 'high',
           related_entity_type: 'task',
@@ -331,7 +333,7 @@ export function useTaskNotifications() {
       // Get recipient settings
       const { data: recipient, error: recipientError } = await supabase
         .from('employees')
-        .select('id, notify_tasks, notify_in_app, notify_whatsapp, whatsapp_verified, whatsapp_number')
+        .select('id, notify_tasks, notify_in_app, notify_whatsapp, whatsapp_verified, whatsapp_number, company_id')
         .eq('id', params.assigneeId)
         .single();
 
@@ -357,6 +359,7 @@ export function useTaskNotifications() {
           message: `A tarefa "${params.taskTitle}" foi atualizada. ${changeText}.`,
           recipient_id: params.assigneeId,
           sender_name: params.senderName || 'Sistema',
+          company_id: recipient.company_id,
           channels,
           priority: 'normal',
           related_entity_type: 'task',

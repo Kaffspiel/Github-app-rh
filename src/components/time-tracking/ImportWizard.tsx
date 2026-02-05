@@ -132,13 +132,16 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
       const { data, error } = await supabase.functions.invoke('parse-time-document', {
         body: {
-          fileContent: content.substring(0, 40000),
+          fileContent: content.substring(0, 20000),
           fileType: fileFormat,
           fileName: file.name,
         },
       });
 
-      console.log('Supabase function response received:', { data, error });
+      console.log('Supabase function response status:', error ? 'Error' : 'Success');
+      if (data && data.records) {
+        console.log(`Received ${data.records.length} records from AI`);
+      }
 
       if (error) {
         console.error('Functions invoke error:', error);

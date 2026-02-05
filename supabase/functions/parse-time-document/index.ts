@@ -124,11 +124,12 @@ O retorno deve ser um JSON válido no seguinte formato:
 
 Se não conseguir identificar registros válidos, retorne um array vazio em records e descreva o problema em errors.`;
 
-    const userPrompt = `Analise o arquivo "${fileName}" e extraia todos os registros de ponto:
+    const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto.
+Este é um trecho do arquivo (limitado para processamento):
 
-${fileContent.substring(0, 40000)}
+${fileContent.substring(0, 20000)}
 
-Retorne APENAS o JSON.`;
+Retorne o JSON com o mapeamento sugerido e os registros encontrados neste trecho.`;
 
     console.log('Sending request to OpenAI API...');
 
