@@ -192,18 +192,28 @@ export function EmployeeManagement() {
     setCreatingUser(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("create-user", {
-        body: {
+      // Usando n8n Standalone em vez de Edge Function
+      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-create-user";
+
+      const response = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: userForm.email,
           password: userForm.password,
           name: userForm.name,
           role: userForm.role,
           department: userForm.department,
           companyId: companyId,
-        },
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Erro no servidor n8n: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       if (data?.success) {
         toast({
@@ -214,8 +224,7 @@ export function EmployeeManagement() {
         resetUserForm();
         fetchEmployees();
       } else {
-        // Tenta extrair a mensagem de erro do corpo da resposta se disponível
-        const errorMessage = data?.error || (error as any)?.message || "Erro desconhecido ao criar usuário";
+        const errorMessage = data?.error || "Erro desconhecido ao criar usuário";
         throw new Error(errorMessage);
       }
     } catch (err: any) {
@@ -276,19 +285,23 @@ export function EmployeeManagement() {
     setSendingTest(employee.id);
 
     try {
-      const { data, error } = await supabase.functions.invoke("send-notification", {
-        body: {
+      // Usando n8n Standalone em vez de Edge Function
+      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-send";
+
+      const response = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           recipientId: employee.id,
           type: "announcement",
           title: "Teste de Conexão",
           message: `Olá ${employee.name}! Esta é uma mensagem de teste do OpsControl.`,
           priority: "normal",
-          n8nWebhookUrl: "https://n8n.kaffspiel.cloud/webhook/opscontrol-send",
-          evolutionInstance: "teste",
-        },
+          instance: "teste", // Nome da sua instância no Evolution API
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error(`Falha no n8n: ${response.status}`);
 
       toast({
         title: "Mensagem enviada!",

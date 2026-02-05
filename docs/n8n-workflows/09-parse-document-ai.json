@@ -1,0 +1,84 @@
+{
+    "name": "OpsControl - IA Parse Documento (No Edge)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "opscontrol-parse-document",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "webhook-trigger",
+            "name": "Webhook Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.openai.com/v1/chat/completions",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    { \"role\": \"system\", \"content\": \"Você é um especialista em RH. Extraia registros de ponto do texto fornecido. Retorne APENAS um JSON com o formato: {\\\"success\\\": true, \\\"records\\\": [{\\\"employeeName\\\": \\\"\\\", \\\"date\\\": \\\"YYYY-MM-DD\\\", \\\"punches\\\": [\\\"HH:MM\\\"]}]}\" },\n    { \"role\": \"user\", \"content\": \"{{ $json.body.fileContent }}\" }\n  ],\n  \"response_format\": { \"type\": \"json_object\" }\n}"
+            },
+            "id": "openai-extract",
+            "name": "IA Extrair Dados",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                400,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const response = JSON.parse($json.body.choices[0].message.content);\nreturn {\n  success: response.success,\n  records: response.records || [],\n  errors: response.errors || []\n};"
+            },
+            "id": "format-response",
+            "name": "Formatar Resposta",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                700,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "openai-extract",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "openai-extract": {
+            "main": [
+                [
+                    {
+                        "node": "format-response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

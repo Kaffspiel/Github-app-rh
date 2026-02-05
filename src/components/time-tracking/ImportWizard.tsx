@@ -130,23 +130,25 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
       toast.info("Analisando documento com IA...");
 
-      const { data, error } = await supabase.functions.invoke('parse-time-document', {
-        body: {
+      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-parse-document";
+
+      const response = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           fileContent: content.substring(0, 20000),
           fileType: fileFormat,
           fileName: file.name,
-        },
+        }),
       });
 
-      console.log('Supabase function response status:', error ? 'Error' : 'Success');
-      if (data && data.records) {
-        console.log(`Received ${data.records.length} records from AI`);
+      if (!response.ok) {
+        throw new Error(`Erro no n8n: ${response.status}`);
       }
 
-      if (error) {
-        console.error('Functions invoke error:', error);
-        throw new Error(error.message || 'Falha na comunicação com a Edge Function');
-      }
+      const data = await response.json();
+
+      console.log('n8n Response:', data);
 
       if (!data.success) {
         throw new Error(data.error || 'Falha no parsing com IA');

@@ -1,0 +1,133 @@
+{
+    "name": "OpsControl - Criar Usuário Admin (No Edge)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "opscontrol-create-user",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "webhook-trigger",
+            "name": "Webhook Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.SUPABASE_URL }}/auth/v1/admin/users",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"email\": \"{{ $json.body.email }}\",\n  \"password\": \"{{ $json.body.password }}\",\n  \"user_metadata\": {\"name\": \"{{ $json.body.name }}\"},\n  \"email_confirm\": true\n}"
+            },
+            "id": "create-auth-user",
+            "name": "Criar no Auth",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                350,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.SUPABASE_URL }}/rest/v1/employees",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"id\": \"{{ $node[\\\"Criar no Auth\\\"].json.id }}\",\n  \"user_id\": \"{{ $node[\\\"Criar no Auth\\\"].json.id }}\",\n  \"name\": \"{{ $node[\\\"Webhook Trigger\\\"].json.body.name }}\",\n  \"email\": \"{{ $node[\\\"Webhook Trigger\\\"].json.body.email }}\",\n  \"role\": \"{{ $node[\\\"Webhook Trigger\\\"].json.body.role }}\",\n  \"department\": \"{{ $node[\\\"Webhook Trigger\\\"].json.body.department }}\",\n  \"company_id\": \"{{ $node[\\\"Webhook Trigger\\\"].json.body.companyId }}\",\n  \"is_active\": true\n}"
+            },
+            "id": "insert-employee",
+            "name": "Gravar Employee",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                600,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "return {\n  success: true,\n  id: $node[\"Criar no Auth\"].json.id\n};"
+            },
+            "id": "response-node",
+            "name": "Resposta Sucesso",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                850,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Criar no Auth",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Criar no Auth": {
+            "main": [
+                [
+                    {
+                        "node": "insert-employee",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "insert-employee": {
+            "main": [
+                [
+                    {
+                        "node": "response-node",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
