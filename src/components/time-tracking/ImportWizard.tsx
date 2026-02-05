@@ -132,14 +132,18 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
       const { data, error } = await supabase.functions.invoke('parse-time-document', {
         body: {
-          fileContent: content,
+          fileContent: content.substring(0, 40000),
           fileType: fileFormat,
           fileName: file.name,
         },
       });
 
       console.log('Supabase function response received:', { data, error });
-      if (error) throw error;
+
+      if (error) {
+        console.error('Functions invoke error:', error);
+        throw new Error(error.message || 'Falha na comunicação com a Edge Function');
+      }
 
       if (!data.success) {
         throw new Error(data.error || 'Falha no parsing com IA');
