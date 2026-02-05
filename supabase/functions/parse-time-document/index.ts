@@ -175,9 +175,20 @@ Retorne APENAS o JSON com os registros extraídos, sem explicações adicionais.
     try {
       parsedResult = extractJsonFromResponse(content);
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON.');
+      const specificErrorMessage = parseError instanceof Error ? parseError.message : 'Unknown parse error';
+      console.error('Failed to parse AI response as JSON:', specificErrorMessage);
       console.error('Original full content:', content.substring(0, 1000) + (content.length > 1000 ? '...' : ''));
-      throw new Error('Failed to parse AI response as JSON');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Failed to parse AI response as JSON: ${specificErrorMessage}`,
+          aiContent: content,
+          records: [],
+          errors: [{ row: 0, message: `Failed to parse AI response: ${specificErrorMessage}` }],
+          totalRows: 0
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const result: ParseResult = {
