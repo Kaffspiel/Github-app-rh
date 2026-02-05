@@ -1,4 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+// @ts-ignore: Deno types not available in local IDE
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -26,13 +27,14 @@ interface ParseResult {
   };
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    // @ts-ignore: Deno global not recognized in local IDE
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
@@ -123,18 +125,29 @@ Retorne APENAS o JSON com os registros extraídos, sem explicações adicionais.
 
     console.log('AI response received, parsing...');
 
-    // Extract JSON from response (handle markdown code blocks)
-    let jsonContent = content;
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    // Extract JSON from response (handle markdown code blocks and potential extra text)
+    let jsonContent = content.trim();
+
+    // 1. Try to extract from markdown blocks
+    const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
       jsonContent = jsonMatch[1].trim();
+    } else {
+      // 2. Fallback: try to find the first '{' and last '}'
+      const firstBrace = jsonContent.indexOf('{');
+      const lastBrace = jsonContent.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonContent = jsonContent.substring(firstBrace, lastBrace + 1);
+      }
     }
 
     let parsedResult;
     try {
       parsedResult = JSON.parse(jsonContent);
     } catch (parseError) {
-      console.error('Failed to parse AI response:', jsonContent);
+      console.error('Failed to parse AI response as JSON.');
+      console.error('Content attempted to parse:', jsonContent.substring(0, 1000) + (jsonContent.length > 1000 ? '...' : ''));
+      console.error('Original full content:', content.substring(0, 1000) + (content.length > 1000 ? '...' : ''));
       throw new Error('Failed to parse AI response as JSON');
     }
 
@@ -157,8 +170,8 @@ Retorne APENAS o JSON com os registros extraídos, sem explicações adicionais.
     console.error('Error in parse-time-document:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         error: errorMessage,
         records: [],
         errors: [{ row: 0, message: errorMessage }],
