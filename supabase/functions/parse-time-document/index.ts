@@ -27,6 +27,52 @@ interface ParseResult {
   };
 }
 
+// Robust JSON extraction from AI responses
+function extractJsonFromResponse(response: string): any {
+  // Step 1: Try direct parse first
+  try {
+    return JSON.parse(response.trim());
+  } catch {
+    // Continue to other methods
+  }
+
+  // Step 2: Remove markdown code blocks
+  let cleaned = response
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  // Step 3: Try parse after cleaning markdown
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Continue to extraction
+  }
+
+  // Step 4: Find JSON boundaries
+  const jsonStart = cleaned.indexOf("{");
+  const jsonEnd = cleaned.lastIndexOf("}");
+
+  if (jsonStart === -1 || jsonEnd === -1) {
+    throw new Error("No JSON object found in response");
+  }
+
+  cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+
+  // Step 5: Attempt parse with error handling
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Step 6: Try to fix common issues
+    cleaned = cleaned
+      .replace(/,\s*}/g, "}") // Remove trailing commas before }
+      .replace(/,\s*]/g, "]") // Remove trailing commas before ]
+      .replace(/[\x00-\x1F\x7F]/g, ""); // Remove control characters
+
+    return JSON.parse(cleaned);
+  }
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -125,28 +171,11 @@ Retorne APENAS o JSON com os registros extraídos, sem explicações adicionais.
 
     console.log('AI response received, parsing...');
 
-    // Extract JSON from response (handle markdown code blocks and potential extra text)
-    let jsonContent = content.trim();
-
-    // 1. Try to extract from markdown blocks
-    const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonContent = jsonMatch[1].trim();
-    } else {
-      // 2. Fallback: try to find the first '{' and last '}'
-      const firstBrace = jsonContent.indexOf('{');
-      const lastBrace = jsonContent.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        jsonContent = jsonContent.substring(firstBrace, lastBrace + 1);
-      }
-    }
-
     let parsedResult;
     try {
-      parsedResult = JSON.parse(jsonContent);
+      parsedResult = extractJsonFromResponse(content);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON.');
-      console.error('Content attempted to parse:', jsonContent.substring(0, 1000) + (jsonContent.length > 1000 ? '...' : ''));
       console.error('Original full content:', content.substring(0, 1000) + (content.length > 1000 ? '...' : ''));
       throw new Error('Failed to parse AI response as JSON');
     }
