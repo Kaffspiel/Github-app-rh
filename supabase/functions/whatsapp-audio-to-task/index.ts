@@ -1,5 +1,8 @@
+// @ts-ignore: Deno types not available in local IDE
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+// @ts-ignore: Deno types not available in local IDE
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @ts-ignore: Deno types not available in local IDE
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -7,14 +10,18 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+// @ts-ignore: Deno global not recognized in local IDE
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders, status: 204 });
     }
 
     try {
+        // @ts-ignore: Deno global not recognized in local IDE
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        // @ts-ignore: Deno global not recognized in local IDE
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        // @ts-ignore: Deno global not recognized in local IDE
         const openaiKey = Deno.env.get('OPENAI_API_KEY')!;
 
         const supabase = createClient(supabaseUrl, supabaseKey);
@@ -53,7 +60,7 @@ serve(async (req) => {
 
         if (employeesError) throw employeesError;
 
-        const employeeList = employees.map(e => `- ${e.name} (ID: ${e.id})`).join('\n');
+        const employeeList = employees.map((e: any) => `- ${e.name} (ID: ${e.id})`).join('\n');
 
         // 3. Extract intent with OpenAI
         const systemPrompt = `Você é um assistente de gestão de tarefas.
@@ -121,7 +128,7 @@ Retorne EXCLUSIVAMENTE um JSON no formato:
         if (taskError) throw taskError;
 
         // 5. Success response
-        const assignee = employees.find(e => e.id === taskDetails.assignee_id);
+        const assignee = employees.find((e: any) => e.id === taskDetails.assignee_id);
         const confirmationMessage = `✅ Tarefa criada com sucesso!\n\n📌 *${task.title}*\n👤 Responsável: ${assignee?.name || 'Não identificado'}\n📅 Prazo: ${taskDetails.due_date || 'Não definido'}\n🔥 Prioridade: ${task.priority}`;
 
         return new Response(
@@ -130,10 +137,12 @@ Retorne EXCLUSIVAMENTE um JSON no formato:
         );
 
     } catch (error) {
-        console.error('Error:', error.message);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        console.error('Error:', errorMessage);
         return new Response(
-            JSON.stringify({ success: false, error: error.message }),
+            JSON.stringify({ success: false, error: errorMessage }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
 });
+
