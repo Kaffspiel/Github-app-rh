@@ -214,9 +214,12 @@ export function EmployeeManagement() {
         resetUserForm();
         fetchEmployees();
       } else {
-        throw new Error(data?.error || "Erro ao criar usuário");
+        // Tenta extrair a mensagem de erro do corpo da resposta se disponível
+        const errorMessage = data?.error || (error as any)?.message || "Erro desconhecido ao criar usuário";
+        throw new Error(errorMessage);
       }
     } catch (err: any) {
+      console.error("Erro ao criar usuário:", err);
       toast({
         title: "Erro ao criar usuário",
         description: err.message,
@@ -456,9 +459,12 @@ export function EmployeeManagement() {
         setCreateAccessForm({ password: "", confirmPassword: "" });
         fetchEmployees();
       } else {
-        throw new Error(data?.error || "Erro ao criar acesso");
+        // Tenta extrair a mensagem de erro do corpo da resposta se disponível
+        const errorMessage = data?.error || (error as any)?.message || "Erro desconhecido ao criar acesso";
+        throw new Error(errorMessage);
       }
     } catch (err: any) {
+      console.error("Erro ao criar acesso:", err);
       toast({
         title: "Erro ao criar acesso",
         description: err.message,

@@ -88,7 +88,7 @@ serve(async (req) => {
     // Map role to app_role enum
     const appRole = role === "admin" ? "admin" : role === "gestor" ? "gestor" : "colaborador";
 
-    console.log(`Creating user ${email} with role ${appRole} for company ${companyId}`);
+    console.log(`Criando usuário ${email} com role ${appRole} para a empresa ${companyId}`);
 
     // Create auth user
     const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -98,14 +98,24 @@ serve(async (req) => {
     });
 
     if (createError) {
+      console.error("Erro na criação do Auth:", createError);
       if (createError.message.includes("already been registered")) {
-        throw new Error("Este email já está cadastrado");
+        return new Response(
+          JSON.stringify({ success: false, error: "Este e-mail já está cadastrado no sistema." }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
       }
-      throw createError;
+      return new Response(
+        JSON.stringify({ success: false, error: `Falha na autenticação: ${createError.message}` }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
     }
 
     if (!authData.user) {
-      throw new Error("Falha ao criar usuário");
+      return new Response(
+        JSON.stringify({ success: false, error: "Falha interna: Usuário não foi retornado pelo Supabase." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
     }
 
     const userId = authData.user.id;
@@ -120,10 +130,13 @@ serve(async (req) => {
       });
 
     if (roleInsertError) {
-      console.error("Error creating role:", roleInsertError);
-      // Try to clean up - delete the auth user
+      console.error("Erro ao criar role:", roleInsertError);
+      // Clean up - delete the auth user
       await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error("Falha ao atribuir permissões");
+      return new Response(
+        JSON.stringify({ success: false, error: `Falha ao atribuir permissões: ${roleInsertError.message}` }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
     }
 
     // Create/Update employee record
@@ -135,9 +148,6 @@ serve(async (req) => {
         .from("employees")
         .update({
           user_id: userId,
-          // Update other fields to match if they were edited during user creation flow, 
-          // or just rely on them being correct. Ideally we shouldn't overwrite name/email/role unless necessary,
-          // but for consistency let's ensure they match the user account.
           role: role === "admin" ? "admin" : role === "gestor" ? "gestor" : "colaborador",
         })
         .eq("id", employeeId);
@@ -159,39 +169,33 @@ serve(async (req) => {
     }
 
     if (employeeError) {
-      console.error("Error creating employee:", employeeError);
-      // Don't fail completely - user and role were created
+      console.error("Erro ao processar registro de funcionário:", employeeError);
+      // We don't fail the whole request here because the user account and role ARE created.
+      // But we log it for the admin.
     }
 
-    console.log(`Successfully created user ${email} with id ${userId}`);
+    console.log(`Usuário ${email} criado com sucesso (ID: ${userId})`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Usuário criado com sucesso",
-        user: {
-          id: userId,
-          email,
-          name,
-          role: appRole,
-        },
+        user: { id: userId, email, name, role: appRole },
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: any) {
-    console.error("Error creating user:", error);
+    console.error("Erro fatal na Edge Function create-user:", error);
+
+    // Default to 400 for client errors (most common) or 500 for unexpected ones
+    const status = error.message === "Não autorizado" || error.message === "Usuário sem permissões" ? 401 : 400;
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "Erro ao criar usuário"
+        error: error.message || "Ocorreu um erro inesperado ao processar sua solicitação."
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200, // Return 200 even on error so client can parse the message
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status }
     );
   }
 });
