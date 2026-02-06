@@ -39,9 +39,12 @@ serve(async (req: Request) => {
 
     // Create regular client to verify the requester's permissions
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       throw new Error("Não autorizado");
     }
+
+    // Extract token for explicit validation (required when verify_jwt=false)
+    const token = authHeader.replace("Bearer ", "");
 
     const supabaseClient = createClient(supabaseUrl, anonKey, {
       global: {
@@ -49,9 +52,10 @@ serve(async (req: Request) => {
       },
     });
 
-    // Get the requesting user
-    const { data: { user: requestingUser }, error: authError } = await supabaseClient.auth.getUser();
+    // Get the requesting user - MUST pass token explicitly when verify_jwt=false
+    const { data: { user: requestingUser }, error: authError } = await supabaseClient.auth.getUser(token);
     if (authError || !requestingUser) {
+      console.error("Auth error:", authError?.message);
       throw new Error("Não autorizado");
     }
 
