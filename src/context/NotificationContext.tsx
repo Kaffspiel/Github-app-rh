@@ -441,6 +441,8 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
         try {
           console.log(`Processing notification queue item: ${item.id} (WhatsApp: ${item.payload.number})`);
 
+          console.log(`Payload enviado para n8n:`, item.payload);
+
           const response = await fetch(item.webhookUrl, {
             method: 'POST',
             headers: {
