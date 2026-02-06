@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreHorizontal, Pencil, UserPlus, Power, PowerOff } from "lucide-react";
+import { MoreHorizontal, Pencil, UserPlus, Users, Power, PowerOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -34,10 +34,11 @@ interface CompanyListProps {
   companies: Tables<"companies">[];
   onEdit: (company: Tables<"companies">) => void;
   onAddAdmin: (company: Tables<"companies">) => void;
+  onAddGestor: (company: Tables<"companies">) => void;
   onRefresh: () => void;
 }
 
-export function CompanyList({ companies, onEdit, onAddAdmin, onRefresh }: CompanyListProps) {
+export function CompanyList({ companies, onEdit, onAddAdmin, onAddGestor, onRefresh }: CompanyListProps) {
   const [toggleConfirm, setToggleConfirm] = useState<{ open: boolean; company: Tables<"companies"> | null }>({
     open: false,
     company: null,
@@ -144,6 +145,10 @@ export function CompanyList({ companies, onEdit, onAddAdmin, onRefresh }: Compan
                       <DropdownMenuItem onClick={() => onAddAdmin(company)}>
                         <UserPlus className="h-4 w-4 mr-2" />
                         Adicionar Admin
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onAddGestor(company)}>
+                        <Users className="h-4 w-4 mr-2" />
+                        Adicionar Gestor
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => setToggleConfirm({ open: true, company })}

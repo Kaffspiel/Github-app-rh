@@ -21,35 +21,52 @@ import type { Tables } from "@/integrations/supabase/types";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const adminSchema = z.object({
+const userSchema = z.object({
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
 });
 
-type AdminFormData = z.infer<typeof adminSchema>;
+type UserFormData = z.infer<typeof userSchema>;
 
-interface AddAdminFormProps {
+type UserRole = "admin" | "gestor";
+
+interface AddUserFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   company: Tables<"companies"> | null;
   onSuccess: () => void;
+  role: UserRole;
 }
 
-export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdminFormProps) {
+const roleLabels: Record<UserRole, { title: string; description: string; department: string }> = {
+  admin: {
+    title: "Administrador",
+    description: "Criar um novo administrador para a empresa",
+    department: "Administração",
+  },
+  gestor: {
+    title: "Gestor",
+    description: "Criar um novo gestor para a empresa",
+    department: "Gestão",
+  },
+};
+
+export function AddAdminForm({ open, onOpenChange, company, onSuccess, role }: AddUserFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const labels = roleLabels[role];
 
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<AdminFormData>({
-    resolver: zodResolver(adminSchema),
+  } = useForm<UserFormData>({
+    resolver: zodResolver(userSchema),
   });
 
-  const onSubmit = async (data: AdminFormData) => {
+  const onSubmit = async (data: UserFormData) => {
     if (!company) return;
 
     setIsSubmitting(true);
@@ -64,7 +81,7 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
         throw new Error("Sessão inválida. Faça login novamente.");
       }
 
-      // Call the create-user edge function to create the admin
+      // Call the create-user edge function
       const response = await fetch(`${SUPABASE_URL}/functions/v1/create-user`, {
         method: 'POST',
         headers: {
@@ -75,8 +92,8 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
           email: data.email,
           password: data.password,
           name: data.name,
-          role: 'admin',
-          department: 'Administração',
+          role: role,
+          department: labels.department,
           companyId: company.id,
         }),
       });
@@ -84,20 +101,20 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || "Erro ao criar administrador");
+        throw new Error(result.error || `Erro ao criar ${labels.title.toLowerCase()}`);
       }
 
-      toast.success("Administrador criado com sucesso!");
+      toast.success(`${labels.title} criado com sucesso!`);
       reset();
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      console.error("Error creating admin:", err);
+      console.error(`Error creating ${role}:`, err);
       
       if (err.message?.includes("already registered") || err.message?.includes("já está cadastrado")) {
         setError("Este email já está cadastrado no sistema");
       } else {
-        setError(err.message || "Erro ao criar administrador");
+        setError(err.message || `Erro ao criar ${labels.title.toLowerCase()}`);
       }
     } finally {
       setIsSubmitting(false);
@@ -108,9 +125,9 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Adicionar Administrador</DialogTitle>
+          <DialogTitle>Adicionar {labels.title}</DialogTitle>
           <DialogDescription>
-            Criar um novo administrador para a empresa{" "}
+            {labels.description}{" "}
             <strong>{company?.name}</strong>
           </DialogDescription>
         </DialogHeader>
@@ -128,11 +145,11 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
             <Input
               id="name"
               {...register("name")}
-              placeholder="Nome do administrador"
-              className={errors.name ? "border-red-500" : ""}
+              placeholder={`Nome do ${labels.title.toLowerCase()}`}
+              className={errors.name ? "border-destructive" : ""}
             />
             {errors.name && (
-              <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>
+              <p className="text-xs text-destructive mt-1">{errors.name.message}</p>
             )}
           </div>
 
@@ -142,11 +159,11 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
               id="email"
               type="email"
               {...register("email")}
-              placeholder="admin@empresa.com"
-              className={errors.email ? "border-red-500" : ""}
+              placeholder={`${labels.title.toLowerCase()}@empresa.com`}
+              className={errors.email ? "border-destructive" : ""}
             />
             {errors.email && (
-              <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>
+              <p className="text-xs text-destructive mt-1">{errors.email.message}</p>
             )}
           </div>
 
@@ -157,10 +174,10 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
               type="password"
               {...register("password")}
               placeholder="Mínimo 6 caracteres"
-              className={errors.password ? "border-red-500" : ""}
+              className={errors.password ? "border-destructive" : ""}
             />
             {errors.password && (
-              <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>
+              <p className="text-xs text-destructive mt-1">{errors.password.message}</p>
             )}
           </div>
 
@@ -173,9 +190,9 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="bg-purple-600 hover:bg-purple-700">
+            <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90">
               {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Criar Administrador
+              Criar {labels.title}
             </Button>
           </DialogFooter>
         </form>
