@@ -70,7 +70,7 @@ export function useTasks() {
   const { user } = useAuth();
   const { companyId } = useCompany();
   const { toast } = useToast();
-  const { notifyTaskAssigned, notifyTaskUpdated, notifyTaskCompleted, notifyTaskOverdue } = useTaskNotifications();
+  const { notifyTaskAssigned, notifyTaskCreated, notifyTaskUpdated, notifyTaskCompleted, notifyTaskOverdue } = useTaskNotifications();
 
   const fetchTasks = useCallback(async () => {
     if (!companyId) {
@@ -257,28 +257,40 @@ export function useTasks() {
         description: `"${input.title}" foi adicionada com sucesso.`,
       });
 
-      // Send notification if task was assigned
-      if (input.assignee_id && data) {
-        const assignee = await supabase
+      // Notifications
+      if (data) {
+        // Fetch current employee name for the notification
+        const { data: currentEmployee } = await supabase
           .from('employees')
-          .select('id, name')
-          .eq('id', input.assignee_id)
-          .single();
+          .select('name')
+          .eq('user_id', user?.id)
+          .maybeSingle();
 
-        if (assignee.data) {
-          const currentEmployee = await supabase
+        // Notify managers about the new task
+        notifyTaskCreated({
+          taskId: data.id,
+          taskTitle: input.title,
+          companyId: companyId,
+          senderName: currentEmployee?.name,
+        });
+
+        // Notify assignee if specific employee was assigned
+        if (input.assignee_id) {
+          const { data: assignee } = await supabase
             .from('employees')
             .select('name')
-            .eq('user_id', user?.id)
-            .maybeSingle();
+            .eq('id', input.assignee_id)
+            .single();
 
-          notifyTaskAssigned({
-            taskId: data.id,
-            taskTitle: input.title,
-            assigneeId: input.assignee_id,
-            assigneeName: assignee.data.name,
-            senderName: currentEmployee?.data?.name,
-          });
+          if (assignee) {
+            notifyTaskAssigned({
+              taskId: data.id,
+              taskTitle: input.title,
+              assigneeId: input.assignee_id,
+              assigneeName: assignee.name,
+              senderName: currentEmployee?.name,
+            });
+          }
         }
       }
 

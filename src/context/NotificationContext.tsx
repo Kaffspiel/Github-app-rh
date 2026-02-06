@@ -216,6 +216,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, [currentCompanyId, fetchEmployees, fetchNotifications]);
 
+
   // Gera ID único
   const generateId = useCallback(() => {
     return `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -261,10 +262,33 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
         scheduledFor: params.scheduledFor,
       };
 
+      // Persist in Supabase
+      if (currentCompanyId) {
+        supabase.from('notifications').insert({
+          type: params.type as any,
+          title: params.title,
+          message: params.message,
+          recipient_id: params.recipientId,
+          sender_id: params.senderId,
+          sender_name: params.senderName,
+          company_id: currentCompanyId,
+          channels: params.channels || ["in_app"],
+          priority: params.priority || "normal",
+          related_entity_type: params.relatedEntity?.type,
+          related_entity_id: params.relatedEntity?.id,
+          scheduled_for: params.scheduledFor,
+          status: 'pending',
+          in_app_status: 'delivered',
+          in_app_delivered_at: new Date().toISOString()
+        } as any).then(({ error }) => {
+          if (error) console.error('Error persisting notification to Supabase:', error);
+        });
+      }
+
       setNotifications((prev) => [notification, ...prev]);
       return notification;
     },
-    [generateId, getEmployeeById]
+    [generateId, getEmployeeById, currentCompanyId]
   );
 
   // Marca notificação como lida
@@ -404,6 +428,58 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     },
     [notifications]
   );
+
+  // Queue worker
+  useEffect(() => {
+    const processQueue = async () => {
+      const pendingItems = queue.filter(item => item.status === 'queued');
+
+      for (const item of pendingItems) {
+        // Prevent immediate re-processing
+        updateQueueItem(item.id, { status: 'processing' });
+
+        try {
+          console.log(`Processing notification queue item: ${item.id} (WhatsApp: ${item.payload.number})`);
+
+          const response = await fetch(item.webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(item.payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Webhook responded with status: ${response.status}`);
+          }
+
+          console.log(`Notification sent successfully via webhook: ${item.id}`);
+          updateQueueItem(item.id, {
+            status: 'sent',
+            processedAt: new Date().toISOString()
+          });
+
+          // Clean up queue after success
+          setTimeout(() => removeFromQueue(item.id), 5000);
+        } catch (error) {
+          console.error(`Failed to process notification queue item ${item.id}:`, error);
+          const nextAttempts = (item.attempts || 0) + 1;
+
+          if (nextAttempts >= (item.maxAttempts || 3)) {
+            updateQueueItem(item.id, { status: 'failed', attempts: nextAttempts });
+          } else {
+            updateQueueItem(item.id, { status: 'retrying', attempts: nextAttempts });
+            // Retry after delay
+            setTimeout(() => updateQueueItem(item.id, { status: 'queued' }), 10000);
+          }
+        }
+      }
+    };
+
+    if (queue.some(item => item.status === 'queued')) {
+      processQueue();
+    }
+  }, [queue, updateQueueItem, removeFromQueue]);
 
   return (
     <NotificationContext.Provider

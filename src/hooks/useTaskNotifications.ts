@@ -73,49 +73,26 @@ export function useTaskNotifications() {
     companyId: string;
   }) => {
     try {
-      // Find managers/admins in the company
-      const { data: managers, error: managersError } = await supabase
+      const { data: managers } = await supabase
         .from('employees')
-        .select('id, name, notify_tasks, notify_in_app')
+        .select('id')
         .eq('company_id', params.companyId)
         .in('role', ['admin', 'gestor']);
 
-      if (managersError || !managers || managers.length === 0) {
-        console.log('No managers found to notify');
-        return;
-      }
-
-      // Create notifications for each manager
-      const notifications = managers
-        .filter(m => m.notify_tasks && m.notify_in_app)
-        .map(manager => ({
-          type: 'task_completed' as const,
-          title: '✅ Tarefa Concluída',
-          message: `${params.employeeName} concluiu a tarefa "${params.taskTitle}".`,
-          recipient_id: manager.id,
-          sender_name: params.employeeName,
-          company_id: params.companyId,
-          channels: ['in_app'],
-          priority: 'normal' as const,
-          related_entity_type: 'task',
-          related_entity_id: params.taskId,
-          status: 'pending' as const,
-          in_app_status: 'delivered',
-          in_app_delivered_at: new Date().toISOString(),
-        }));
-
-      if (notifications.length > 0) {
-        const { error } = await supabase
-          .from('notifications')
-          .insert(notifications);
-
-        if (error) throw error;
-        console.log('Task completed notifications sent to managers');
+      if (managers) {
+        managers.forEach(manager => {
+          notifyTask({
+            task: { id: params.taskId, title: params.taskTitle } as any,
+            recipientId: manager.id,
+            type: "task_completed",
+            senderName: params.employeeName
+          });
+        });
       }
     } catch (err) {
       console.error('Error notifying managers about task completion:', err);
     }
-  }, []);
+  }, [notifyTask]);
 
   // Notify manager when a checklist item is completed
   const notifyChecklistItemCompleted = useCallback(async (params: {
@@ -127,94 +104,27 @@ export function useTaskNotifications() {
     checklistItemText: string;
   }) => {
     try {
-      // Find managers/admins in the company
-      const { data: managers, error: managersError } = await supabase
+      const { data: managers } = await supabase
         .from('employees')
-        .select('id, name, notify_tasks, notify_in_app')
+        .select('id')
         .eq('company_id', params.companyId)
         .in('role', ['admin', 'gestor']);
 
-      if (managersError || !managers || managers.length === 0) {
-        return;
-      }
-
-      // Create notifications for each manager
-      const notifications = managers
-        .filter(m => m.notify_tasks && m.notify_in_app)
-        .map(manager => ({
-          type: 'routine_item_completed',
-          title: 'Item de Rotina Concluído',
-          message: `✅ ${params.employeeName} cumpriu *${params.checklistItemText}* da rotina *${params.taskTitle}*.`,
-          recipient_id: manager.id,
-          sender_name: params.employeeName,
-          company_id: params.companyId,
-          channels: ['in_app'],
-          priority: 'low',
-          related_entity_type: 'task',
-          related_entity_id: params.taskId,
-          status: 'pending',
-          in_app_status: 'delivered',
-          in_app_delivered_at: new Date().toISOString(),
-        }));
-
-      if (notifications.length > 0) {
-        // We cast to any here because 'checklist_completed' might not be in the stricter frontend type definition yet
-        // but Postgres usually accepts text if the column is text or if it matches the enum.
-        // If it's a strict enum in DB, we'll see an error. Based on migration 20260129... it is an enum.
-        // Let's check the enum definition in the migration file.
-        // The enum is: 'task_assigned', 'task_due_reminder', 'task_overdue', 'task_completed', 'task_comment', ...
-        // It DOES NOT have 'checklist_completed'.
-        // I must use 'task_completed' or 'task_comment' or generic. 
-        // Or I should use 'task_completed' but with a specific title.
-        // Actually, looking at the migration, I can't easily add an enum value without a migration.
-        // I will use 'task_comment' as a proxy for "update" or just use 'task_completed' with a clear title.
-        // OR better, I should check if I can use a generic type?
-        // Let's use 'task_comment' as it is less intrusive than 'task_completed', or maybe 'task_assigned'?
-        // No, 'task_comment' seems best fit for "update on a task".
-
-        const safeNotifications = notifications.map(n => ({
-          ...n,
-          type: 'routine_item_completed', // Now supported
-          variables: {
-            colaborador: params.employeeName,
-            item: params.checklistItemText,
-            rotina: params.taskTitle
-          }
-        }));
-
-        // We use the 'notify' service structure usually, but here we are inserting directly into 'notifications' table?
-        // Wait, the other methods in this file use 'notifyTask' from 'useNotifications' OR direct insert.
-        // Direct insert bypasses the template processing in 'useNotifications' hook!
-        // The 'useNotifications' hook has 'notify' which does template processing.
-        // 'notifyTaskCompleted' above does direct insert.
-        // 'notifyTaskAssigned' uses 'notifyTask'.
-
-        // I should probably use 'notify' from 'useNotifications' to get template processing for free!
-        // But this function 'notifyChecklistItemCompleted' is currently doing direct insert manually constructing the message.
-        // The previous code verified 'managers' manually.
-
-        // Let's refactor to use 'notify' from useNotifications if possible, OR fix the direct insert to match the template logic (but direct insert expects processed message).
-        // Actually, 'useNotifications' -> 'notify' -> 'createNotification' -> inserts into DB.
-        // If I insert directly, I have to format the message myself.
-
-        // RECOMMENDATION: Refactor to use 'notify' or manual formatting based on the template text I defined in types.
-
-        // Template: "✅ {{colaborador}} cumpriu *{{item}}* da rotina *{{rotina}}*."
-        const message = `✅ ${params.employeeName} cumpriu *${params.checklistItemText}* da rotina *${params.taskTitle}*.`;
-
-        const finalNotifications = safeNotifications.map(n => ({
-          ...n,
-          type: 'routine_item_completed',
-          message: message,
-          title: 'Item de Rotina Concluído'
-        }));
-
-        const { error } = await supabase
-          .from('notifications')
-          .insert(finalNotifications as any);
-
-        if (error) throw error;
-        console.log('Checklist item notifications sent to managers');
+      if (managers) {
+        managers.forEach(manager => {
+          // Use generic notify for routine_item_completed
+          useNotifications().notify({
+            type: 'routine_item_completed',
+            recipientId: manager.id,
+            variables: {
+              colaborador: params.employeeName,
+              item: params.checklistItemText,
+              rotina: params.taskTitle
+            },
+            relatedEntity: { type: 'task', id: params.taskId },
+            senderName: params.employeeName
+          });
+        });
       }
     } catch (err) {
       console.error('Error notifying managers about checklist item:', err);
@@ -229,46 +139,26 @@ export function useTaskNotifications() {
     companyId: string;
   }) => {
     try {
-      // Find managers
-      const { data: managers, error: managersError } = await supabase
+      const { data: managers } = await supabase
         .from('employees')
-        .select('id, name, notify_tasks, notify_in_app')
+        .select('id')
         .eq('company_id', params.companyId)
         .in('role', ['admin', 'gestor']);
 
-      if (managersError || !managers || managers.length === 0) return;
-
-      // Create notifications
-      const notifications = managers
-        .filter(m => m.notify_tasks && m.notify_in_app)
-        .map(manager => ({
-          type: 'task_overdue', // Supported by enum
-          title: '⚠️ Tarefa Atrasada',
-          message: `A tarefa "${params.taskTitle}" de ${params.employeeName} está atrasada.`,
-          recipient_id: manager.id,
-          sender_name: 'Sistema',
-          company_id: params.companyId,
-          channels: ['in_app'],
-          priority: 'high',
-          related_entity_type: 'task',
-          related_entity_id: params.taskId,
-          status: 'pending',
-          in_app_status: 'delivered',
-          in_app_delivered_at: new Date().toISOString(),
-        }));
-
-      if (notifications.length > 0) {
-        const { error } = await supabase
-          .from('notifications')
-          .insert(notifications as any);
-
-        if (error) throw error;
-        console.log('Task overdue notifications sent');
+      if (managers) {
+        managers.forEach(manager => {
+          notifyTask({
+            task: { id: params.taskId, title: params.taskTitle } as any,
+            recipientId: manager.id,
+            type: "task_overdue",
+            senderName: "Sistema"
+          });
+        });
       }
     } catch (err) {
       console.error('Error notifying overdue task:', err);
     }
-  }, []);
+  }, [notifyTask]);
 
   // Notify manager about extension request
   const notifyExtensionRequest = useCallback(async (params: {
@@ -280,46 +170,27 @@ export function useTaskNotifications() {
     reason: string;
   }) => {
     try {
-      // Find managers
-      const { data: managers, error: managersError } = await supabase
+      const { data: managers } = await supabase
         .from('employees')
-        .select('id, name, notify_tasks, notify_in_app')
+        .select('id')
         .eq('company_id', params.companyId)
         .in('role', ['admin', 'gestor']);
 
-      if (managersError || !managers || managers.length === 0) return;
-
-      // Create notifications
-      const notifications = managers
-        // .filter(m => m.notify_tasks && m.notify_in_app) // Removed filter: Extension requests are mandatory work items
-        .map(manager => ({
-          type: 'task_comment', // Using generic type as proxy
-          title: '⏳ Pedido de Prorrogação',
-          message: `${params.employeeName} pediu mais prazo na tarefa "${params.taskTitle}".\nNova Data: ${params.newDate}\nMotivo: ${params.reason}`,
-          recipient_id: manager.id,
-          sender_name: params.employeeName,
-          company_id: params.companyId,
-          channels: ['in_app'],
-          priority: 'high',
-          related_entity_type: 'task',
-          related_entity_id: params.taskId,
-          status: 'pending',
-          in_app_status: 'delivered',
-          in_app_delivered_at: new Date().toISOString(),
-        }));
-
-      if (notifications.length > 0) {
-        const { error } = await supabase
-          .from('notifications')
-          .insert(notifications as any);
-
-        if (error) throw error;
-        console.log('Extension request notifications sent');
+      if (managers) {
+        managers.forEach(manager => {
+          notifyTask({
+            task: { id: params.taskId, title: params.taskTitle } as any,
+            recipientId: manager.id,
+            type: "task_comment",
+            comment: `⏳ Pedido de Prorrogação\nNova Data: ${params.newDate}\nMotivo: ${params.reason}`,
+            senderName: params.employeeName
+          });
+        });
       }
     } catch (err) {
       console.error('Error notifying extension request:', err);
     }
-  }, []);
+  }, [notifyTask]);
 
   // Notify employee when task is updated
   const notifyTaskUpdated = useCallback(async (params: {
@@ -327,57 +198,59 @@ export function useTaskNotifications() {
     taskTitle: string;
     assigneeId: string;
     senderName?: string;
-    changes: string[]; // List of changed fields for the message
+    changes: string[];
   }) => {
     try {
-      // Get recipient settings
-      const { data: recipient, error: recipientError } = await supabase
-        .from('employees')
-        .select('id, notify_tasks, notify_in_app, notify_whatsapp, whatsapp_verified, whatsapp_number, company_id')
-        .eq('id', params.assigneeId)
-        .single();
-
-      if (recipientError || !recipient || !recipient.notify_tasks) return;
-
-      const channels: string[] = [];
-      if (recipient.notify_in_app) channels.push('in_app');
-      if (recipient.notify_whatsapp && recipient.whatsapp_verified && recipient.whatsapp_number) {
-        channels.push('whatsapp');
-      }
-
-      if (channels.length === 0) return;
-
       const changeText = params.changes.length > 0
         ? `Alterações em: ${params.changes.join(', ')}`
         : 'Detalhes atualizados';
 
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert({
-          type: 'task_comment', // Using generic/comment type as fallback for update
-          title: '📝 Tarefa Atualizada',
-          message: `A tarefa "${params.taskTitle}" foi atualizada. ${changeText}.`,
-          recipient_id: params.assigneeId,
-          sender_name: params.senderName || 'Sistema',
-          company_id: recipient.company_id,
-          channels,
-          priority: 'normal',
-          related_entity_type: 'task',
-          related_entity_id: params.taskId,
-          status: 'pending',
-          in_app_status: 'delivered',
-          in_app_delivered_at: new Date().toISOString(),
-        });
-
-      if (notifError) throw notifError;
-      console.log('Task updated notification sent to:', params.assigneeId);
+      notifyTask({
+        task: { id: params.taskId, title: params.taskTitle } as any,
+        recipientId: params.assigneeId,
+        type: "task_comment",
+        comment: changeText,
+        senderName: params.senderName || 'Sistema'
+      });
     } catch (err) {
       console.error('Error sending task updated notification:', err);
     }
-  }, []);
+  }, [notifyTask]);
+
+  // Notify managers when any task is created
+  const notifyTaskCreated = useCallback(async (params: {
+    taskId: string;
+    taskTitle: string;
+    companyId: string;
+    senderName?: string;
+  }) => {
+    try {
+      const { data: managers } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('company_id', params.companyId)
+        .in('role', ['admin', 'gestor']);
+
+      if (managers) {
+        managers.forEach(manager => {
+          // We can use task_assigned as a proxy or just task_comment
+          notifyTask({
+            task: { id: params.taskId, title: params.taskTitle } as any,
+            recipientId: manager.id,
+            type: "task_comment", // "Nova tarefa criada no sistema"
+            comment: `📢 Nova tarefa criada: ${params.taskTitle}`,
+            senderName: params.senderName || 'Sistema'
+          });
+        });
+      }
+    } catch (err) {
+      console.error('Error notifying managers about new task:', err);
+    }
+  }, [notifyTask]);
 
   return {
     notifyTaskAssigned,
+    notifyTaskCreated,
     logTaskProgress,
     notifyTaskCompleted,
     notifyChecklistItemCompleted,

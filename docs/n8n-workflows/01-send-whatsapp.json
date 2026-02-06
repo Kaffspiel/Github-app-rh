@@ -12,7 +12,10 @@
       "name": "Webhook (OpsControl)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-672, 272],
+      "position": [
+        -672,
+        272
+      ],
       "webhookId": "opscontrol-send"
     },
     {
@@ -35,12 +38,15 @@
       "name": "Tipo de Mensagem",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
-      "position": [-448, 272]
+      "position": [
+        -448,
+        272
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://evolution.kaffspiel.cloud/message/sendText/{{ $json.body.instanceName }}",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendText/' + $json.body.instanceName }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -51,20 +57,38 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.body.number }}\",\n  \"text\": \"{{ $json.body.text.message }}\",\n  \"delay\": 1200\n}",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.body.number }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.body.text.message }}"
+            },
+            {
+              "name": "delay",
+              "value": 1200
+            }
+          ]
+        },
         "options": {}
       },
       "id": "send-text",
       "name": "Enviar WhatsApp (Texto)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-208, 144]
+      "position": [
+        -208,
+        144
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://evolution.kaffspiel.cloud/message/sendButtons/{{ $json.body.instanceName }}",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendButtons/' + $json.body.instanceName }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -75,32 +99,61 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.body.number }}\",\n  \"title\": \"{{ $json.body.buttons.title }}\",\n  \"description\": \"{{ $json.body.buttons.description }}\",\n  \"footer\": \"{{ $json.body.buttons.footer }}\",\n  \"buttons\": {{ JSON.stringify($json.body.buttons.buttons) }}\n}",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.body.number }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.body.buttons.title }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.body.buttons.description }}"
+            },
+            {
+              "name": "footer",
+              "value": "={{ $json.body.buttons.footer }}"
+            },
+            {
+              "name": "buttons",
+              "value": "={{ $json.body.buttons.buttons }}"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "send-buttons",
       "name": "Enviar WhatsApp (Botões)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-208, 400]
+      "position": [
+        -208,
+        400
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"success\": true,\n  \"messageId\": \"{{ $json.key?.id || 'sent' }}\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "responseBody": "={{ { \"success\": true, \"messageId\": $json.key?.id || 'sent', \"timestamp\": new Date().toISOString() } }}",
         "options": {}
       },
       "id": "respond-success",
       "name": "Responder Sucesso",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [50, 272]
+      "position": [
+        50,
+        272
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"success\": false,\n  \"error\": \"Tipo de mensagem não suportado: {{ $json.body.messageType }}\"\n}",
+        "responseBody": "={{ { \"success\": false, \"error\": 'Tipo de mensagem não suportado: ' + $json.body.messageType } }}",
         "options": {
           "responseCode": 400
         }
@@ -109,7 +162,10 @@
       "name": "Responder Erro",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [-208, 560]
+      "position": [
+        -208,
+        560
+      ]
     }
   ],
   "connections": {
@@ -176,5 +232,9 @@
     "executionOrder": "v1"
   },
   "staticData": null,
-  "tags": ["opscontrol", "whatsapp", "evolution"]
+  "tags": [
+    "opscontrol",
+    "whatsapp",
+    "evolution"
+  ]
 }
