@@ -384,14 +384,23 @@ export function EmployeeManagement() {
     setResettingPassword(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("reset-user-password", {
-        body: {
+      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-reset-password";
+
+      const response = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           userId: resetPasswordEmployee.user_id,
           newPassword: resetPasswordForm.newPassword,
-        },
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Erro no servidor n8n: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       if (data?.success) {
         toast({
@@ -402,9 +411,11 @@ export function EmployeeManagement() {
         setResetPasswordEmployee(null);
         setResetPasswordForm({ newPassword: "", confirmPassword: "" });
       } else {
-        throw new Error(data?.error || "Erro ao redefinir senha");
+        const errorMessage = data?.error || "Erro ao redefinir senha";
+        throw new Error(errorMessage);
       }
     } catch (err: any) {
+      console.error("Erro ao redefinir senha:", err);
       toast({
         title: "Erro ao redefinir senha",
         description: err.message,
@@ -448,8 +459,12 @@ export function EmployeeManagement() {
     setCreatingUser(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("create-user", {
-        body: {
+      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-create-user";
+
+      const response = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: createAccessEmployee.email,
           password: createAccessForm.password,
           name: createAccessEmployee.name,
@@ -457,10 +472,15 @@ export function EmployeeManagement() {
           department: createAccessEmployee.department,
           companyId: companyId,
           employeeId: createAccessEmployee.id, // Link to existing employee
-        },
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Erro no servidor n8n: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       if (data?.success) {
         toast({
@@ -472,8 +492,7 @@ export function EmployeeManagement() {
         setCreateAccessForm({ password: "", confirmPassword: "" });
         fetchEmployees();
       } else {
-        // Tenta extrair a mensagem de erro do corpo da resposta se disponível
-        const errorMessage = data?.error || (error as any)?.message || "Erro desconhecido ao criar acesso";
+        const errorMessage = data?.error || "Erro desconhecido ao criar acesso";
         throw new Error(errorMessage);
       }
     } catch (err: any) {
