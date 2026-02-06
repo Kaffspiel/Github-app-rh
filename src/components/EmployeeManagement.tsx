@@ -460,11 +460,22 @@ export function EmployeeManagement() {
     setCreatingUser(true);
 
     try {
-      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-create-user";
+      // Get current session token for Edge Function authentication
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
 
-      const response = await fetch(n8nWebhookUrl, {
+      if (!accessToken) {
+        throw new Error("Sessão inválida. Faça login novamente.");
+      }
+
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-user`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           email: createAccessEmployee.email,
           password: createAccessForm.password,
@@ -475,11 +486,6 @@ export function EmployeeManagement() {
           employeeId: createAccessEmployee.id, // Link to existing employee
         }),
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Erro no servidor n8n: ${response.status}`);
-      }
 
       const data = await response.json();
 
