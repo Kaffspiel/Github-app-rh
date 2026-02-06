@@ -25,6 +25,7 @@ interface ParseResult {
     dateColumn?: string;
     punchColumns?: string[];
   };
+  provider?: string;
 }
 
 // Robust JSON extraction from AI responses - handles truncated responses
@@ -175,32 +176,7 @@ function repairTruncatedJson(json: string): string {
   return repaired;
 }
 
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders, status: 204 });
-  }
-
-  try {
-    // @ts-ignore: Deno global not recognized in local IDE
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not configured');
-    }
-
-    const { fileContent, fileType, fileName } = await req.json();
-
-    if (!fileContent) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'File content is required' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`Processing ${fileType} file: ${fileName} (${fileContent.length} chars)`);
-
-    // Build prompt for AI to parse the document
-    const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto brasileiro.
+const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto brasileiro.
 Sua tarefa é extrair registros de ponto de documentos (Excel, CSV ou PDF) e retornar EXCLUSIVAMENTE um objeto JSON.
 
 IMPORTANTE - Regras de parsing:
@@ -236,7 +212,64 @@ O retorno deve ser um JSON válido no seguinte formato:
 
 Se não conseguir identificar registros válidos, retorne um array vazio em records e descreva o problema em errors.`;
 
-    const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto.
+// Call Google Gemini API
+async function callGoogleGemini(apiKey: string, fileContent: string, fileName: string): Promise<string> {
+  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto.
+Este é um trecho do arquivo (limitado para processamento):
+
+${fileContent.substring(0, 30000)}
+
+IMPORTANTE:
+- Identifique o separador do CSV (pode ser ; ou ,)
+- Remova sufixos dos horários como "(C)", "(I)"
+- Converta datas como "26/01/2026 SEG" para "2026-01-26"
+- Use o CPF como externalEmployeeId
+- Ignore entradas que não são horários (Folga, Justificado, etc.)
+
+Retorne o JSON com todos os registros encontrados.`;
+
+  console.log('Calling Google Gemini API...');
+  
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: systemPrompt + "\n\n" + userPrompt }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 32000,
+        responseMimeType: "application/json"
+      }
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Google Gemini API error:', response.status, errorText);
+    throw new Error(`Google Gemini API request failed: ${response.status} - ${errorText}`);
+  }
+
+  const geminiResponse = await response.json();
+  const content = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!content) {
+    throw new Error('No response content from Google Gemini');
+  }
+
+  return content;
+}
+
+// Call OpenAI API
+async function callOpenAI(apiKey: string, fileContent: string, fileName: string): Promise<string> {
+  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto.
 Este é um trecho do arquivo (limitado para processamento):
 
 ${fileContent.substring(0, 25000)}
@@ -250,37 +283,96 @@ IMPORTANTE:
 
 Retorne o JSON com todos os registros encontrados.`;
 
-    console.log('Sending request to OpenAI API...');
+  console.log('Calling OpenAI API...');
+  
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+      max_tokens: 16000,
+    }),
+  });
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-        max_tokens: 16000,
-      }),
-    });
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenAI API error:', errorText);
+    throw new Error(`OpenAI API request failed: ${response.status}`);
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API request failed: ${response.status}`);
+  const openaiResponse = await response.json();
+  const content = openaiResponse.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('No response from OpenAI');
+  }
+
+  return content;
+}
+
+serve(async (req: Request) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders, status: 204 });
+  }
+
+  try {
+    // @ts-ignore: Deno global not recognized in local IDE
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    // @ts-ignore: Deno global not recognized in local IDE
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    
+    if (!GOOGLE_AI_API_KEY && !OPENAI_API_KEY) {
+      throw new Error('No AI API keys configured (GOOGLE_AI_API_KEY or OPENAI_API_KEY)');
     }
 
-    const openaiResponse = await response.json();
-    const content = openaiResponse.choices?.[0]?.message?.content;
+    const { fileContent, fileType, fileName } = await req.json();
 
-    if (!content) {
-      throw new Error('No response from AI');
+    if (!fileContent) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'File content is required' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Processing ${fileType} file: ${fileName} (${fileContent.length} chars)`);
+
+    let content: string;
+    let provider: string;
+
+    // Try Google Gemini first, fallback to OpenAI
+    if (GOOGLE_AI_API_KEY) {
+      try {
+        content = await callGoogleGemini(GOOGLE_AI_API_KEY, fileContent, fileName);
+        provider = 'Google Gemini';
+        console.log('Successfully got response from Google Gemini');
+      } catch (geminiError) {
+        console.error('Google Gemini failed:', geminiError);
+        
+        if (OPENAI_API_KEY) {
+          console.log('Falling back to OpenAI...');
+          content = await callOpenAI(OPENAI_API_KEY, fileContent, fileName);
+          provider = 'OpenAI (fallback)';
+          console.log('Successfully got response from OpenAI (fallback)');
+        } else {
+          throw geminiError;
+        }
+      }
+    } else if (OPENAI_API_KEY) {
+      content = await callOpenAI(OPENAI_API_KEY, fileContent, fileName);
+      provider = 'OpenAI';
+      console.log('Successfully got response from OpenAI');
+    } else {
+      throw new Error('No AI provider available');
     }
 
     console.log('AI response received, parsing...');
@@ -299,7 +391,8 @@ Retorne o JSON com todos os registros encontrados.`;
           aiContent: content,
           records: [],
           errors: [{ row: 0, message: `Failed to parse AI response: ${specificErrorMessage}` }],
-          totalRows: 0
+          totalRows: 0,
+          provider
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -311,9 +404,10 @@ Retorne o JSON com todos os registros encontrados.`;
       errors: parsedResult.errors || [],
       totalRows: parsedResult.records?.length || 0,
       suggestedMapping: parsedResult.suggestedMapping,
+      provider
     };
 
-    console.log(`Successfully parsed ${result.records.length} records`);
+    console.log(`Successfully parsed ${result.records.length} records using ${provider}`);
 
     return new Response(
       JSON.stringify(result),
