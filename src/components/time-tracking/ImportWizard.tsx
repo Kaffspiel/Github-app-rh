@@ -130,41 +130,36 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
       toast.info("Analisando documento com IA...");
 
-      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-parse-document";
-
-      const response = await fetch(n8nWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Use the Edge Function that uses OPENAI_API_KEY
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('parse-time-document', {
+        body: {
           fileContent: content.substring(0, 20000),
           fileType: fileFormat,
           fileName: file.name,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro no n8n: ${response.status}`);
+      if (aiError) {
+        throw new Error(`Erro na Edge Function: ${aiError.message}`);
       }
 
-      const data = await response.json();
+      console.log('AI Response:', aiData);
 
-      console.log('n8n Response:', data);
-
-      if (!data.success) {
-        throw new Error(data.error || 'Falha no parsing com IA');
+      if (!aiData.success) {
+        throw new Error(aiData.error || 'Falha no parsing com IA');
       }
 
       // Convert AI result to ParseResult format
       const result: ParseResult = {
         success: true,
-        records: data.records.map((r: ParsedTimeRecord) => ({
+        records: aiData.records.map((r: ParsedTimeRecord) => ({
           externalEmployeeId: r.externalEmployeeId,
           employeeName: r.employeeName,
           date: r.date,
           punches: r.punches || [],
         })),
-        errors: data.errors || [],
-        totalRows: data.records.length,
+        errors: aiData.errors || [],
+        totalRows: aiData.records.length,
       };
 
       setParseResult(result);
