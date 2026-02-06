@@ -33,6 +33,22 @@ export function Dashboard() {
       concluidas: tasks.filter(t => t.status === 'concluido').length,
     },
     performance: employees.length > 0 ? Math.round((tasks.filter(t => t.status === 'concluido').length / Math.max(tasks.length, 1)) * 100) : 0,
+    managerPerformance: employees
+      .filter(e => e.role === 'gestor' || e.role === 'admin')
+      .map(manager => {
+        const managerTasks = tasks.filter(t => t.assignee_id === manager.id);
+        const completed = managerTasks.filter(t => t.status === 'concluido').length;
+        const total = managerTasks.length;
+        const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+        return {
+          id: manager.id,
+          name: manager.name,
+          completed,
+          total,
+          rate
+        };
+      })
+      .sort((a, b) => b.rate - a.rate)
   };
 
   const getOccurrenceColor = (type: string) => {
@@ -237,6 +253,43 @@ export function Dashboard() {
 
         {/* Right Column - Overview & Analytics - Span 8 */}
         <div className="lg:col-span-8 space-y-6">
+          {/* Manager Performance Section - NEW */}
+          <Card className="border-none shadow-md bg-white overflow-hidden">
+            <CardHeader className="bg-blue-50/50 border-b border-blue-100">
+              <CardTitle className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                Performance dos Gestores
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {stats.managerPerformance.length === 0 ? (
+                <div className="p-8 text-center text-gray-500 italic">Nenhum gestor identificado na equipe.</div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {stats.managerPerformance.map((manager) => (
+                    <div key={manager.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-gray-900">{manager.name}</span>
+                          <span className="text-sm font-bold text-blue-600">{manager.rate}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${manager.rate}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-medium">
+                          {manager.completed} de {manager.total} tarefas concluídas
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Center/Right - General Summary */}
           <Card>
             <CardHeader>
