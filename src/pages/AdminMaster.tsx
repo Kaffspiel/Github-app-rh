@@ -9,6 +9,8 @@ import { CompanyList } from "@/components/admin-master/CompanyList";
 import { AddAdminForm } from "@/components/admin-master/AddAdminForm";
 import type { Tables } from "@/integrations/supabase/types";
 
+type UserRole = "admin" | "gestor";
+
 export default function AdminMaster() {
   const { signOut, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -17,9 +19,10 @@ export default function AdminMaster() {
   const [companyFormOpen, setCompanyFormOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Tables<"companies"> | null>(null);
   
-  // Add admin form state
-  const [addAdminFormOpen, setAddAdminFormOpen] = useState(false);
+  // Add user form state
+  const [addUserFormOpen, setAddUserFormOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Tables<"companies"> | null>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole>("admin");
 
   // Data fetching
   const { data: companies, isLoading: companiesLoading, refetch: refetchCompanies } = useCompanies();
@@ -37,7 +40,14 @@ export default function AdminMaster() {
 
   const handleAddAdmin = (company: Tables<"companies">) => {
     setSelectedCompany(company);
-    setAddAdminFormOpen(true);
+    setSelectedRole("admin");
+    setAddUserFormOpen(true);
+  };
+
+  const handleAddGestor = (company: Tables<"companies">) => {
+    setSelectedCompany(company);
+    setSelectedRole("gestor");
+    setAddUserFormOpen(true);
   };
 
   const handleRefresh = () => {
@@ -186,6 +196,7 @@ export default function AdminMaster() {
                   companies={companies}
                   onEdit={handleEditCompany}
                   onAddAdmin={handleAddAdmin}
+                  onAddGestor={handleAddGestor}
                   onRefresh={handleRefresh}
                 />
               ) : (
@@ -208,12 +219,13 @@ export default function AdminMaster() {
         onSuccess={handleRefresh}
       />
 
-      {/* Add Admin Form Modal */}
+      {/* Add User Form Modal */}
       <AddAdminForm
-        open={addAdminFormOpen}
-        onOpenChange={setAddAdminFormOpen}
+        open={addUserFormOpen}
+        onOpenChange={setAddUserFormOpen}
         company={selectedCompany}
         onSuccess={handleRefresh}
+        role={selectedRole}
       />
     </div>
   );
