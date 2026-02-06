@@ -9,9 +9,16 @@ export function parseCsv(
   const records: ParsedTimeRecord[] = [];
 
   try {
+    // Detect delimiter (common Brazilian CSVs use semicolon)
+    const firstLine = content.split('\n')[0] || '';
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const delimiter = semicolonCount > commaCount ? ';' : ',';
+
     const result = Papa.parse<Record<string, string>>(content, {
       header: true,
       skipEmptyLines: true,
+      delimiter: delimiter,
       transformHeader: (header) => header.trim(),
     });
 
@@ -98,9 +105,16 @@ export function parseCsv(
 
 export function getCsvHeaders(content: string): string[] {
   try {
+    // Detect delimiter
+    const firstLine = content.split('\n')[0] || '';
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const delimiter = semicolonCount > commaCount ? ';' : ',';
+
     const result = Papa.parse(content, {
       preview: 1,
       header: false,
+      delimiter: delimiter,
     });
 
     if (result.data.length > 0) {
@@ -116,7 +130,10 @@ export function getCsvHeaders(content: string): string[] {
 function parseDate(value: string): string | null {
   if (!value) return null;
 
-  const strValue = value.trim();
+  let strValue = value.trim();
+
+  // Remove day of week suffix (e.g., "26/01/2026 SEG" -> "26/01/2026")
+  strValue = strValue.replace(/\s+(SEG|TER|QUA|QUI|SEX|SAB|DOM|MON|TUE|WED|THU|FRI|SAT|SUN)$/i, '');
 
   // Try DD/MM/YYYY format
   const brMatch = strValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -144,7 +161,35 @@ function parseDate(value: string): string | null {
 function parseTime(value: string): string | null {
   if (!value) return null;
 
-  const strValue = value.trim();
+  let strValue = value.trim();
+
+  // Skip special entries (Folga, Justificado, INSS, etc.)
+  const skipPatterns = [
+    /^folga$/i,
+    /^justificado/i,
+    /^falta/i,
+    /^inss$/i,
+    /^atestado/i,
+    /^férias$/i,
+    /^ferias$/i,
+    /^licença/i,
+    /^licenca/i,
+    /^afastado/i,
+    /^compensação/i,
+    /^compensacao/i,
+    /^abonado/i,
+    /^feriado/i,
+  ];
+
+  for (const pattern of skipPatterns) {
+    if (pattern.test(strValue)) {
+      return null;
+    }
+  }
+
+  // Remove status suffix like "(C)", "(I)", "(A)", "(M)" - common in Brazilian time systems
+  // (C) = Confirmado, (I) = Inserido, (A) = Automático, (M) = Manual
+  strValue = strValue.replace(/\s*\([CIAMR]\)\s*$/i, '').trim();
 
   // Try HH:MM format
   const timeMatch = strValue.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
