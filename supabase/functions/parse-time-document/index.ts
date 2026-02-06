@@ -27,7 +27,7 @@ interface ParseResult {
   };
 }
 
-// Robust JSON extraction from AI responses
+// Robust JSON extraction from AI responses - handles truncated responses
 function extractJsonFromResponse(response: string): any {
   // Step 1: Try direct parse first
   try {
@@ -51,26 +51,128 @@ function extractJsonFromResponse(response: string): any {
 
   // Step 4: Find JSON boundaries
   const jsonStart = cleaned.indexOf("{");
-  const jsonEnd = cleaned.lastIndexOf("}");
+  let jsonEnd = cleaned.lastIndexOf("}");
 
-  if (jsonStart === -1 || jsonEnd === -1) {
+  if (jsonStart === -1) {
     throw new Error("No JSON object found in response");
   }
 
-  cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+  // If no closing brace, the JSON was truncated
+  if (jsonEnd === -1 || jsonEnd < jsonStart) {
+    console.log("JSON appears truncated, attempting repair...");
+    cleaned = cleaned.substring(jsonStart);
+    // Try to repair truncated JSON
+    cleaned = repairTruncatedJson(cleaned);
+  } else {
+    cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+  }
 
   // Step 5: Attempt parse with error handling
   try {
     return JSON.parse(cleaned);
-  } catch {
-    // Step 6: Try to fix common issues
+  } catch (e) {
+    // Step 6: Try to fix common issues and repair truncation
     cleaned = cleaned
       .replace(/,\s*}/g, "}") // Remove trailing commas before }
       .replace(/,\s*]/g, "]") // Remove trailing commas before ]
       .replace(/[\x00-\x1F\x7F]/g, ""); // Remove control characters
 
-    return JSON.parse(cleaned);
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      // Final attempt: repair truncated JSON
+      return JSON.parse(repairTruncatedJson(cleaned));
+    }
   }
+}
+
+// Repair truncated JSON by closing open brackets/braces
+function repairTruncatedJson(json: string): string {
+  let repaired = json.trim();
+  
+  // Remove trailing incomplete values (e.g., "value": "incompl...)
+  // Find last complete record by looking for complete objects in records array
+  const recordsMatch = repaired.match(/"records"\s*:\s*\[/);
+  if (recordsMatch) {
+    const recordsStart = repaired.indexOf(recordsMatch[0]) + recordsMatch[0].length;
+    const beforeRecords = repaired.substring(0, recordsStart);
+    let recordsContent = repaired.substring(recordsStart);
+    
+    // Find all complete objects in the array
+    const completeRecords: string[] = [];
+    let depth = 0;
+    let currentRecord = "";
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < recordsContent.length; i++) {
+      const char = recordsContent[i];
+      
+      if (escapeNext) {
+        currentRecord += char;
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\' && inString) {
+        currentRecord += char;
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+      }
+      
+      if (!inString) {
+        if (char === '{') {
+          if (depth === 0) currentRecord = "";
+          depth++;
+        } else if (char === '}') {
+          depth--;
+          if (depth === 0) {
+            currentRecord += char;
+            completeRecords.push(currentRecord.trim());
+            currentRecord = "";
+            continue;
+          }
+        }
+      }
+      
+      if (depth > 0) {
+        currentRecord += char;
+      }
+    }
+    
+    // Rebuild with only complete records
+    if (completeRecords.length > 0) {
+      repaired = beforeRecords + completeRecords.join(",\n    ") + '\n  ],\n  "errors": []\n}';
+      console.log(`Repaired JSON with ${completeRecords.length} complete records`);
+    }
+  }
+  
+  // Count open brackets and braces
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inStr = false;
+  let escape = false;
+  
+  for (const char of repaired) {
+    if (escape) { escape = false; continue; }
+    if (char === '\\') { escape = true; continue; }
+    if (char === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (char === '{') openBraces++;
+    if (char === '}') openBraces--;
+    if (char === '[') openBrackets++;
+    if (char === ']') openBrackets--;
+  }
+  
+  // Close any remaining open structures
+  while (openBrackets > 0) { repaired += ']'; openBrackets--; }
+  while (openBraces > 0) { repaired += '}'; openBraces--; }
+  
+  return repaired;
 }
 
 serve(async (req: Request) => {
@@ -147,7 +249,7 @@ Retorne o JSON com o mapeamento sugerido e os registros encontrados neste trecho
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 4000,
+        max_tokens: 16000,
       }),
     });
 
