@@ -101,14 +101,18 @@ export const useNotifications = () => {
 
       // Se WhatsApp está habilitado, prepara payload para n8n
       if (channels.includes("whatsapp") && employee.whatsapp.isVerified) {
-        const payload = notificationService.prepareEvolutionPayload({
-          instanceName: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste",
-          recipientPhone: employee.whatsapp.number,
-          type: params.type,
-          message: processed.message,
-          notificationId: notification.id,
-          buttons: processed.buttons,
-        });
+        const payload = {
+          ...notificationService.prepareEvolutionPayload({
+            instanceName: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste",
+            recipientPhone: employee.whatsapp.number,
+            type: params.type,
+            message: processed.message,
+            notificationId: notification.id,
+            buttons: processed.buttons,
+          }),
+          number: employee.whatsapp.number,
+          instance: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste"
+        };
 
         addToQueue({
           notificationId: notification.id,

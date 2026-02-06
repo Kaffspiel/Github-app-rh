@@ -46,7 +46,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendText/' + $json.body.instanceName }}",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendText/' + ($json.body.instanceName || $json.body.instance || 'teste') }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -62,11 +62,11 @@
           "parameters": [
             {
               "name": "number",
-              "value": "={{ $json.body.number }}"
+              "value": "={{ $json.body.number || $json.body.recipientPhone || $json.body.number || '5511999999999' }}"
             },
             {
               "name": "text",
-              "value": "={{ $json.body.text.message }}"
+              "value": "={{ $json.body.text?.message || $json.body.message || 'Mensagem do OpsControl' }}"
             },
             {
               "name": "delay",
@@ -88,7 +88,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendButtons/' + $json.body.instanceName }}",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendButtons/' + ($json.body.instanceName || $json.body.instance || 'teste') }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -104,23 +104,23 @@
           "parameters": [
             {
               "name": "number",
-              "value": "={{ $json.body.number }}"
+              "value": "={{ $json.body.number || $json.body.recipientPhone || $json.body.number || '5511999999999' }}"
             },
             {
               "name": "title",
-              "value": "={{ $json.body.buttons.title }}"
+              "value": "={{ $json.body.buttons?.title || $json.body.title || 'Título' }}"
             },
             {
               "name": "description",
-              "value": "={{ $json.body.buttons.description }}"
+              "value": "={{ $json.body.buttons?.description || $json.body.message || '' }}"
             },
             {
               "name": "footer",
-              "value": "={{ $json.body.buttons.footer }}"
+              "value": "={{ $json.body.buttons?.footer || 'OpsControl' }}"
             },
             {
               "name": "buttons",
-              "value": "={{ $json.body.buttons.buttons }}"
+              "value": "={{ $json.body.buttons?.buttons || [] }}"
             }
           ]
         },
