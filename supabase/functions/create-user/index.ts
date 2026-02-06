@@ -73,12 +73,22 @@ serve(async (req: Request) => {
     const body: CreateUserRequest = await req.json();
     const { email, password, name, role, department, companyId, employeeId } = body;
 
-    // Validate that requester is admin and belongs to the same company
-    if (requesterRole.role !== "admin" && requesterRole.role !== "admin_master") {
-      throw new Error("Apenas administradores podem criar usuários");
+    // Validate that requester has appropriate permissions
+    // admin_master: can create any user
+    // admin: can create admin, gestor, colaborador for their company
+    // gestor: can only create colaboradores for their company
+    const allowedRoles = ["admin", "admin_master", "gestor"];
+    if (!allowedRoles.includes(requesterRole.role)) {
+      throw new Error("Você não tem permissão para criar usuários");
     }
 
-    if (requesterRole.role === "admin" && requesterRole.company_id !== companyId) {
+    // Gestors can only create colaboradores
+    if (requesterRole.role === "gestor" && role !== "colaborador") {
+      throw new Error("Gestores só podem criar colaboradores");
+    }
+
+    // Non-admin_master users can only create for their own company
+    if (requesterRole.role !== "admin_master" && requesterRole.company_id !== companyId) {
       throw new Error("Você só pode criar usuários para sua empresa");
     }
 
