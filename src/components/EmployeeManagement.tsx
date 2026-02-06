@@ -487,6 +487,11 @@ export function EmployeeManagement() {
         }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erro no servidor: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data?.success) {
