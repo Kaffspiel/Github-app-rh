@@ -79,6 +79,20 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [queue, setQueue] = useState<NotificationQueueItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const [monitoredEmployeeIds, setMonitoredEmployeeIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('monitored_employees');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Listen for storage changes (sync across tabs)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('monitored_employees');
+      setMonitoredEmployeeIds(saved ? JSON.parse(saved) : []);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Fetch employees from Supabase
   const fetchEmployees = useCallback(async () => {
@@ -414,19 +428,42 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   // Conta não lidas
   const getUnreadCount = useCallback(
     (recipientId: string): number => {
-      return notifications.filter(
-        (notif) => notif.recipientId === recipientId && notif.status !== "read"
-      ).length;
+      const recipient = getEmployeeById(recipientId);
+      const isManager = recipient?.role === 'admin' || recipient?.role === 'gestor';
+
+      return notifications.filter((notif) => {
+        if (notif.recipientId !== recipientId || notif.status === "read") return false;
+
+        // Se for gestor e houver filtro ativo, filtrar por remetente
+        if (isManager && monitoredEmployeeIds.length > 0) {
+          // Mantém se for notificação do sistema/vazia ou se for de um colaborador monitorado
+          return !notif.senderId || monitoredEmployeeIds.includes(notif.senderId);
+        }
+
+        return true;
+      }).length;
     },
-    [notifications]
+    [notifications, monitoredEmployeeIds, getEmployeeById]
   );
 
   // Busca notificações por destinatário
   const getNotificationsByRecipient = useCallback(
     (recipientId: string): Notification[] => {
-      return notifications.filter((notif) => notif.recipientId === recipientId);
+      const recipient = getEmployeeById(recipientId);
+      const isManager = recipient?.role === 'admin' || recipient?.role === 'gestor';
+
+      return notifications.filter((notif) => {
+        if (notif.recipientId !== recipientId) return false;
+
+        // Se for gestor e houver filtro ativo, filtrar por remetente
+        if (isManager && monitoredEmployeeIds.length > 0) {
+          return !notif.senderId || monitoredEmployeeIds.includes(notif.senderId);
+        }
+
+        return true;
+      });
     },
-    [notifications]
+    [notifications, monitoredEmployeeIds, getEmployeeById]
   );
 
   // Queue worker

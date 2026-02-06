@@ -9,6 +9,10 @@ import { useEmployeesList } from "@/hooks/useEmployeesList";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
 import { format } from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useEffect } from "react";
 
 export function Dashboard() {
   const { tasks, isLoading } = useTasks();
@@ -16,29 +20,50 @@ export function Dashboard() {
   const { user } = useAuth();
   const { setCurrentView } = useApp();
   const [period, setPeriod] = useState("hoje");
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>(() => {
+    const saved = localStorage.getItem('monitored_employees');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('monitored_employees', JSON.stringify(selectedEmployees));
+  }, [selectedEmployees]);
 
   // Find current employee
   const currentEmployee = employees.find(e => e.email === user?.email);
 
+  const monitoredEmployeesList = employees.filter(e =>
+    selectedEmployees.length === 0 || selectedEmployees.includes(e.id)
+  );
+
   const allUrgentTasks = tasks.filter(t => (t.priority === 'alta' && t.status !== 'concluido') || t.status === 'atrasada');
   const myUrgentTasks = allUrgentTasks.filter(t => t.assignee_id === currentEmployee?.id);
-  const teamUrgentTasks = allUrgentTasks.filter(t => t.assignee_id !== currentEmployee?.id);
+
+  const teamUrgentTasks = allUrgentTasks.filter(t =>
+    t.assignee_id !== currentEmployee?.id &&
+    (selectedEmployees.length === 0 || selectedEmployees.includes(t.assignee_id || ""))
+  );
 
   const myTasks = tasks.filter(t => t.assignee_id === currentEmployee?.id);
   const myCompletedTasks = myTasks.filter(t => t.status === 'concluido').length;
 
+  const monitoredTasks = tasks.filter(t =>
+    selectedEmployees.length === 0 || selectedEmployees.includes(t.assignee_id || "")
+  );
+
   const stats = {
     tasks: {
-      pendentes: tasks.filter(t => t.status === 'pendente').length,
-      emAndamento: tasks.filter(t => t.status === 'andamento').length,
+      pendentes: monitoredTasks.filter(t => t.status === 'pendente').length,
+      emAndamento: monitoredTasks.filter(t => t.status === 'andamento').length,
       prorrogadas: 0,
-      atrasadas: tasks.filter(t => t.status === 'atrasada').length,
-      concluidas: tasks.filter(t => t.status === 'concluido').length,
+      atrasadas: monitoredTasks.filter(t => t.status === 'atrasada').length,
+      concluidas: monitoredTasks.filter(t => t.status === 'concluido').length,
     },
-    teamPerformance: employees.length > 0 ? Math.round((tasks.filter(t => t.status === 'concluido').length / Math.max(tasks.length, 1)) * 100) : 0,
+    teamPerformance: monitoredEmployeesList.length > 0 ? Math.round((monitoredTasks.filter(t => t.status === 'concluido').length / Math.max(monitoredTasks.length, 1)) * 100) : 0,
     personalPerformance: myTasks.length > 0 ? Math.round((myCompletedTasks / myTasks.length) * 100) : 0,
     myCompletedTasks,
-    myTotalTasks: myTasks.length
+    myTotalTasks: myTasks.length,
+    monitoredCount: monitoredEmployeesList.length
   };
 
   const getOccurrenceColor = (type: string) => {
@@ -130,6 +155,56 @@ export function Dashboard() {
           <Badge variant="outline" className="h-9 px-4 bg-white border-dashed text-gray-500 font-normal">
             Última atualização: Agora
           </Badge>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 bg-white border-gray-200 flex items-center gap-2">
+                <Users className="w-4 h-4 text-purple-600" />
+                <span>Monitorar{selectedEmployees.length > 0 ? ` (${selectedEmployees.length})` : ''}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="end">
+              <div className="p-3 border-b bg-gray-50/50">
+                <h4 className="font-semibold text-sm">Monitorar Colaboradores</h4>
+                <p className="text-xs text-gray-500">Selecione quem você quer ver</p>
+              </div>
+              <ScrollArea className="h-64">
+                <div className="p-2 space-y-1">
+                  <div
+                    className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
+                    onClick={() => setSelectedEmployees([])}
+                  >
+                    <Checkbox checked={selectedEmployees.length === 0} />
+                    <label className="text-sm font-medium leading-none cursor-pointer">Todos</label>
+                  </div>
+                  {employees.map((emp) => (
+                    <div
+                      key={emp.id}
+                      className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
+                      onClick={() => {
+                        setSelectedEmployees(prev =>
+                          prev.includes(emp.id)
+                            ? prev.filter(id => id !== emp.id)
+                            : [...prev, emp.id]
+                        );
+                      }}
+                    >
+                      <Checkbox checked={selectedEmployees.includes(emp.id)} />
+                      <label className="text-sm font-medium leading-none cursor-pointer truncate">{emp.name}</label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              {selectedEmployees.length > 0 && (
+                <div className="p-2 border-t text-center">
+                  <Button variant="ghost" size="sm" className="w-full text-xs text-purple-600 hover:text-purple-700" onClick={() => setSelectedEmployees([])}>
+                    Limpar Filtro
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[160px] bg-white shadow-sm border-gray-200">
               <SelectValue />
@@ -256,8 +331,8 @@ export function Dashboard() {
                       <Users className="w-5 h-5" />
                       <span className="font-medium">Colaboradores</span>
                     </div>
-                    <p className="text-3xl font-bold text-blue-900">{employees.length}</p>
-                    <p className="text-sm text-blue-600 mt-1">Ativos na empresa</p>
+                    <p className="text-3xl font-bold text-blue-900">{selectedEmployees.length > 0 ? selectedEmployees.length : employees.length}</p>
+                    <p className="text-sm text-blue-600 mt-1">{selectedEmployees.length > 0 ? "Monitorados" : "Ativos na empresa"}</p>
                   </div>
                   <div className="p-4 bg-green-50 rounded-lg">
                     <div className="flex items-center gap-2 text-green-700 mb-2">

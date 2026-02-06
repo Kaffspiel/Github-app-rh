@@ -70,11 +70,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
         fetchUserRoles(session.user.id).then((roles) => {
           setUserRoles(roles);
           setIsLoading(false);
+
+          // Script temporário para atualizar departamentos da NOVAPEÇAS
+          if (roles.some(r => r.role === 'admin_master' || r.role === 'admin')) {
+            import("@/scripts/update_departments").then(({ updateNovaPecasDepartments }) => {
+              updateNovaPecasDepartments();
+            });
+          }
         });
       } else {
         setIsLoading(false);
@@ -94,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
