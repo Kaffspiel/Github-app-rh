@@ -200,21 +200,31 @@ serve(async (req: Request) => {
     console.log(`Processing ${fileType} file: ${fileName} (${fileContent.length} chars)`);
 
     // Build prompt for AI to parse the document
-    const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto.
+    const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto brasileiro.
 Sua tarefa é extrair registros de ponto de documentos (Excel, CSV ou PDF) e retornar EXCLUSIVAMENTE um objeto JSON.
+
+IMPORTANTE - Regras de parsing:
+1. O separador do CSV pode ser ";" (ponto-e-vírgula) ou "," (vírgula)
+2. Horários podem ter sufixos como "(C)", "(I)", "(A)" que devem ser REMOVIDOS. Ex: "07:54 (C)" -> "07:54"
+3. A data pode ter o dia da semana junto. Ex: "26/01/2026 SEG" -> extrair apenas "26/01/2026" e converter para "2026-01-26"
+4. Campos como "Folga", "Justificado INSS", "Falta não justificada", "Atestado" NÃO são horários - ignorar
+5. O CPF (coluna "CPF do funcionário") deve ser usado como externalEmployeeId
+6. O nome do funcionário está na coluna "Nome do funcionário"
+7. A data está na coluna "Dia" ou similar
+8. Colunas de ponto: "Entrada 1", "Saída 1", "Entrada 2", "Saída 2", etc.
 
 O retorno deve ser um JSON válido no seguinte formato:
 {
   "records": [
     {
-      "externalEmployeeId": "string - ID/matrícula do funcionário",
-      "employeeName": "string - nome do funcionário (opcional)",
+      "externalEmployeeId": "string - CPF do funcionário (apenas números)",
+      "employeeName": "string - nome completo do funcionário",
       "date": "string - data no formato YYYY-MM-DD",
-      "punches": ["HH:MM", "HH:MM", ...] - array de horários de batida
+      "punches": ["HH:MM", "HH:MM", ...] - array de horários de batida (sem sufixos, sem entradas especiais como Folga)
     }
   ],
   "suggestedMapping": {
-    "employeeIdColumn": "nome da coluna identificada como ID",
+    "employeeIdColumn": "nome da coluna identificada como CPF",
     "employeeNameColumn": "nome da coluna identificada como nome",
     "dateColumn": "nome da coluna identificada como data",
     "punchColumns": ["nomes das colunas de batidas"]
@@ -229,9 +239,16 @@ Se não conseguir identificar registros válidos, retorne um array vazio em reco
     const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto.
 Este é um trecho do arquivo (limitado para processamento):
 
-${fileContent.substring(0, 20000)}
+${fileContent.substring(0, 25000)}
 
-Retorne o JSON com o mapeamento sugerido e os registros encontrados neste trecho.`;
+IMPORTANTE:
+- Identifique o separador do CSV (pode ser ; ou ,)
+- Remova sufixos dos horários como "(C)", "(I)"
+- Converta datas como "26/01/2026 SEG" para "2026-01-26"
+- Use o CPF como externalEmployeeId
+- Ignore entradas que não são horários (Folga, Justificado, etc.)
+
+Retorne o JSON com todos os registros encontrados.`;
 
     console.log('Sending request to OpenAI API...');
 
