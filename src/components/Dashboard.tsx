@@ -24,6 +24,9 @@ export function Dashboard() {
   const myUrgentTasks = allUrgentTasks.filter(t => t.assignee_id === currentEmployee?.id);
   const teamUrgentTasks = allUrgentTasks.filter(t => t.assignee_id !== currentEmployee?.id);
 
+  const myTasks = tasks.filter(t => t.assignee_id === currentEmployee?.id);
+  const myCompletedTasks = myTasks.filter(t => t.status === 'concluido').length;
+
   const stats = {
     tasks: {
       pendentes: tasks.filter(t => t.status === 'pendente').length,
@@ -32,7 +35,10 @@ export function Dashboard() {
       atrasadas: tasks.filter(t => t.status === 'atrasada').length,
       concluidas: tasks.filter(t => t.status === 'concluido').length,
     },
-    performance: employees.length > 0 ? Math.round((tasks.filter(t => t.status === 'concluido').length / Math.max(tasks.length, 1)) * 100) : 0,
+    teamPerformance: employees.length > 0 ? Math.round((tasks.filter(t => t.status === 'concluido').length / Math.max(tasks.length, 1)) * 100) : 0,
+    personalPerformance: myTasks.length > 0 ? Math.round((myCompletedTasks / myTasks.length) * 100) : 0,
+    myCompletedTasks,
+    myTotalTasks: myTasks.length
   };
 
   const getOccurrenceColor = (type: string) => {
@@ -186,8 +192,8 @@ export function Dashboard() {
           onClick={() => setCurrentView('employees')}
         >
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Equipe</span>
-            <div className="text-3xl font-bold text-gray-700">{stats.performance}%</div>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Performance Equipe</span>
+            <div className="text-3xl font-bold text-gray-700">{stats.teamPerformance}%</div>
           </CardContent>
         </Card>
       </div>
@@ -237,7 +243,6 @@ export function Dashboard() {
 
         {/* Right Column - Overview & Analytics - Span 8 */}
         <div className="lg:col-span-8 space-y-6">
-
           {/* Center/Right - General Summary */}
           <Card>
             <CardHeader>
@@ -259,8 +264,8 @@ export function Dashboard() {
                       <CheckCircle2 className="w-5 h-5" />
                       <span className="font-medium">Taxa de Conclusão</span>
                     </div>
-                    <p className="text-3xl font-bold text-green-900">{stats.performance}%</p>
-                    <p className="text-sm text-green-600 mt-1">{stats.tasks.concluidas} de {tasks.length} tarefas</p>
+                    <p className="text-3xl font-bold text-green-900">{stats.personalPerformance}%</p>
+                    <p className="text-sm text-green-600 mt-1">{stats.myCompletedTasks} de {stats.myTotalTasks} tarefas concluídas por você</p>
                   </div>
                 </div>
 
