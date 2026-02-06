@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
 const adminSchema = z.object({
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
@@ -54,43 +56,35 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
     setError(null);
 
     try {
-      // 1. Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
+      // Get current session token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
 
-      if (authError) throw authError;
-
-      if (!authData.user) {
-        throw new Error("Não foi possível criar o usuário");
+      if (!accessToken) {
+        throw new Error("Sessão inválida. Faça login novamente.");
       }
 
-      // 2. Create user role (admin for this company)
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: authData.user.id,
-        role: "admin" as const,
-        company_id: company.id,
+      // Call the create-user edge function to create the admin
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          name: data.name,
+          role: 'admin',
+          department: 'Administração',
+          companyId: company.id,
+        }),
       });
 
-      if (roleError) throw roleError;
+      const result = await response.json();
 
-      // 3. Create employee record
-      const { error: employeeError } = await supabase.from("employees").insert({
-        user_id: authData.user.id,
-        name: data.name,
-        email: data.email,
-        company_id: company.id,
-        role: "admin",
-        department: "Administração",
-      });
-
-      if (employeeError) {
-        console.error("Employee creation error:", employeeError);
-        // Don't throw here, the admin was created successfully
+      if (!result.success) {
+        throw new Error(result.error || "Erro ao criar administrador");
       }
 
       toast.success("Administrador criado com sucesso!");
@@ -100,7 +94,7 @@ export function AddAdminForm({ open, onOpenChange, company, onSuccess }: AddAdmi
     } catch (err: any) {
       console.error("Error creating admin:", err);
       
-      if (err.message?.includes("already registered")) {
+      if (err.message?.includes("already registered") || err.message?.includes("já está cadastrado")) {
         setError("Este email já está cadastrado no sistema");
       } else {
         setError(err.message || "Erro ao criar administrador");
