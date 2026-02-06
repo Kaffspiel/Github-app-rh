@@ -293,11 +293,12 @@ export function EmployeeManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientId: employee.id,
+          number: employee.whatsapp_number,
           type: "announcement",
           title: "Teste de Conexão",
           message: `Olá ${employee.name}! Esta é uma mensagem de teste do OpsControl.`,
           priority: "normal",
-          instance: "teste", // Nome da sua instância no Evolution API
+          instance: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste",
         }),
       });
 
