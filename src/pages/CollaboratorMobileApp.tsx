@@ -439,7 +439,7 @@ export default function CollaboratorMobileApp() {
   );
 
   const renderTasksView = () => (
-    <CollaboratorTasks />
+    <CollaboratorTasks onBack={() => setCurrentView("home")} />
   );
 
   const renderTimeView = () => (
