@@ -1,0 +1,907 @@
+{
+  "name": "OpsControl - Resposta Audio",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "opscontrol-send",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        176,
+        32
+      ],
+      "id": "f37c3baa-5872-46e3-86ff-9a1beb1e7c7d",
+      "name": "Webhook",
+      "webhookId": "bd62a246-2ebc-4190-a12e-d367a8e0adde"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst data = body.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\nlet responseType = 'text';\nlet responseValue = '';\n\nif (message.buttonsResponseMessage) {\n  responseType = 'button';\n  responseValue = message.buttonsResponseMessage.selectedButtonId;\n} else if (message.audioMessage) {\n  responseType = 'audio_pending';\n} else if (message.conversation) {\n  responseValue = message.conversation;\n} else if (message.extendedTextMessage) {\n  responseValue = message.extendedTextMessage.text;\n}\n\nreturn {\n  messageId: key.id,\n  phone: key.remoteJid?.replace('@s.whatsapp.net', '').replace('@c.us', ''),\n  pushName: data.pushName,\n  responseType,\n  responseValue,\n  instance: body.instance,\n  // ENVIAMOS O DATA INTEIRO PARA EVITAR ERROS DE PROPRIEDADES FALTANTES\n  rawMessage: data \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        16
+      ],
+      "id": "29fdc99e-dafa-4675-97ad-03fb4f8155cf",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.responseType }}",
+                    "rightValue": "audio_pending",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "77b3c63f-6a06-4784-8ff3-c3249a415837"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "0"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "68170c12-9a9a-4235-9982-e3d55329c574",
+                    "leftValue": "={{ $json.responseType }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "58009974-1c63-4d11-9390-823726b466f3",
+                    "leftValue": "={{ $json.responseType }}",
+                    "rightValue": "button",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        16
+      ],
+      "id": "d9b735d3-e50f-459c-94b0-5e3d779fbacb",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution.kaffspiel.cloud/chat/getBase64FromMediaMessage/{{ $json.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.rawMessage }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        976,
+        32
+      ],
+      "id": "7d5cf4e2-552d-4ed5-8101-6ecdbddf15a4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "options": {
+          "fileName": "audio.ogg"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        32
+      ],
+      "id": "ab98b5c3-ca8b-4d7b-8103-67a07a7bbdf9",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        1424,
+        32
+      ],
+      "id": "fee54baa-63c8-4c1b-835a-695aba68fe89",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "ruZztICKyLrn18pZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://nnmrlucwrzoqkwzytbbl.supabase.co/functions/v1/webhook-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubXJsdWN3cnpvcWt3enl0YmJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTA4MzIsImV4cCI6MjA4NTI4NjgzMn0.I4dLM5R-_qQe8xy1VYevXLd6BvkAcam5CYZ9jQvOxRA"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messageId",
+              "value": "={{ $node[\"Code in JavaScript\"].json.messageId }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $node[\"Code in JavaScript\"].json.phone }}"
+            },
+            {
+              "name": "pushName",
+              "value": "={{ $node[\"Code in JavaScript\"].json.pushName }}"
+            },
+            {
+              "name": "responseType",
+              "value": "={{ $json.text ? 'audio_transcription' : $node[\"Code in JavaScript\"].json.responseType }}"
+            },
+            {
+              "name": "responseValue",
+              "value": "={{ $json.text || $node[\"Code in JavaScript\"].json.responseValue }}"
+            },
+            {
+              "name": "instance",
+              "value": "=={{ $node[\"Code in JavaScript\"].json.instance }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1648,
+        32
+      ],
+      "id": "6d7f8d2d-c6f5-468a-812c-37c4dc5c869e",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.type}}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "announcement"
+            },
+            {
+              "value2": "announcement"
+            }
+          ]
+        },
+        "fallbackOutput": 2
+      },
+      "id": "b0f05731-4231-4dc1-91bd-96290e898a08",
+      "name": "Tipo de Mensagem1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        544,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendText/' + $json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.body.number }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "delay",
+              "value": 1200
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0e571039-a055-4d48-b2bf-03bace9569c0",
+      "name": "Enviar WhatsApp (Texto)1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        784,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendButtons/' + $json.body.instanceName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.body.number }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.body.buttons.title }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.body.buttons.description }}"
+            },
+            {
+              "name": "footer",
+              "value": "={{ $json.body.buttons.footer }}"
+            },
+            {
+              "name": "buttons",
+              "value": "={{ $json.body.buttons.buttons }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "74b2460c-109c-4ce7-b50c-31437bd07c5e",
+      "name": "Enviar WhatsApp (Botões)1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        784,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"messageId\": $json.key?.id || 'sent', \"timestamp\": new Date().toISOString() } }}",
+        "options": {}
+      },
+      "id": "bb753ee2-4c03-4269-a16e-25b4b57914e2",
+      "name": "Responder Sucesso1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1216,
+        432
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    },
+                    "id": "d0d6fe9c-dc6f-44c3-b68a-17691ac13f38"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "7f9997cd-ff3b-480f-bc66-4b1c3bdab457",
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        336,
+        32
+      ],
+      "id": "bb113785-587b-4361-9e60-b98a10a89dd2",
+      "name": "Switch1"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.kaffspiel.cloud",
+            "user-agent": "axios/1.13.2",
+            "content-length": "3765",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "content-type": "application/json",
+            "x-forwarded-for": "172.18.0.1",
+            "x-forwarded-host": "n8n.kaffspiel.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "03898aaa340a",
+            "x-real-ip": "172.18.0.1"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "teste",
+            "data": {
+              "key": {
+                "remoteJid": "5521971924298@s.whatsapp.net",
+                "remoteJidAlt": "5521971924298@s.whatsapp.net",
+                "fromMe": false,
+                "id": "ACAF461DA2A25F373F24945230103710",
+                "participant": "",
+                "addressingMode": "lid"
+              },
+              "pushName": "Gabriel kaffspiel",
+              "status": "DELIVERY_ACK",
+              "message": {
+                "audioMessage": {
+                  "url": "https://mmg.whatsapp.net/v/t62.7117-24/629450519_922336893584718_5921787437012514669_n.enc?ccb=11-4&oh=01_Q5Aa3wHirXuVbTga0g5fWP9d2dMKlv5BU_91K1_yGR15uEJOhw&oe=69B141B2&_nc_sid=5e03e0&mms3=true",
+                  "mimetype": "audio/ogg; codecs=opus",
+                  "fileSha256": {
+                    "0": 81,
+                    "1": 159,
+                    "2": 223,
+                    "3": 211,
+                    "4": 127,
+                    "5": 152,
+                    "6": 51,
+                    "7": 175,
+                    "8": 59,
+                    "9": 52,
+                    "10": 181,
+                    "11": 1,
+                    "12": 244,
+                    "13": 156,
+                    "14": 252,
+                    "15": 171,
+                    "16": 102,
+                    "17": 174,
+                    "18": 60,
+                    "19": 122,
+                    "20": 103,
+                    "21": 88,
+                    "22": 85,
+                    "23": 25,
+                    "24": 91,
+                    "25": 243,
+                    "26": 8,
+                    "27": 159,
+                    "28": 143,
+                    "29": 115,
+                    "30": 70,
+                    "31": 185
+                  },
+                  "fileLength": {
+                    "low": 21286,
+                    "high": 0,
+                    "unsigned": true
+                  },
+                  "seconds": 9,
+                  "ptt": false,
+                  "mediaKey": {
+                    "0": 101,
+                    "1": 128,
+                    "2": 136,
+                    "3": 84,
+                    "4": 241,
+                    "5": 192,
+                    "6": 163,
+                    "7": 109,
+                    "8": 131,
+                    "9": 10,
+                    "10": 43,
+                    "11": 230,
+                    "12": 162,
+                    "13": 240,
+                    "14": 164,
+                    "15": 105,
+                    "16": 161,
+                    "17": 23,
+                    "18": 209,
+                    "19": 74,
+                    "20": 124,
+                    "21": 149,
+                    "22": 143,
+                    "23": 5,
+                    "24": 84,
+                    "25": 143,
+                    "26": 37,
+                    "27": 238,
+                    "28": 211,
+                    "29": 117,
+                    "30": 61,
+                    "31": 245
+                  },
+                  "fileEncSha256": {
+                    "0": 238,
+                    "1": 234,
+                    "2": 84,
+                    "3": 241,
+                    "4": 73,
+                    "5": 53,
+                    "6": 202,
+                    "7": 197,
+                    "8": 39,
+                    "9": 191,
+                    "10": 53,
+                    "11": 35,
+                    "12": 182,
+                    "13": 43,
+                    "14": 199,
+                    "15": 247,
+                    "16": 212,
+                    "17": 45,
+                    "18": 19,
+                    "19": 110,
+                    "20": 164,
+                    "21": 67,
+                    "22": 10,
+                    "23": 133,
+                    "24": 181,
+                    "25": 41,
+                    "26": 156,
+                    "27": 36,
+                    "28": 198,
+                    "29": 33,
+                    "30": 252,
+                    "31": 114
+                  },
+                  "directPath": "/v/t62.7117-24/629450519_922336893584718_5921787437012514669_n.enc?ccb=11-4&oh=01_Q5Aa3wHirXuVbTga0g5fWP9d2dMKlv5BU_91K1_yGR15uEJOhw&oe=69B141B2&_nc_sid=5e03e0&_nc_hot=1770645146",
+                  "mediaKeyTimestamp": {
+                    "low": 1770645039,
+                    "high": 0,
+                    "unsigned": false
+                  },
+                  "contextInfo": {
+                    "mentionedJid": [],
+                    "groupMentions": [],
+                    "statusAttributions": [],
+                    "entryPointConversionSource": "global_search_new_chat",
+                    "entryPointConversionApp": "whatsapp",
+                    "entryPointConversionDelaySeconds": 261
+                  },
+                  "waveform": {
+                    "0": 0,
+                    "1": 0,
+                    "2": 0,
+                    "3": 0,
+                    "4": 0,
+                    "5": 0,
+                    "6": 0,
+                    "7": 0,
+                    "8": 0,
+                    "9": 0,
+                    "10": 41,
+                    "11": 44,
+                    "12": 0,
+                    "13": 16,
+                    "14": 39,
+                    "15": 35,
+                    "16": 31,
+                    "17": 44,
+                    "18": 51,
+                    "19": 36,
+                    "20": 20,
+                    "21": 0,
+                    "22": 0,
+                    "23": 44,
+                    "24": 52,
+                    "25": 38,
+                    "26": 16,
+                    "27": 45,
+                    "28": 36,
+                    "29": 0,
+                    "30": 15,
+                    "31": 13,
+                    "32": 0,
+                    "33": 0,
+                    "34": 0,
+                    "35": 1,
+                    "36": 0,
+                    "37": 44,
+                    "38": 37,
+                    "39": 45,
+                    "40": 6,
+                    "41": 55,
+                    "42": 18,
+                    "43": 39,
+                    "44": 21,
+                    "45": 32,
+                    "46": 0,
+                    "47": 0,
+                    "48": 21,
+                    "49": 31,
+                    "50": 56,
+                    "51": 49,
+                    "52": 55,
+                    "53": 50,
+                    "54": 48,
+                    "55": 35,
+                    "56": 39,
+                    "57": 34,
+                    "58": 40,
+                    "59": 16,
+                    "60": 0,
+                    "61": 0,
+                    "62": 0,
+                    "63": 0
+                  }
+                },
+                "messageContextInfo": {
+                  "threadId": [],
+                  "deviceListMetadata": {
+                    "senderKeyIndexes": [],
+                    "recipientKeyIndexes": [],
+                    "senderKeyHash": {
+                      "0": 118,
+                      "1": 43,
+                      "2": 3,
+                      "3": 15,
+                      "4": 37,
+                      "5": 135,
+                      "6": 197,
+                      "7": 177,
+                      "8": 47,
+                      "9": 147
+                    },
+                    "senderTimestamp": {
+                      "low": 1770144950,
+                      "high": 0,
+                      "unsigned": true
+                    },
+                    "recipientKeyHash": {
+                      "0": 97,
+                      "1": 163,
+                      "2": 190,
+                      "3": 45,
+                      "4": 180,
+                      "5": 47,
+                      "6": 188,
+                      "7": 107,
+                      "8": 22,
+                      "9": 250
+                    },
+                    "recipientTimestamp": {
+                      "low": 1770333899,
+                      "high": 0,
+                      "unsigned": true
+                    }
+                  },
+                  "deviceListMetadataVersion": 2,
+                  "messageSecret": {
+                    "0": 146,
+                    "1": 196,
+                    "2": 144,
+                    "3": 37,
+                    "4": 52,
+                    "5": 219,
+                    "6": 116,
+                    "7": 161,
+                    "8": 189,
+                    "9": 22,
+                    "10": 230,
+                    "11": 221,
+                    "12": 29,
+                    "13": 120,
+                    "14": 206,
+                    "15": 223,
+                    "16": 91,
+                    "17": 173,
+                    "18": 8,
+                    "19": 152,
+                    "20": 191,
+                    "21": 152,
+                    "22": 48,
+                    "23": 160,
+                    "24": 46,
+                    "25": 218,
+                    "26": 228,
+                    "27": 87,
+                    "28": 100,
+                    "29": 60,
+                    "30": 118,
+                    "31": 160
+                  }
+                }
+              },
+              "contextInfo": {
+                "mentionedJid": [],
+                "groupMentions": [],
+                "statusAttributions": [],
+                "entryPointConversionSource": "global_search_new_chat",
+                "entryPointConversionApp": "whatsapp",
+                "entryPointConversionDelaySeconds": 261
+              },
+              "messageType": "audioMessage",
+              "messageTimestamp": 1770645146,
+              "instanceId": "2df5008e-d5e7-42ba-a280-8456d0b668f8",
+              "source": "android"
+            },
+            "destination": "https://n8n.kaffspiel.cloud/webhook-test/opscontrol-send",
+            "date_time": "2026-02-09T10:52:27.157Z",
+            "sender": "5511965275922@s.whatsapp.net",
+            "server_url": "https://evolution.kaffspiel.cloud",
+            "apikey": "AE86166B29C7-4893-BD07-AA930B532FCC"
+          },
+          "webhookUrl": "https://n8n.kaffspiel.cloud/webhook-test/opscontrol-send",
+          "executionMode": "test"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de Mensagem1": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp (Texto)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar WhatsApp (Botões)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp (Texto)1": {
+      "main": [
+        []
+      ]
+    },
+    "Enviar WhatsApp (Botões)1": {
+      "main": [
+        []
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tipo de Mensagem1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "c99e88de-d769-4e21-9188-2549c87a6f5b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7caed1b99602a9339965e9b779169d710789abb0ebccde51ab7fc71dbe7bbf8c"
+  },
+  "id": "--VpWwN4vfjWNXPMoxta_",
+  "tags": []
+}
