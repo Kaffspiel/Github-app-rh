@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
     let notificationsSent = 0;
 
     if (evolutionUrl && evolutionKey) {
-      const instanceName = "opscontrol";
+      const instanceName = "teste";
 
       const sendWhatsApp = async (phone: string, text: string) => {
         try {
