@@ -94,8 +94,6 @@ serve(async (req: Request) => {
     const isManager = employee && ["admin", "gestor"].includes(employee.role);
 
     if (isCommand && isManager && openaiKey) {
-      // Verificar se a mensagem parece um comando de tarefa (heurística simples ou sempre passar pela IA?)
-      // Vamos passar pela IA sempre que o gestor enviar uma mensagem que não seja resposta de botão
       console.log(`Processing command from gestor ${employee.name}`);
 
       // Buscar funcionários da empresa para o contexto da IA
@@ -105,18 +103,32 @@ serve(async (req: Request) => {
         .eq("company_id", employee.company_id)
         .eq("is_active", true);
 
+      // Buscar nome da empresa
+      const { data: companyData } = await supabase
+        .from("companies")
+        .select("name")
+        .eq("id", employee.company_id)
+        .single();
+      const companyName = companyData?.name || "Empresa";
+
       const employeeList = coworkers?.map((e: any) => `- ${e.name} (ID: ${e.id})`).join("\n") || "";
 
+      const today = new Date().toISOString().split("T")[0];
+      const dayOfWeek = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"][new Date().getDay()];
+
       const prompt = `Você é um assistente de gestão. Extraia os detalhes da tarefa da mensagem: "${payload.responseValue}"
+      
+      Data atual: ${today} (${dayOfWeek})
+      
       Funcionários disponíveis:
       ${employeeList}
       
       Regras:
-      - Responsável: Identifique quem deve fazer.
-      - Título: Resumo curto.
-      - Prazo: Identifique datas (amanhã, segunda, dd/mm).
+      - Responsável: Identifique quem deve fazer. Se não identificar, use null.
+      - Título: Resumo curto e claro da tarefa.
+      - Prazo: Calcule a data exata baseado na data atual. "amanhã" = dia seguinte, "sexta" = próxima sexta-feira, etc.
       
-      Retorne JSON: {"is_task": boolean, "title": string, "assignee_id": string, "due_date": "YYYY-MM-DD"}`;
+      Retorne JSON: {"is_task": boolean, "title": string, "assignee_id": string | null, "due_date": "YYYY-MM-DD" | null}`;
 
       const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -150,7 +162,41 @@ serve(async (req: Request) => {
           if (newTask) {
             actionTaken = "task_created";
             const assignee = coworkers?.find((e: any) => e.id === taskDetails.assignee_id);
-            confirmationMessage = `✅ Tarefa criada: *${newTask.title}*\n👤 Para: ${assignee?.name}\n📅 Prazo: ${taskDetails.due_date || "Não definido"}`;
+            const prazoFormatado = taskDetails.due_date
+              ? new Date(taskDetails.due_date + "T12:00:00Z").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+              : "Não definido";
+
+            confirmationMessage = `✅ *Tarefa criada com sucesso!*\n\n📋 *Tarefa:* ${newTask.title}\n👤 *Responsável:* ${assignee?.name || "Não identificado"}\n📅 *Prazo:* ${prazoFormatado}\n🏢 *Empresa:* ${companyName}`;
+
+            // Enviar confirmação via Evolution API
+            // @ts-ignore: Deno global
+            const evolutionUrl = Deno.env.get("EVOLUTION_URL");
+            // @ts-ignore: Deno global
+            const evolutionKey = Deno.env.get("EVOLUTION_KEY");
+
+            if (evolutionUrl && evolutionKey) {
+              try {
+                const sendUrl = `${evolutionUrl}/message/sendText/${payload.instance}`;
+                const sendResp = await fetch(sendUrl, {
+                  method: "POST",
+                  headers: {
+                    "apikey": evolutionKey,
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    number: cleanPhone,
+                    text: confirmationMessage
+                  })
+                });
+                if (sendResp.ok) {
+                  console.log("Confirmation sent to manager via WhatsApp");
+                } else {
+                  console.error("Failed to send confirmation:", await sendResp.text());
+                }
+              } catch (sendErr) {
+                console.error("Error sending WhatsApp confirmation:", sendErr);
+              }
+            }
           }
         }
       }
