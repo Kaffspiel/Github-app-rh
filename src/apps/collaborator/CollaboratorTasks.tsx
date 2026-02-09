@@ -32,7 +32,8 @@ import {
     RefreshCw,
     Plus,
     Trash2,
-    Clock
+    Clock,
+    ArrowLeft
 } from "lucide-react";
 import { useCollaboratorTasks } from "@/hooks/useCollaboratorTasks";
 import { useTaskNotifications } from "@/hooks/useTaskNotifications";
@@ -48,7 +49,11 @@ interface NewTaskData {
     checklist: string[];
 }
 
-export default function CollaboratorTasks() {
+interface CollaboratorTasksProps {
+    onBack?: () => void;
+}
+
+export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
     const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
     const [newTaskData, setNewTaskData] = useState<NewTaskData>({
         title: '',
@@ -195,6 +200,16 @@ export default function CollaboratorTasks() {
 
     return (
         <div className="p-4 space-y-6">
+            {/* Header with back button */}
+            {onBack && (
+                <div className="flex items-center gap-3 -mx-4 -mt-4 px-4 py-3 bg-white border-b sticky top-0 z-10">
+                    <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
+                        <ArrowLeft className="w-5 h-5" />
+                    </Button>
+                    <h2 className="font-semibold text-gray-900">Gestão de Tarefas</h2>
+                </div>
+            )}
+
             <Tabs defaultValue="tasks" className="w-full">
                 <div className="flex items-center justify-between mb-4">
                     <TabsList className="grid w-[200px] grid-cols-2">
