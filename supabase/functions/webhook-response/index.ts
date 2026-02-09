@@ -175,33 +175,46 @@ serve(async (req: Request) => {
 
             confirmationMessage = `✅ *Tarefa criada com sucesso!*\n\n📋 *Tarefa:* ${newTask.title}\n👤 *Responsável:* ${assignee?.name || "Não identificado"}\n📅 *Prazo:* ${prazoFormatado}\n🏢 *Empresa:* ${companyName}`;
 
-            // Enviar confirmação via Evolution API
             // @ts-ignore: Deno global
             const evolutionUrl = Deno.env.get("EVOLUTION_URL");
             // @ts-ignore: Deno global
             const evolutionKey = Deno.env.get("EVOLUTION_KEY");
 
             if (evolutionUrl && evolutionKey) {
-              try {
-                const sendUrl = `${evolutionUrl}/message/sendText/${payload.instance}`;
-                const sendResp = await fetch(sendUrl, {
-                  method: "POST",
-                  headers: {
-                    "apikey": evolutionKey,
-                    "Content-Type": "application/json"
-                  },
-                  body: JSON.stringify({
-                    number: cleanPhone,
-                    text: confirmationMessage
-                  })
-                });
-                if (sendResp.ok) {
-                  console.log("Confirmation sent to manager via WhatsApp");
-                } else {
-                  console.error("Failed to send confirmation:", await sendResp.text());
+              const sendWhatsApp = async (phone: string, text: string, label: string) => {
+                try {
+                  const sendUrl = `${evolutionUrl}/message/sendText/${payload.instance}`;
+                  const sendResp = await fetch(sendUrl, {
+                    method: "POST",
+                    headers: { "apikey": evolutionKey, "Content-Type": "application/json" },
+                    body: JSON.stringify({ number: phone, text })
+                  });
+                  if (sendResp.ok) {
+                    console.log(`${label}: sent successfully`);
+                  } else {
+                    console.error(`${label}: failed -`, await sendResp.text());
+                  }
+                } catch (err) {
+                  console.error(`${label}: error -`, err);
                 }
-              } catch (sendErr) {
-                console.error("Error sending WhatsApp confirmation:", sendErr);
+              };
+
+              // 1. Confirmar ao gestor
+              await sendWhatsApp(cleanPhone, confirmationMessage, "Manager confirmation");
+
+              // 2. Notificar o colaborador atribuído
+              if (assignee && taskDetails.assignee_id !== employee.id) {
+                const { data: assigneeData } = await supabase
+                  .from("employees")
+                  .select("whatsapp_number")
+                  .eq("id", taskDetails.assignee_id)
+                  .single();
+
+                if (assigneeData?.whatsapp_number) {
+                  const assigneePhone = assigneeData.whatsapp_number.replace(/\D/g, "");
+                  const assigneeMessage = `📋 *Nova tarefa atribuída a você!*\n\n📝 *Tarefa:* ${newTask.title}\n👤 *Atribuída por:* ${employee.name}\n📅 *Prazo:* ${prazoFormatado}\n🏢 *Empresa:* ${companyName}`;
+                  await sendWhatsApp(assigneePhone, assigneeMessage, "Assignee notification");
+                }
               }
             }
           }
