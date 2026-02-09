@@ -40,11 +40,17 @@ serve(async (req: Request) => {
 
     // 1. Identificar Colaborador
     const cleanPhone = payload.phone.replace(/\D/g, "");
-    const { data: employee } = await supabase
+    // Use limit(1) instead of single() to avoid error when multiple employees share the same number
+    const { data: employeeRows } = await supabase
       .from("employees")
       .select("id, name, role, company_id")
       .eq("whatsapp_number", cleanPhone)
-      .single();
+      .eq("is_active", true)
+      .not("company_id", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const employee = employeeRows?.[0] || null;
+    console.log("Employee lookup result:", employee ? `${employee.name} (${employee.role})` : "not found");
 
     // 2. Vincular Notificação (se existir contexto)
     let notificationId: string | null = null;
