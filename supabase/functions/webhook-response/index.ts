@@ -38,6 +38,13 @@ serve(async (req: Request) => {
     const payload: ResponsePayload = await req.json();
     console.log("Central Webhook received:", JSON.stringify(payload));
 
+    if (!payload.phone) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing required field: phone" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
     // 1. Identificar Colaborador
     const cleanPhone = payload.phone.replace(/\D/g, "");
     // Use limit(1) instead of single() to avoid error when multiple employees share the same number
