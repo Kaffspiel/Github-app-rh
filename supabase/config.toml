@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.webhook-status]
 verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.check-overdue-tasks]
+verify_jwt = false

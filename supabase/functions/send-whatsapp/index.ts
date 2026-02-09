@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
     const cleanPhone = targetPhone.replace(/\D/g, "");
 
     // Determine instance name - use first available instance
-    const instanceName = "opscontrol";
+    const instanceName = "teste";
 
     const sendUrl = `${evolutionUrl}/message/sendText/${instanceName}`;
     const sendResp = await fetch(sendUrl, {
