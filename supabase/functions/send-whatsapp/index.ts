@@ -21,18 +21,35 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Helper: check if current time is within work hours
+    const isWithinWorkHours = (scheduleStart: string | null): boolean => {
+      const start = scheduleStart || "09:00";
+      const [startH, startM] = start.split(":").map(Number);
+      const workDurationHours = 9;
+
+      const now = new Date();
+      // Convert to Brazil time (UTC-3)
+      const brTime = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+      const currentMinutes = brTime.getUTCHours() * 60 + brTime.getUTCMinutes();
+
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = startMinutes + workDurationHours * 60;
+
+      return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+    };
+
     // Get phone number from employee if not provided directly
     let targetPhone = phone;
-    if (!targetPhone && employeeId) {
-      // @ts-ignore: Deno global
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      // @ts-ignore: Deno global
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+    // @ts-ignore: Deno global
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    // @ts-ignore: Deno global
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
+    if (!targetPhone && employeeId) {
       const { data: emp } = await supabase
         .from("employees")
-        .select("whatsapp_number, whatsapp_verified, notify_whatsapp")
+        .select("whatsapp_number, whatsapp_verified, notify_whatsapp, work_schedule_start")
         .eq("id", employeeId)
         .single();
 
@@ -50,7 +67,31 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      // Block if outside work hours
+      if (!isWithinWorkHours(emp.work_schedule_start)) {
+        console.log(`Notification blocked for ${employeeId}: outside work hours (schedule: ${emp.work_schedule_start || "09:00"})`);
+        return new Response(
+          JSON.stringify({ success: false, error: "Outside work hours", blocked: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       targetPhone = emp.whatsapp_number;
+    } else if (targetPhone && employeeId) {
+      // If phone provided but we have employeeId, still check work hours
+      const { data: emp } = await supabase
+        .from("employees")
+        .select("work_schedule_start")
+        .eq("id", employeeId)
+        .single();
+
+      if (emp && !isWithinWorkHours(emp.work_schedule_start)) {
+        console.log(`Notification blocked for ${employeeId}: outside work hours`);
+        return new Response(
+          JSON.stringify({ success: false, error: "Outside work hours", blocked: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     if (!targetPhone || !message) {
