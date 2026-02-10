@@ -78,19 +78,45 @@ Deno.serve(async (req: Request) => {
         }
       };
 
+      // Helper: check if current time is within work hours
+      const isWithinWorkHours = (scheduleStart: string | null): boolean => {
+        const start = scheduleStart || "09:00";
+        const [startH, startM] = start.split(":").map(Number);
+        const workDurationHours = 9;
+        const now = new Date();
+        const brTime = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+        const currentMinutes = brTime.getUTCHours() * 60 + brTime.getUTCMinutes();
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = startMinutes + workDurationHours * 60;
+        return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+      };
+
       for (const task of overdueTasks) {
         const assignee = task.assignee as any;
         if (!assignee?.whatsapp_number || !assignee?.whatsapp_verified || !assignee?.notify_whatsapp) continue;
+
+        // Fetch work_schedule_start for the assignee
+        const { data: empData } = await supabase
+          .from("employees")
+          .select("work_schedule_start")
+          .eq("id", assignee.id)
+          .single();
+
+        // Skip if outside work hours
+        if (!isWithinWorkHours(empData?.work_schedule_start)) {
+          console.log(`Skipping overdue notification for ${assignee.name}: outside work hours`);
+          continue;
+        }
 
         const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString("pt-BR") : "N/A";
         const message = `⚠️ *Tarefa Atrasada!*\n\n📋 *Tarefa:* ${task.title}\n📅 *Prazo:* ${dueDate}\n\nPor favor, atualize o status da tarefa o mais rápido possível.`;
 
         await sendWhatsApp(assignee.whatsapp_number, message);
 
-        // Also notify managers of the same company
+        // Also notify managers of the same company (only those within work hours)
         const { data: managers } = await supabase
           .from("employees")
-          .select("whatsapp_number, whatsapp_verified, notify_whatsapp, name")
+          .select("whatsapp_number, whatsapp_verified, notify_whatsapp, name, work_schedule_start")
           .eq("company_id", task.company_id)
           .in("role", ["admin", "gestor"])
           .eq("whatsapp_verified", true)
@@ -99,6 +125,10 @@ Deno.serve(async (req: Request) => {
         if (managers) {
           for (const mgr of managers) {
             if (!mgr.whatsapp_number) continue;
+            if (!isWithinWorkHours(mgr.work_schedule_start)) {
+              console.log(`Skipping manager notification for ${mgr.name}: outside work hours`);
+              continue;
+            }
             const mgrMsg = `⚠️ *Tarefa Atrasada*\n\n📋 *Tarefa:* ${task.title}\n👤 *Responsável:* ${assignee.name}\n📅 *Prazo:* ${dueDate}`;
             await sendWhatsApp(mgr.whatsapp_number, mgrMsg);
           }
