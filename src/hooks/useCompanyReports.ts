@@ -19,6 +19,10 @@ export interface EmployeeRanking {
     department: string;
     occurrences: number;
     delayedTasks: number;
+    predictedHours?: number;
+    actualHours?: number;
+    absenteeismRate?: number;
+    productivityScore?: number;
 }
 
 export function useCompanyReports() {
@@ -33,15 +37,15 @@ export function useCompanyReports() {
             // 1. Fetch All Employees
             const { data: employees } = await supabase
                 .from('employees')
-                .select('id, name, department, role')
+                .select('id, name, department, role, daily_work_hours')
                 .eq('company_id', companyId);
 
             if (!employees) return null;
 
-            // 2. Fetch All Time Records (for Occurrences)
+            // 2. Fetch All Time Records (for Occurrences and Hours)
             let timeQuery = supabase
                 .from('time_tracking_records')
-                .select('id, employee_id, status, employees(department)')
+                .select('id, employee_id, status, record_date, total_hours, employees(department)')
                 .eq('company_id', companyId);
 
             if (startDate && endDate) {
@@ -63,6 +67,20 @@ export function useCompanyReports() {
                     .lte('created_at', endDate.toISOString());
             }
             const { data: tasks } = await taskQuery;
+
+            // --- Helper: Working Days Count ---
+            const getWorkingDays = (start: Date, end: Date) => {
+                let count = 0;
+                const curDate = new Date(start);
+                while (curDate <= end) {
+                    const dayOfWeek = curDate.getDay();
+                    if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
+                    curDate.setDate(curDate.getDate() + 1);
+                }
+                return count || 1; // Minimum 1 day
+            };
+
+            const workingDays = (startDate && endDate) ? getWorkingDays(startDate, endDate) : 22;
 
             // --- Aggregation Logic ---
 
@@ -143,6 +161,35 @@ export function useCompanyReports() {
                 ...d,
                 occurrenceRate: d.employeeCount > 0 ? parseFloat((d.totalOccurrences / d.employeeCount).toFixed(2)) : 0
             }));
+
+            // Finalizing Employee Stats
+            employees.forEach(emp => {
+                const stats = empStatsMap.get(emp.id);
+                if (stats) {
+                    const dailyHours = emp.daily_work_hours || 8;
+                    stats.predictedHours = dailyHours * workingDays;
+
+                    // Sum actual hours from time records
+                    const empTimeRecords = (timeRecords || []).filter(r => r.employee_id === emp.id);
+                    stats.actualHours = empTimeRecords.reduce((sum, r) => {
+                        const h = parseFloat(String(r.total_hours || 0));
+                        return sum + (isNaN(h) ? 0 : h);
+                    }, 0);
+
+                    // Absenteísmo = (Previsto - Realizado) / Previsto
+                    stats.absenteeismRate = stats.predictedHours > 0
+                        ? Math.max(0, (stats.predictedHours - stats.actualHours) / stats.predictedHours)
+                        : 0;
+
+                    // Produtividade (Simplificada): % de tarefas no prazo * (1 - absenteísmo)
+                    const empTasks = (tasks || []).filter(t => t.assignee_id === emp.id);
+                    const totalTasks = empTasks.length;
+                    const onTimeTasks = empTasks.filter(t => t.status === 'concluido' && !(t.due_date && new Date(t.due_date) < new Date())).length;
+
+                    const taskScore = totalTasks > 0 ? (onTimeTasks / totalTasks) : 1;
+                    stats.productivityScore = taskScore * (1 - stats.absenteeismRate);
+                }
+            });
 
             // Sort Departments by Occurrence Rate Descending
             departments.sort((a, b) => b.occurrenceRate - a.occurrenceRate);

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut, AlertTriangle, BookOpen } from "lucide-react";
+import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut, AlertTriangle, BookOpen, BarChart3 } from "lucide-react";
 import { Occurrences } from "../components/Occurrences";
 import { RulesAndGuidelines } from "../components/RulesAndGuidelines";
 import { Dashboard } from "@/components/Dashboard";
 import { TaskManagement } from "@/components/TaskManagement";
 import { CollaboratorAppAdmin } from "@/components/CollaboratorAppAdmin";
 import { TimeTracking } from "@/components/TimeTracking";
+import { Absenteeism } from "../components/Absenteeism";
 import { Gamification } from "@/components/Gamification";
 import { Reports } from "@/components/Reports";
 import { EmployeeManagement } from "@/components/EmployeeManagement";
@@ -27,6 +28,7 @@ const Index = () => {
     { id: "employees" as View, name: "Colaboradores", icon: UsersRound },
     { id: "collaborator" as View, name: "App Colaborador", icon: Users },
     { id: "timetracking" as View, name: "Controle de Ponto", icon: Clock },
+    { id: "absenteeism" as View, name: "Absenteísmo", icon: BarChart3 },
     { id: "gamification" as View, name: "Gamificação", icon: Trophy },
     { id: "occurrences" as View, name: "Ocorrências", icon: AlertTriangle },
     { id: "rules" as View, name: "Regras e Diretrizes", icon: BookOpen },
@@ -40,6 +42,7 @@ const Index = () => {
       case "employees": return <EmployeeManagement />;
       case "collaborator": return <CollaboratorAppAdmin />;
       case "timetracking": return <TimeTracking />;
+      case "absenteeism": return <Absenteeism />;
       case "gamification": return <Gamification />;
       case "occurrences": return <Occurrences />;
       case "rules": return <RulesAndGuidelines />;

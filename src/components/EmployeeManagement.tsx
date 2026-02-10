@@ -60,6 +60,7 @@ export function EmployeeManagement() {
     quiet_hours_start: "",
     quiet_hours_end: "",
     work_schedule_start: "09:00",
+    daily_work_hours: 8,
     is_active: true,
   });
 
@@ -132,6 +133,7 @@ export function EmployeeManagement() {
       quiet_hours_start: formData.quiet_hours_start || null,
       quiet_hours_end: formData.quiet_hours_end || null,
       work_schedule_start: formData.work_schedule_start || "09:00",
+      daily_work_hours: formData.daily_work_hours || 8,
       is_active: formData.is_active,
     };
 
@@ -204,7 +206,7 @@ export function EmployeeManagement() {
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/create-user`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${accessToken}`,
         },
@@ -267,6 +269,7 @@ export function EmployeeManagement() {
       quiet_hours_start: employee.quiet_hours_start || "",
       quiet_hours_end: employee.quiet_hours_end || "",
       work_schedule_start: employee.work_schedule_start || "09:00",
+      daily_work_hours: employee.daily_work_hours || 8,
       is_active: employee.is_active,
     });
     setIsDialogOpen(true);
@@ -347,6 +350,7 @@ export function EmployeeManagement() {
       quiet_hours_start: "",
       quiet_hours_end: "",
       work_schedule_start: "09:00",
+      daily_work_hours: 8,
       is_active: true,
     });
   };
@@ -482,7 +486,7 @@ export function EmployeeManagement() {
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/create-user`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${accessToken}`,
         },
@@ -750,6 +754,16 @@ export function EmployeeManagement() {
                         type="time"
                         value={formData.work_schedule_start}
                         onChange={(e) => setFormData({ ...formData, work_schedule_start: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Jornada Diária (Horas)</Label>
+                      <Input
+                        type="number"
+                        value={formData.daily_work_hours}
+                        onChange={(e) => setFormData({ ...formData, daily_work_hours: parseInt(e.target.value) || 0 })}
+                        min="1"
+                        max="24"
                       />
                     </div>
                     <div className="space-y-2">

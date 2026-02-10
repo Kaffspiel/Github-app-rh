@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, AlertCircle, CheckCircle, XCircle, Clock, Download, Plus, FileSpreadsheet, History } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle, XCircle, Clock, Download, Plus, FileSpreadsheet, History, Search, Filter, X } from "lucide-react";
 import { useApp, TimeRecord } from "@/context/AppContext";
 import { ImportWizard } from "@/components/time-tracking/ImportWizard";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +53,11 @@ export function TimeTracking() {
   const { companyId } = useCompany();
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
 
   const fetchTimeRecords = useCallback(async () => {
     if (!companyId) return;
@@ -107,6 +112,14 @@ export function TimeTracking() {
     fetchTimeRecords();
   }, [fetchTimeRecords]);
 
+  // Derived filtered records
+  const filteredRecords = timeRecords.filter(record => {
+    const matchesSearch = record.employee.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || record.status === statusFilter;
+    const matchesDate = !dateFilter || record.date === dateFilter;
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
   // Refetch when wizard closes
   const handleWizardComplete = () => {
     setShowImportWizard(false);
@@ -118,12 +131,11 @@ export function TimeTracking() {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [activeTab, setActiveTab] = useState("records");
 
-
-
-  // Helper functions moved to module scope
-
-
-
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setDateFilter("");
+  };
 
   const getStatusIcon = (status: TimeRecord["status"]) => {
     switch (status) {
@@ -184,41 +196,97 @@ export function TimeTracking() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">Total de Registros</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{timeRecords.length}</div><p className="text-xs text-gray-500 mt-1">Hoje</p></CardContent>
+          <CardContent><div className="text-2xl font-bold">{filteredRecords.length}</div><p className="text-xs text-gray-500 mt-1">Filtrados</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-500">Normais</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{timeRecords.filter(r => r.status === "normal").length}</div>
+            <div className="text-2xl font-bold text-green-600">{filteredRecords.filter(r => r.status === "normal").length}</div>
             <p className="text-xs text-green-600 mt-1">Sem ocorrências</p>
           </CardContent>
         </Card>
         <Card className="border-orange-200 bg-orange-50/30">
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-orange-700">Atrasos</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{timeRecords.filter(r => r.status === "delay").length}</div>
+            <div className="text-2xl font-bold text-orange-600">{filteredRecords.filter(r => r.status === "delay").length}</div>
             <p className="text-xs text-orange-600 mt-1">Requer atenção</p>
           </CardContent>
         </Card>
         <Card className="border-yellow-200 bg-yellow-50/30">
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-yellow-700">Erros</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{timeRecords.filter(r => r.status === "error" || r.status === "missing-punch").length}</div>
+            <div className="text-2xl font-bold text-yellow-600">{filteredRecords.filter(r => r.status === "error" || r.status === "missing-punch").length}</div>
             <p className="text-xs text-yellow-600 mt-1">Verificar</p>
           </CardContent>
         </Card>
         <Card className="border-red-200 bg-red-50/30">
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-red-700">Faltas</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{timeRecords.filter(r => r.status === "absence").length}</div>
+            <div className="text-2xl font-bold text-red-600">{filteredRecords.filter(r => r.status === "absence").length}</div>
             <p className="text-xs text-red-600 mt-1">Crítico</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Filters */}
       <Card>
-        <CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="search">Buscar Colaborador</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="search"
+                  placeholder="Nome do colaborador..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="delay">Atraso</SelectItem>
+                  <SelectItem value="absence">Falta</SelectItem>
+                  <SelectItem value="missing-punch">Batida Ausente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="date">Filtrar por Data</Label>
+              <Input
+                id="date"
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+              />
+            </div>
+
+            {(searchTerm || statusFilter !== "all" || dateFilter) && (
+              <Button variant="ghost" className="h-10 text-gray-500" onClick={clearFilters}>
+                <X className="w-4 h-4 mr-2" /> Limpar Filtros
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Registros de Ponto</CardTitle>
+          <Badge variant="outline" className="font-normal">
+            Exibindo {filteredRecords.length} de {timeRecords.length} registros
+          </Badge>
         </CardHeader>
         <CardContent>
           <Table>
@@ -234,37 +302,49 @@ export function TimeTracking() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {timeRecords.map((record) => (
-                <TableRow key={record.id} className={record.status !== "normal" ? "bg-yellow-50/50" : ""}>
-                  <TableCell>{getStatusIcon(record.status)}</TableCell>
-                  <TableCell className="font-medium">{record.employee}</TableCell>
-                  <TableCell>{record.date}</TableCell>
-                  <TableCell className="text-gray-500">{record.expectedStart}</TableCell>
-                  <TableCell className={record.status === 'delay' ? "font-bold text-orange-600" : ""}>{record.entry1}</TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {getStatusBadge(record.status)}
-                      {record.issue && <p className="text-xs text-gray-500">{record.issue}</p>}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      {record.status !== "normal" && !record.justification && (
-                        <Button size="sm" variant="outline" onClick={() => handleRequestJustification(record)}>
-                          Solicitar Justificativa
-                        </Button>
-                      )}
-                      {record.justification && (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-600">
-                          {record.justification.status === "pending" && "Aguardando"}
-                          {record.justification.status === "approved" && "Aprovada"}
-                          {record.justification.status === "rejected" && "Negada"}
-                        </Badge>
-                      )}
+              {filteredRecords.length > 0 ? (
+                filteredRecords.map((record) => (
+                  <TableRow key={record.id} className={record.status !== "normal" ? "bg-yellow-50/50" : ""}>
+                    <TableCell>{getStatusIcon(record.status)}</TableCell>
+                    <TableCell className="font-medium">{record.employee}</TableCell>
+                    <TableCell>{record.date}</TableCell>
+                    <TableCell className="text-gray-500">{record.expectedStart}</TableCell>
+                    <TableCell className={record.status === 'delay' ? "font-bold text-orange-600" : ""}>{record.entry1}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {getStatusBadge(record.status)}
+                        {record.issue && <p className="text-xs text-gray-500">{record.issue}</p>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {record.status !== "normal" && !record.justification && (
+                          <Button size="sm" variant="outline" onClick={() => handleRequestJustification(record)}>
+                            Solicitar Justificativa
+                          </Button>
+                        )}
+                        {record.justification && (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-600">
+                            {record.justification.status === "pending" && "Aguardando"}
+                            {record.justification.status === "approved" && "Aprovada"}
+                            {record.justification.status === "rejected" && "Negada"}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Filter className="h-8 w-8 text-gray-300" />
+                      <p>Nenhum registro encontrado com os filtros aplicados.</p>
+                      <Button variant="link" onClick={clearFilters}>Limpar todos os filtros</Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>

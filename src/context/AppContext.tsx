@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
-export type View = "dashboard" | "tasks" | "collaborator" | "timetracking" | "gamification" | "reports" | "employees" | "occurrences" | "rules";
+export type View = "dashboard" | "tasks" | "collaborator" | "timetracking" | "absenteeism" | "gamification" | "reports" | "employees" | "occurrences" | "rules";
 
 export interface ChecklistItem {
     id: string;
