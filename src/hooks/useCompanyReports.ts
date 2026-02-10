@@ -37,8 +37,8 @@ export function useCompanyReports() {
             // 1. Fetch All Employees
             const { data: employees } = await supabase
                 .from('employees')
-                .select('id, name, department, role, daily_work_hours')
-                .eq('company_id', companyId);
+                .select('id, name, department, role')
+                .eq('company_id', companyId) as { data: { id: string; name: string; department: string; role: string; daily_work_hours?: number }[] | null };
 
             if (!employees) return null;
 
@@ -166,7 +166,7 @@ export function useCompanyReports() {
             employees.forEach(emp => {
                 const stats = empStatsMap.get(emp.id);
                 if (stats) {
-                    const dailyHours = emp.daily_work_hours || 8;
+                    const dailyHours = (emp as any).daily_work_hours || 8;
                     stats.predictedHours = dailyHours * workingDays;
 
                     // Sum actual hours from time records

@@ -14,9 +14,22 @@ interface TimeRecord {
   punches: string[];
 }
 
+interface AccumulatedRecord {
+  employeeName: string;
+  predictedHours: string;
+  workedHours: string;
+  bonusHours: string;
+  balance: string;
+}
+
 interface ParseResult {
   success: boolean;
+  documentType: 'daily' | 'accumulated';
+  periodStart?: string;
+  periodEnd?: string;
+  companyName?: string;
   records: TimeRecord[];
+  accumulatedRecords?: AccumulatedRecord[];
   errors: { row: number; message: string }[];
   totalRows: number;
   suggestedMapping?: {
@@ -179,38 +192,61 @@ function repairTruncatedJson(json: string): string {
 const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto brasileiro.
 Sua tarefa é extrair registros de ponto de documentos (Excel, CSV ou PDF) e retornar EXCLUSIVAMENTE um objeto JSON.
 
+EXISTEM DOIS TIPOS DE DOCUMENTO:
+
+### TIPO 1 - Registro Diário de Ponto (batidas individuais por dia)
+Contém colunas como CPF, Nome, Dia, Entrada 1, Saída 1, etc.
+Retorne com "documentType": "daily"
+
+### TIPO 2 - Relatório Acumulado (resumo de horas por colaborador em um período)
+Contém uma tabela com colunas: Colaborador, Previstas, Trabalhadas, Abonos, Saldo.
+Pode conter cabeçalho com "Apuração: de DD/MM/YYYY a DD/MM/YYYY" e dados do empregador.
+Retorne com "documentType": "accumulated"
+
 IMPORTANTE - Regras de parsing:
 1. O separador do CSV pode ser ";" (ponto-e-vírgula) ou "," (vírgula)
-2. Horários podem ter sufixos como "(C)", "(I)", "(A)" que devem ser REMOVIDOS. Ex: "07:54 (C)" -> "07:54"
-3. A data pode ter o dia da semana junto. Ex: "26/01/2026 SEG" -> extrair apenas "26/01/2026" e converter para "2026-01-26"
-4. Campos como "Folga", "Justificado INSS", "Falta não justificada", "Atestado" NÃO são horários - ignorar
-5. O CPF (coluna "CPF do funcionário") deve ser usado como externalEmployeeId
-6. O nome do funcionário está na coluna "Nome do funcionário"
-7. A data está na coluna "Dia" ou similar
-8. Colunas de ponto: "Entrada 1", "Saída 1", "Entrada 2", "Saída 2", etc.
+2. Horários podem ter sufixos como "(C)", "(I)", "(A)" que devem ser REMOVIDOS
+3. A data pode ter o dia da semana junto. Ex: "26/01/2026 SEG" -> extrair apenas "2026-01-26"
+4. Campos como "Folga", "Justificado INSS", "Falta não justificada", "Atestado" NÃO são horários
+5. O CPF deve ser usado como externalEmployeeId quando disponível
+6. Horas no formato "HHH:MM" (ex: "203:00") devem ser preservadas como string
+7. Ignore linhas de TOTAL/rodapé
 
-O retorno deve ser um JSON válido no seguinte formato:
+Para TIPO 1 (daily), retorne:
 {
+  "documentType": "daily",
   "records": [
     {
-      "externalEmployeeId": "string - CPF do funcionário (apenas números)",
-      "employeeName": "string - nome completo do funcionário",
-      "date": "string - data no formato YYYY-MM-DD",
-      "punches": ["HH:MM", "HH:MM", ...] - array de horários de batida (sem sufixos, sem entradas especiais como Folga)
+      "externalEmployeeId": "CPF (apenas números)",
+      "employeeName": "nome completo",
+      "date": "YYYY-MM-DD",
+      "punches": ["HH:MM", ...]
     }
   ],
-  "suggestedMapping": {
-    "employeeIdColumn": "nome da coluna identificada como CPF",
-    "employeeNameColumn": "nome da coluna identificada como nome",
-    "dateColumn": "nome da coluna identificada como data",
-    "punchColumns": ["nomes das colunas de batidas"]
-  },
-  "errors": [
-    {"row": 1, "message": "descrição do erro"}
-  ]
+  "suggestedMapping": { ... },
+  "errors": []
 }
 
-Se não conseguir identificar registros válidos, retorne um array vazio em records e descreva o problema em errors.`;
+Para TIPO 2 (accumulated), retorne:
+{
+  "documentType": "accumulated",
+  "periodStart": "YYYY-MM-DD",
+  "periodEnd": "YYYY-MM-DD",
+  "companyName": "razão social da empresa",
+  "accumulatedRecords": [
+    {
+      "employeeName": "nome completo do colaborador",
+      "predictedHours": "203:00",
+      "workedHours": "184:31",
+      "bonusHours": "13:29",
+      "balance": "-04:56"
+    }
+  ],
+  "records": [],
+  "errors": []
+}
+
+Se não conseguir identificar registros válidos, retorne arrays vazios e descreva o problema em errors.`;
 
 // Call Google Gemini API
 async function callGoogleGemini(apiKey: string, fileContent: string, fileName: string): Promise<string> {
@@ -400,9 +436,14 @@ serve(async (req: Request) => {
 
     const result: ParseResult = {
       success: true,
+      documentType: parsedResult.documentType || 'daily',
+      periodStart: parsedResult.periodStart,
+      periodEnd: parsedResult.periodEnd,
+      companyName: parsedResult.companyName,
       records: parsedResult.records || [],
+      accumulatedRecords: parsedResult.accumulatedRecords || [],
       errors: parsedResult.errors || [],
-      totalRows: parsedResult.records?.length || 0,
+      totalRows: (parsedResult.records?.length || 0) + (parsedResult.accumulatedRecords?.length || 0),
       suggestedMapping: parsedResult.suggestedMapping,
       provider
     };

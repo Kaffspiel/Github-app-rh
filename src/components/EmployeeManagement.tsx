@@ -269,7 +269,7 @@ export function EmployeeManagement() {
       quiet_hours_start: employee.quiet_hours_start || "",
       quiet_hours_end: employee.quiet_hours_end || "",
       work_schedule_start: employee.work_schedule_start || "09:00",
-      daily_work_hours: employee.daily_work_hours || 8,
+      daily_work_hours: (employee as any).daily_work_hours || 8,
       is_active: employee.is_active,
     });
     setIsDialogOpen(true);
