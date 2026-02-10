@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileSpreadsheet, Calendar, Clock, Upload, Brain, Loader2 } from "lucide-react";
+import { FileSpreadsheet, Calendar, Clock, Upload, Brain, Loader2, Trash2, History } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useCompanyReports, DepartmentStats, EmployeeRanking } from "@/hooks/useCompanyReports";
 import { ImportWizard } from "@/components/time-tracking/ImportWizard";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 interface AccumulatedRecord {
     employeeName: string;
@@ -21,10 +22,19 @@ interface AccumulatedRecord {
 }
 
 interface AccumulatedReport {
+    id?: string;
     periodStart?: string;
     periodEnd?: string;
     companyName?: string;
     records: AccumulatedRecord[];
+}
+
+interface SavedReport {
+    id: string;
+    period_start: string | null;
+    period_end: string | null;
+    company_name: string | null;
+    imported_at: string;
 }
 
 function parseHoursToNumber(h: string): number {
@@ -40,6 +50,7 @@ function parseHoursToNumber(h: string): number {
 
 export function Absenteeism() {
     const { fetchCompanyStats, isLoading: isCompanyStatsLoading } = useCompanyReports();
+    const { currentCompanyId, user } = useAuth();
 
     const [periodStart, setPeriodStart] = useState(format(new Date().setDate(1), 'yyyy-MM-dd'));
     const [periodEnd, setPeriodEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -47,16 +58,128 @@ export function Absenteeism() {
     const [showImportWizard, setShowImportWizard] = useState(false);
     const [accumulatedReport, setAccumulatedReport] = useState<AccumulatedReport | null>(null);
     const [isAIParsing, setIsAIParsing] = useState(false);
+    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+    const [isLoadingSaved, setIsLoadingSaved] = useState(false);
 
     useEffect(() => {
         loadCompanyStats();
     }, [periodStart, periodEnd]);
+
+    useEffect(() => {
+        if (currentCompanyId) loadSavedReports();
+    }, [currentCompanyId]);
 
     const loadCompanyStats = async () => {
         const startDate = periodStart ? new Date(periodStart) : undefined;
         const endDate = periodEnd ? new Date(periodEnd) : undefined;
         const data = await fetchCompanyStats(startDate, endDate);
         if (data) setCompanyStats(data);
+    };
+
+    const loadSavedReports = async () => {
+        if (!currentCompanyId) return;
+        const { data, error } = await supabase
+            .from('absenteeism_reports')
+            .select('id, period_start, period_end, company_name, imported_at')
+            .eq('company_id', currentCompanyId)
+            .order('imported_at', { ascending: false })
+            .limit(20);
+        if (!error && data) setSavedReports(data);
+    };
+
+    const saveReportToDb = async (report: AccumulatedReport) => {
+        if (!currentCompanyId || !user) {
+            toast.error("Você precisa estar logado para salvar.");
+            return;
+        }
+
+        try {
+            const { data: reportRow, error: reportErr } = await supabase
+                .from('absenteeism_reports')
+                .insert({
+                    company_id: currentCompanyId,
+                    period_start: report.periodStart || null,
+                    period_end: report.periodEnd || null,
+                    company_name: report.companyName || null,
+                    imported_by: user.id,
+                })
+                .select('id')
+                .single();
+
+            if (reportErr) throw reportErr;
+
+            const records = report.records.map(r => {
+                const predicted = parseHoursToNumber(r.predictedHours);
+                const worked = parseHoursToNumber(r.workedHours);
+                const absRate = predicted > 0 ? Math.max(0, ((predicted - worked) / predicted) * 100) : 0;
+                return {
+                    report_id: reportRow.id,
+                    employee_name: r.employeeName,
+                    predicted_hours: r.predictedHours || null,
+                    worked_hours: r.workedHours || null,
+                    bonus_hours: r.bonusHours || null,
+                    balance: r.balance || null,
+                    absenteeism_rate: parseFloat(absRate.toFixed(2)),
+                };
+            });
+
+            const { error: recErr } = await supabase
+                .from('absenteeism_records')
+                .insert(records);
+
+            if (recErr) throw recErr;
+
+            setAccumulatedReport({ ...report, id: reportRow.id });
+            toast.success("Relatório salvo no banco de dados!");
+            loadSavedReports();
+        } catch (err: any) {
+            console.error('Save error:', err);
+            toast.error(`Erro ao salvar: ${err.message}`);
+        }
+    };
+
+    const loadSavedReport = async (reportId: string) => {
+        setIsLoadingSaved(true);
+        try {
+            const [{ data: report }, { data: records }] = await Promise.all([
+                supabase.from('absenteeism_reports').select('*').eq('id', reportId).single(),
+                supabase.from('absenteeism_records').select('*').eq('report_id', reportId).order('created_at'),
+            ]);
+
+            if (report && records) {
+                setAccumulatedReport({
+                    id: report.id,
+                    periodStart: report.period_start,
+                    periodEnd: report.period_end,
+                    companyName: report.company_name,
+                    records: records.map((r: any) => ({
+                        employeeName: r.employee_name,
+                        predictedHours: r.predicted_hours || '-',
+                        workedHours: r.worked_hours || '-',
+                        bonusHours: r.bonus_hours || '-',
+                        balance: r.balance || '-',
+                    })),
+                });
+                if (report.period_start) setPeriodStart(report.period_start);
+                if (report.period_end) setPeriodEnd(report.period_end);
+                toast.success("Relatório carregado!");
+            }
+        } catch (err: any) {
+            toast.error("Erro ao carregar relatório.");
+        } finally {
+            setIsLoadingSaved(false);
+        }
+    };
+
+    const deleteReport = async (reportId: string) => {
+        const { error } = await supabase.from('absenteeism_reports').delete().eq('id', reportId);
+        if (error) {
+            toast.error("Erro ao excluir relatório.");
+            return;
+        }
+        toast.success("Relatório excluído!");
+        if (accumulatedReport?.id === reportId) setAccumulatedReport(null);
+        loadSavedReports();
     };
 
     const handleWizardComplete = () => {
@@ -67,7 +190,6 @@ export function Absenteeism() {
     const handlePDFUpload = useCallback(async (file: File) => {
         setIsAIParsing(true);
         try {
-            // Extract text from PDF using pdf.js
             const buffer = await file.arrayBuffer();
             const { extractPDFText } = await import("@/services/timeImport");
             const content = await extractPDFText(buffer);
@@ -86,17 +208,19 @@ export function Absenteeism() {
             if (!data?.success) throw new Error(data?.error || 'Falha no parsing');
 
             if (data.documentType === 'accumulated' && data.accumulatedRecords?.length > 0) {
-                setAccumulatedReport({
+                const report: AccumulatedReport = {
                     periodStart: data.periodStart,
                     periodEnd: data.periodEnd,
                     companyName: data.companyName,
                     records: data.accumulatedRecords,
-                });
+                };
+                setAccumulatedReport(report);
                 if (data.periodStart) setPeriodStart(data.periodStart);
                 if (data.periodEnd) setPeriodEnd(data.periodEnd);
-                toast.success(`Relatório importado: ${data.accumulatedRecords.length} colaboradores`);
+
+                // Auto-save to DB
+                await saveReportToDb(report);
             } else if (data.records?.length > 0) {
-                // It's a daily report, use the normal import wizard
                 toast.info("Documento identificado como registro diário. Use o Importar Registros.");
                 setShowImportWizard(true);
             } else {
@@ -108,7 +232,7 @@ export function Absenteeism() {
         } finally {
             setIsAIParsing(false);
         }
-    }, []);
+    }, [currentCompanyId, user]);
 
     const handleExportExcel = () => {
         const dataSource = accumulatedReport?.records;
@@ -204,6 +328,38 @@ export function Absenteeism() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Saved Reports History */}
+            {savedReports.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><History className="w-5 h-5" /> Relatórios Salvos</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-2">
+                            {savedReports.map((r) => (
+                                <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                                    <button
+                                        className="flex-1 text-left"
+                                        onClick={() => loadSavedReport(r.id)}
+                                        disabled={isLoadingSaved}
+                                    >
+                                        <div className="font-medium text-sm">
+                                            {r.company_name || 'Relatório'} — {r.period_start || '?'} a {r.period_end || '?'}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            Importado em {format(new Date(r.imported_at), 'dd/MM/yyyy HH:mm')}
+                                        </div>
+                                    </button>
+                                    <Button variant="ghost" size="icon" onClick={() => deleteReport(r.id)}>
+                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Accumulated Report from PDF */}
             {accumulatedReport && accumulatedReport.records.length > 0 && (

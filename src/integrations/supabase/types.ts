@@ -14,6 +14,88 @@ export type Database = {
   }
   public: {
     Tables: {
+      absenteeism_records: {
+        Row: {
+          absenteeism_rate: number | null
+          balance: string | null
+          bonus_hours: string | null
+          created_at: string
+          employee_name: string
+          id: string
+          predicted_hours: string | null
+          report_id: string
+          worked_hours: string | null
+        }
+        Insert: {
+          absenteeism_rate?: number | null
+          balance?: string | null
+          bonus_hours?: string | null
+          created_at?: string
+          employee_name: string
+          id?: string
+          predicted_hours?: string | null
+          report_id: string
+          worked_hours?: string | null
+        }
+        Update: {
+          absenteeism_rate?: number | null
+          balance?: string | null
+          bonus_hours?: string | null
+          created_at?: string
+          employee_name?: string
+          id?: string
+          predicted_hours?: string | null
+          report_id?: string
+          worked_hours?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absenteeism_records_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "absenteeism_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      absenteeism_reports: {
+        Row: {
+          company_id: string
+          company_name: string | null
+          id: string
+          imported_at: string
+          imported_by: string | null
+          period_end: string | null
+          period_start: string | null
+        }
+        Insert: {
+          company_id: string
+          company_name?: string | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          period_end?: string | null
+          period_start?: string | null
+        }
+        Update: {
+          company_id?: string
+          company_name?: string | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          period_end?: string | null
+          period_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absenteeism_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_integrations: {
         Row: {
           api_base_url: string | null
