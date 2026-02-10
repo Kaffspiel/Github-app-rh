@@ -134,8 +134,9 @@ serve(async (req: Request) => {
       - Responsável: Identifique quem deve fazer. Se não identificar, use null.
       - Título: Resumo curto e claro da tarefa.
       - Prazo: Calcule a data exata baseado na data atual. "amanhã" = dia seguinte, "sexta" = próxima sexta-feira, etc.
+      - Horário: Se a mensagem mencionar um horário específico (ex: "às 14h", "até as 10:00"), extraia-o no formato HH:MM. Se não mencionar horário, use null.
       
-      Retorne JSON: {"is_task": boolean, "title": string, "assignee_id": string | null, "due_date": "YYYY-MM-DD" | null}`;
+      Retorne JSON: {"is_task": boolean, "title": string, "assignee_id": string | null, "due_date": "YYYY-MM-DD" | null, "due_time": "HH:MM" | null}`;
 
       const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -153,6 +154,12 @@ serve(async (req: Request) => {
         const taskDetails = JSON.parse(aiData.choices[0].message.content);
 
         if (taskDetails.is_task && taskDetails.assignee_id) {
+          // Use extracted time, or default to 18:00 Brasília (21:00 UTC)
+          const dueTime = taskDetails.due_time || "18:00";
+          const [dtH, dtM] = dueTime.split(":").map(Number);
+          const utcH = dtH + 3; // BRT (UTC-3) to UTC
+          const utcTimeStr = `${String(utcH).padStart(2, "0")}:${String(dtM).padStart(2, "0")}:00Z`;
+
           const { data: newTask } = await supabase
             .from("tasks")
             .insert({
@@ -160,7 +167,7 @@ serve(async (req: Request) => {
               title: taskDetails.title,
               assignee_id: taskDetails.assignee_id,
               created_by: employee.id,
-              due_date: taskDetails.due_date ? `${taskDetails.due_date}T23:59:59Z` : null,
+              due_date: taskDetails.due_date ? `${taskDetails.due_date}T${utcTimeStr}` : null,
               status: "pendente",
               priority: "média"
             })
@@ -170,7 +177,7 @@ serve(async (req: Request) => {
             actionTaken = "task_created";
             const assignee = coworkers?.find((e: any) => e.id === taskDetails.assignee_id);
             const prazoFormatado = taskDetails.due_date
-              ? new Date(taskDetails.due_date + "T12:00:00Z").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+              ? `${new Date(taskDetails.due_date + "T12:00:00Z").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })} às ${dueTime}`
               : "Não definido";
 
             confirmationMessage = `✅ *Tarefa criada com sucesso!*\n\n📋 *Tarefa:* ${newTask.title}\n👤 *Responsável:* ${assignee?.name || "Não identificado"}\n📅 *Prazo:* ${prazoFormatado}\n🏢 *Empresa:* ${companyName}`;
