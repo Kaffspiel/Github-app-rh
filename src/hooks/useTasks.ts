@@ -70,7 +70,7 @@ export function useTasks() {
   const { user } = useAuth();
   const { companyId } = useCompany();
   const { toast } = useToast();
-  const { notifyTaskAssigned, notifyTaskCreated, notifyTaskUpdated, notifyTaskCompleted, notifyTaskOverdue } = useTaskNotifications();
+  const { notifyTaskAssigned, notifyTaskCreated, notifyTaskUpdated, notifyTaskCompleted } = useTaskNotifications();
 
   const fetchTasks = useCallback(async () => {
     if (!companyId) {
@@ -127,16 +127,9 @@ export function useTasks() {
           }
 
           // Update local data immediate reflection
+          // (Overdue notifications are handled by the check-overdue-tasks cron job to avoid duplicates)
           overdueTasks.forEach(t => {
             t.status = 'atrasada';
-
-            // Notify manager about overdue task
-            notifyTaskOverdue({
-              taskId: t.id,
-              taskTitle: t.title,
-              employeeName: t.assignee?.name || 'Não atribuído',
-              companyId: t.company_id
-            });
           });
 
           toast({
@@ -215,7 +208,7 @@ export function useTasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, toast, notifyTaskOverdue]);
+  }, [companyId, toast]);
 
   const createTask = useCallback(async (input: CreateTaskInput): Promise<Task | null> => {
     if (!companyId) {
