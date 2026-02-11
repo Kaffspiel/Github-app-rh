@@ -250,25 +250,27 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                             {routine.description && (
                                                 <p className="text-sm text-gray-500 mb-3">{routine.description}</p>
                                             )}
-                                            <div className="space-y-2">
-                                                {routine.checklist.length > 0 ? (
-                                                    routine.checklist.map(item => (
-                                                        <div key={item.id} className="flex items-center gap-2">
-                                                            <Checkbox
-                                                                checked={item.completed}
-                                                                onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
-                                                            />
-                                                            <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                                                                {item.text}
-                                                            </span>
+                                            <ScrollArea className="max-h-60">
+                                                <div className="space-y-2 pr-3">
+                                                    {routine.checklist.length > 0 ? (
+                                                        routine.checklist.map(item => (
+                                                            <div key={item.id} className="flex items-center gap-2">
+                                                                <Checkbox
+                                                                    checked={item.completed}
+                                                                    onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
+                                                                />
+                                                                <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                                                    {item.text}
+                                                                </span>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="text-sm text-gray-500 italic py-2">
+                                                            Checklist vazio (sem itens)
                                                         </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="text-sm text-gray-500 italic py-2">
-                                                        Checklist vazio (sem itens)
-                                                    </div>
-                                                )}
-                                            </div>
+                                                    )}
+                                                </div>
+                                            </ScrollArea>
                                         </CardContent>
                                     </Card>
                                 ))}
