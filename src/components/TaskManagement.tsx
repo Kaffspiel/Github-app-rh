@@ -339,21 +339,21 @@ export function TaskManagement() {
   };
 
   const TaskCard = ({ task }: { task: Task }) => (
-    <Card className={`${getPriorityColor(task.priority)} hover:shadow-md transition-shadow`}>
-      <CardHeader className="pb-3">
+    <Card className={`${getPriorityColor(task.priority)} hover:shadow-md transition-shadow h-[420px] flex flex-col`}>
+      <CardHeader className="pb-3 shrink-0">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <CardTitle className="text-base">{task.title}</CardTitle>
-            <p className="text-sm text-gray-500 mt-1">{task.description || "Sem descrição"}</p>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base truncate">{task.title}</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 line-clamp-1">{task.description || "Sem descrição"}</p>
           </div>
-          <Badge variant="outline" className={`${getStatusColor(task.status)} whitespace-nowrap`}>
+          <Badge variant="outline" className={`${getStatusColor(task.status)} whitespace-nowrap shrink-0`}>
             {getStatusIcon(task.status)}
             <span className="ml-1 capitalize">{task.status}</span>
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div>
+      <CardContent className="space-y-3 flex flex-col flex-1 min-h-0">
+        <div className="shrink-0">
           <div className="flex items-center justify-between text-sm mb-1">
             <span className="text-gray-600">Progresso</span>
             <span className="font-medium">{task.progress}%</span>
@@ -361,8 +361,8 @@ export function TaskManagement() {
           <Progress value={task.progress} className="h-2" />
         </div>
 
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex items-center justify-between shrink-0">
             <p className="text-xs font-medium text-gray-600">
               Checklist ({task.checklist.filter((i) => i.completed).length}/{task.checklist.length})
             </p>
@@ -371,26 +371,28 @@ export function TaskManagement() {
             )}
           </div>
 
-          {task.checklist.length > 0 ? (
-            (task.is_daily_routine ? task.checklist : task.checklist.slice(0, 2)).map((item) => (
-              <div key={item.id} className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={item.completed}
-                  onCheckedChange={() => handleChecklistToggle(task.id, item.id, item.completed)}
-                />
-                <span className={item.completed ? "line-through text-gray-400" : "text-gray-700"}>{item.text}</span>
-              </div>
-            ))
-          ) : (
-            task.is_daily_routine && <p className="text-sm text-gray-400 italic">Checklist vazio</p>
-          )}
+          <div className="flex-1 min-h-0 overflow-y-auto mt-1 space-y-1 pr-1">
+            {task.checklist.length > 0 ? (
+              (task.is_daily_routine ? task.checklist : task.checklist.slice(0, 2)).map((item) => (
+                <div key={item.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={item.completed}
+                    onCheckedChange={() => handleChecklistToggle(task.id, item.id, item.completed)}
+                  />
+                  <span className={item.completed ? "line-through text-gray-400" : "text-gray-700"}>{item.text}</span>
+                </div>
+              ))
+            ) : (
+              task.is_daily_routine && <p className="text-sm text-gray-400 italic">Checklist vazio</p>
+            )}
 
-          {!task.is_daily_routine && task.checklist.length > 2 && (
-            <p className="text-xs text-gray-400 ml-6">+{task.checklist.length - 2} itens</p>
-          )}
+            {!task.is_daily_routine && task.checklist.length > 2 && (
+              <p className="text-xs text-gray-400 ml-6">+{task.checklist.length - 2} itens</p>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t">
+        <div className="flex items-center justify-between pt-2 border-t shrink-0">
           <div className="flex items-center gap-3 text-sm text-gray-600">
             <div className="flex items-center gap-1">
               <User className="w-4 h-4" />
@@ -408,7 +410,7 @@ export function TaskManagement() {
         </div>
 
         <Button
-          className="w-full"
+          className="w-full shrink-0"
           variant="outline"
           size="sm"
           onClick={() => setSelectedTask(task)}
