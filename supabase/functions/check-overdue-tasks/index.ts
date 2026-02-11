@@ -28,6 +28,7 @@ Deno.serve(async (req: Request) => {
       `)
       .lt("due_date", now)
       .in("status", ["pendente", "andamento"])
+      .is("overdue_notified_at", null)
       .not("assignee_id", "is", null);
 
     if (fetchError) {
@@ -48,7 +49,7 @@ Deno.serve(async (req: Request) => {
     const overdueIds = overdueTasks.map(t => t.id);
     await supabase
       .from("tasks")
-      .update({ status: "atrasada" })
+      .update({ status: "atrasada", overdue_notified_at: new Date().toISOString() })
       .in("id", overdueIds);
 
     // Send WhatsApp notifications to assignees and managers

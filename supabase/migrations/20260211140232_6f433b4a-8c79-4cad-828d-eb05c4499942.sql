@@ -1,0 +1,1 @@
+ALTER TABLE public.tasks ADD COLUMN overdue_notified_at TIMESTAMPTZ DEFAULT NULL;

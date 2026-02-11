@@ -290,7 +290,7 @@ export function useTasks() {
       }
 
       await fetchTasks();
-      return data as Task;
+      return data as unknown as Task;
     } catch (err: any) {
       console.error('Error creating task:', err);
       toast({
