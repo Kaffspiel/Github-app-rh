@@ -143,7 +143,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     } catch (err) {
       console.error('Error in fetchEmployees:', err);
     }
-  }, []);
+  }, [currentCompanyId]);
 
   // Fetch notifications from Supabase
   const fetchNotifications = useCallback(async () => {
@@ -190,7 +190,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     } catch (err) {
       console.error('Error in fetchNotifications:', err);
     }
-  }, []);
+  }, [currentCompanyId]);
 
   useEffect(() => {
     if (currentCompanyId) {
