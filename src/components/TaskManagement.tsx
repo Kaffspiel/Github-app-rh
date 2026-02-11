@@ -74,82 +74,54 @@ export function TaskManagement() {
   const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
   const { notifications, markAsRead, notify } = useNotifications();
 
-  // Filter extension requests
-  const extensionRequests = notifications.filter(n =>
-    n.title === '⏳ Pedido de Prorrogação' && n.status === 'pending'
-  );
+  // Filter extension requests directly from tasks (not notifications)
+  const extensionRequests = tasks.filter(t => t.extension_status === 'pending');
 
-  const handleApproveExtension = async (notification: any) => {
+  const handleApproveExtension = async (task: Task) => {
     try {
-      // Parse message
-      const dateMatch = notification.message?.match(/Nova Data: (.*)\n/);
-      const newDateStr = dateMatch ? dateMatch[1] : null;
-
-      if (!newDateStr) {
-        alert("Erro ao identificar a nova data no pedido.");
-        return;
-      }
-
-      // Convert Brazil format dd/MM/yyyy HH:mm to ISO if needed, or if it is already ISO?
-      // format() in handleRequestExtension uses "dd/MM/yyyy HH:mm".
-      // We need to parse "dd/MM/yyyy HH:mm" back to ISO for Supabase 'timestamp' (which is ISO).
-
-      const [datePart, timePart] = newDateStr.split(' ');
-      const [day, month, year] = datePart.split('/');
-
-      // Construct ISO string: YYYY-MM-DDTHH:mm:00
-      const isoDate = `${year}-${month}-${day}T${timePart || '00:00'}:00`;
-
-      // Update Task
-      await updateTask(notification.relatedEntity?.id || notification.related_entity_id, {
-        due_date: isoDate,
-        status: 'pendente', // Reset status if it was delayed
+      // For now, approve with current due_date (gestor can edit later)
+      await updateTask(task.id, {
         extension_status: 'approved'
       });
 
-      // Notify Requester
-      notify({
-        type: 'task_comment',
-        title: '✅ Prorrogação Aprovada',
-        message: `Seu pedido de prorrogação para a tarefa foi aprovado. Novo prazo: ${newDateStr}.`,
-        recipientId: notification.senderId || notification.sender_id || "", // Sender of request is recipient of answer
-        priority: 'normal',
-        relatedEntity: { type: 'task', id: notification.related_entity_id }
-      });
-
-      // Mark request as read
-      await markAsRead(notification.id);
+      // Notify the assignee
+      if (task.assignee_id) {
+        notify({
+          type: 'task_comment',
+          title: '✅ Prorrogação Aprovada',
+          message: `Seu pedido de prorrogação para a tarefa "${task.title}" foi aprovado.`,
+          recipientId: task.assignee_id,
+          priority: 'normal',
+          relatedEntity: { type: 'task', id: task.id }
+        });
+      }
 
       alert("Prorrogação aprovada com sucesso!");
-
     } catch (error) {
       console.error("Erro ao aprovar:", error);
       alert("Erro ao aprovar prorrogação.");
     }
   };
 
-  const handleRejectExtension = async (notification: any) => {
+  const handleRejectExtension = async (task: Task) => {
     try {
-      // Mark request as read
-      await markAsRead(notification.id);
-
-      // Update task status to rejected
-      await updateTask(notification.relatedEntity?.id || notification.related_entity_id, {
+      await updateTask(task.id, {
         extension_status: 'rejected'
       });
 
-      // Notify Requester
-      notify({
-        type: 'task_comment', // or task_update
-        title: '❌ Prorrogação Negada',
-        message: `Seu pedido de prorrogação foi negado pelo gestor. O prazo original permanece.`,
-        recipientId: notification.senderId || notification.sender_id || "",
-        priority: 'high',
-        relatedEntity: { type: 'task', id: notification.related_entity_id }
-      });
+      // Notify the assignee
+      if (task.assignee_id) {
+        notify({
+          type: 'task_comment',
+          title: '❌ Prorrogação Negada',
+          message: `Seu pedido de prorrogação para a tarefa "${task.title}" foi negado. O prazo original permanece.`,
+          recipientId: task.assignee_id,
+          priority: 'high',
+          relatedEntity: { type: 'task', id: task.id }
+        });
+      }
 
       alert("Prorrogação negada.");
-
     } catch (error) {
       console.error("Erro ao rejeitar:", error);
     }
@@ -937,43 +909,47 @@ export function TaskManagement() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {extensionRequests.length > 0 ? (
-              extensionRequests.map((req) => (
-                <Card key={req.id} className="border-l-4 border-l-yellow-400 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                        Prorrogação
-                      </Badge>
-                      <span className="text-xs text-gray-500">{format(new Date(req.createdAt), "dd/MM HH:mm")}</span>
-                    </div>
-                    <CardTitle className="text-base mt-2">{req.senderName || "Colaborador"}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
-                      {req.message?.split('\n').map((line, i) => (
-                        <p key={i} className={i === 0 ? "font-medium mb-1" : ""}>{line}</p>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                        size="sm"
-                        onClick={() => handleApproveExtension(req)}
-                      >
-                        Aprovar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="flex-1 text-red-600 hover:bg-red-50 border-red-200"
-                        size="sm"
-                        onClick={() => handleRejectExtension(req)}
-                      >
-                        Rejeitar
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+              extensionRequests.map((task) => {
+                const assignee = employees.find(e => e.id === task.assignee_id);
+                return (
+                  <Card key={task.id} className="border-l-4 border-l-yellow-400 shadow-sm">
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start">
+                        <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                          Prorrogação
+                        </Badge>
+                        <span className="text-xs text-gray-500">{format(new Date(task.updated_at), "dd/MM HH:mm")}</span>
+                      </div>
+                      <CardTitle className="text-base mt-2">{assignee?.name || "Colaborador"}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
+                        <p className="font-medium mb-1">Tarefa: {task.title}</p>
+                        {task.due_date && <p>Prazo atual: {format(new Date(task.due_date), "dd/MM/yyyy HH:mm")}</p>}
+                        <p>Prioridade: {task.priority}</p>
+                        <p>Status: {task.status}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          size="sm"
+                          onClick={() => handleApproveExtension(task)}
+                        >
+                          Aprovar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex-1 text-red-600 hover:bg-red-50 border-red-200"
+                          size="sm"
+                          onClick={() => handleRejectExtension(task)}
+                        >
+                          Rejeitar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
             ) : (
               <div className="col-span-full py-12 text-center text-gray-400 bg-gray-50 rounded-lg border-2 border-dashed">
                 <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
