@@ -330,6 +330,18 @@ export function useTasks() {
         throw new Error('Permissão negada (RLS): Nenhuma tarefa foi atualizada.');
       }
 
+      // Optimistic update: apply changes locally immediately
+      setTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t;
+        return {
+          ...t,
+          ...input,
+          assignee_name: input.assignee_id && input.assignee_id !== t.assignee_id
+            ? undefined // will be resolved on next fetch
+            : t.assignee_name,
+        };
+      }));
+
       toast({
         title: 'Tarefa atualizada',
         description: 'As alterações foram salvas.',
@@ -396,7 +408,7 @@ export function useTasks() {
         }
       }
 
-      await fetchTasks();
+      // No full refetch — optimistic update above + realtime subscription handle it
       return true;
     } catch (err: any) {
       console.error('Error updating task:', err);
