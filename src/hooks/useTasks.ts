@@ -283,26 +283,13 @@ export function useTasks() {
             .single();
 
           if (assignee) {
-            // In-app notification
+            // Notification (in-app + WhatsApp via queue) — single path to avoid duplicates
             notifyTaskAssigned({
               taskId: data.id,
               taskTitle: input.title,
               assigneeId: input.assignee_id,
               assigneeName: assignee.name,
               senderName: currentEmployee?.name,
-            });
-
-            // Direct WhatsApp notification via edge function
-            const prazo = input.due_date
-              ? new Date(input.due_date).toLocaleDateString('pt-BR')
-              : 'Sem prazo';
-            const whatsappMsg = `📋 *Nova tarefa atribuída a você!*\n\n📝 *Tarefa:* ${input.title}\n👤 *Atribuída por:* ${currentEmployee?.name || 'Sistema'}\n📅 *Prazo:* ${prazo}`;
-            
-            supabase.functions.invoke('send-whatsapp', {
-              body: { employeeId: input.assignee_id, message: whatsappMsg, type: 'task_assigned' }
-            }).then(({ error: whatsErr }) => {
-              if (whatsErr) console.error('WhatsApp notification error:', whatsErr);
-              else console.log('WhatsApp notification sent to assignee');
             });
           }
         }
