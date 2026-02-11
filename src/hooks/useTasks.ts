@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
@@ -40,6 +40,7 @@ export interface Task {
   checklist: ChecklistItem[];
   comments_count: number;
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
+  _isNew?: boolean; // transient flag for animation
 }
 
 export interface CreateTaskInput {
@@ -591,9 +592,54 @@ export function useTasks() {
     }
   }, [user?.id, fetchTasks, toast]);
 
+  const prevTaskIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // Track known task IDs and mark new ones for animation
+  useEffect(() => {
+    if (tasks.length > 0 && prevTaskIdsRef.current.size > 0) {
+      const newTasks = tasks.filter(t => !prevTaskIdsRef.current.has(t.id) && !t._isNew);
+      if (newTasks.length > 0) {
+        setTasks(prev => prev.map(t => 
+          newTasks.some(nt => nt.id === t.id) ? { ...t, _isNew: true } : t
+        ));
+        // Clear animation flag after animation completes
+        setTimeout(() => {
+          setTasks(prev => prev.map(t => ({ ...t, _isNew: false })));
+        }, 600);
+      }
+    }
+    prevTaskIdsRef.current = new Set(tasks.map(t => t.id));
+  }, [tasks]);
+
+  // Realtime subscription for live updates
+  useEffect(() => {
+    if (!companyId) return;
+
+    const channel = supabase
+      .channel(`tasks-realtime-${companyId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `company_id=eq.${companyId}`,
+        },
+        () => {
+          // Refetch on any change (INSERT, UPDATE, DELETE)
+          fetchTasks();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [companyId, fetchTasks]);
 
   return {
     tasks,
