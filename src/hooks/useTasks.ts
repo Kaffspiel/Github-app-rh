@@ -627,7 +627,7 @@ export function useTasks() {
     prevTaskIdsRef.current = new Set(tasks.map(t => t.id));
   }, [tasks]);
 
-  // Realtime subscription for live updates
+  // Realtime subscription for live updates (tasks + checklist items)
   useEffect(() => {
     if (!companyId) return;
 
@@ -642,7 +642,18 @@ export function useTasks() {
           filter: `company_id=eq.${companyId}`,
         },
         () => {
-          // Refetch on any change (INSERT, UPDATE, DELETE)
+          fetchTasks();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_checklist_items',
+        },
+        () => {
+          // Refetch to update checklist state and progress
           fetchTasks();
         }
       )
