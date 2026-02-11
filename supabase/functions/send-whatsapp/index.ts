@@ -54,16 +54,18 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (!emp?.whatsapp_number) {
+        console.log(`Employee ${employeeId} has no WhatsApp number, skipping notification`);
         return new Response(
-          JSON.stringify({ success: false, error: "Employee has no WhatsApp number" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ success: false, skipped: true, error: "Employee has no WhatsApp number" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       if (!emp.whatsapp_verified || !emp.notify_whatsapp) {
+        console.log(`Employee ${employeeId}: WhatsApp not verified or notifications disabled, skipping`);
         return new Response(
-          JSON.stringify({ success: false, error: "WhatsApp not verified or notifications disabled" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ success: false, skipped: true, error: "WhatsApp not verified or notifications disabled" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
