@@ -250,8 +250,7 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                             {routine.description && (
                                                 <p className="text-sm text-gray-500 mb-3">{routine.description}</p>
                                             )}
-                                            <ScrollArea className="max-h-60">
-                                                <div className="space-y-2 pr-3">
+                                            <div className="max-h-60 overflow-y-auto pr-1 space-y-2">
                                                     {routine.checklist.length > 0 ? (
                                                         routine.checklist.map(item => (
                                                             <div key={item.id} className="flex items-center gap-2">
@@ -269,8 +268,7 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                                             Checklist vazio (sem itens)
                                                         </div>
                                                     )}
-                                                </div>
-                                            </ScrollArea>
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 ))}

@@ -695,28 +695,26 @@ export function TaskManagement() {
                       <span className="text-xs text-gray-500">{selectedTask.progress}% Concluído</span>
                     </div>
                     <Progress value={selectedTask.progress} className="h-2 mb-3" />
-                    <ScrollArea className="max-h-64">
-                      <div className="space-y-2 pr-3">
-                        {selectedTask.checklist.map((item) => (
-                          <div key={item.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100 transition-colors">
-                            <Checkbox
-                              id={`todo-${item.id}`}
-                              checked={item.completed}
-                              onCheckedChange={() => handleChecklistToggle(selectedTask.id, item.id, item.completed)}
-                            />
-                            <label
-                              htmlFor={`todo-${item.id}`}
-                              className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
-                            >
-                              {item.text}
-                            </label>
-                          </div>
-                        ))}
-                        {selectedTask.checklist.length === 0 && (
-                          <p className="text-sm text-gray-400 italic">Nenhum item no checklist</p>
-                        )}
-                      </div>
-                    </ScrollArea>
+                    <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
+                      {selectedTask.checklist.map((item) => (
+                        <div key={item.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100 transition-colors">
+                          <Checkbox
+                            id={`todo-${item.id}`}
+                            checked={item.completed}
+                            onCheckedChange={() => handleChecklistToggle(selectedTask.id, item.id, item.completed)}
+                          />
+                          <label
+                            htmlFor={`todo-${item.id}`}
+                            className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
+                          >
+                            {item.text}
+                          </label>
+                        </div>
+                      ))}
+                      {selectedTask.checklist.length === 0 && (
+                        <p className="text-sm text-gray-400 italic">Nenhum item no checklist</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex gap-2 justify-end pt-4 border-t items-center">
