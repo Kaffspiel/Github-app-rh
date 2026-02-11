@@ -45,12 +45,30 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Found ${overdueTasks.length} overdue tasks`);
 
-    // Update status to 'atrasada'
+    // Update status to 'atrasada' and mark as notified BEFORE sending notifications
     const overdueIds = overdueTasks.map(t => t.id);
-    await supabase
+    const { error: updateError, data: updatedRows } = await supabase
       .from("tasks")
       .update({ status: "atrasada", overdue_notified_at: new Date().toISOString() })
-      .in("id", overdueIds);
+      .in("id", overdueIds)
+      .select("id");
+
+    if (updateError) {
+      console.error("CRITICAL: Failed to update overdue_notified_at, aborting notifications to prevent duplicates:", updateError);
+      throw updateError;
+    }
+
+    // Only notify for tasks that were actually updated (prevents duplicate notifications)
+    const updatedIds = new Set((updatedRows || []).map(r => r.id));
+    const tasksToNotify = overdueTasks.filter(t => updatedIds.has(t.id));
+    console.log(`Updated ${updatedIds.size} tasks, will notify for ${tasksToNotify.length}`);
+
+    if (tasksToNotify.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, message: "Tasks updated but no notifications needed", count: overdueIds.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Send WhatsApp notifications to assignees and managers
     let notificationsSent = 0;
@@ -92,7 +110,7 @@ Deno.serve(async (req: Request) => {
         return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
       };
 
-      for (const task of overdueTasks) {
+      for (const task of tasksToNotify) {
         const assignee = task.assignee as any;
         if (!assignee?.whatsapp_number || !assignee?.whatsapp_verified || !assignee?.notify_whatsapp) continue;
 
