@@ -199,6 +199,7 @@ export function useTasks() {
             sort_order: c.sort_order,
           })),
           comments_count: taskCommentsCount,
+          extension_status: task.extension_status as Task['extension_status'],
         };
       });
 
