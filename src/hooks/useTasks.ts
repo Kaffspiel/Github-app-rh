@@ -73,6 +73,8 @@ export function useTasks() {
   const { toast } = useToast();
   const { notifyTaskAssigned, notifyTaskCreated, notifyTaskUpdated, notifyTaskCompleted } = useTaskNotifications();
 
+  const hasFetchedOnce = useRef(false);
+
   const fetchTasks = useCallback(async () => {
     if (!companyId) {
       setTasks([]);
@@ -81,7 +83,10 @@ export function useTasks() {
     }
 
     try {
-      setIsLoading(true);
+      // Only show loading spinner on initial fetch
+      if (!hasFetchedOnce.current) {
+        setIsLoading(true);
+      }
       setError(null);
 
       // Fetch tasks with assignee and creator info
@@ -208,6 +213,7 @@ export function useTasks() {
       });
     } finally {
       setIsLoading(false);
+      hasFetchedOnce.current = true;
     }
   }, [companyId, toast]);
 
