@@ -838,6 +838,7 @@ export type Database = {
           extension_status: string | null
           id: string
           is_daily_routine: boolean
+          overdue_notified_at: string | null
           priority: string
           progress: number
           status: string
@@ -854,6 +855,7 @@ export type Database = {
           extension_status?: string | null
           id?: string
           is_daily_routine?: boolean
+          overdue_notified_at?: string | null
           priority?: string
           progress?: number
           status?: string
@@ -870,6 +872,7 @@ export type Database = {
           extension_status?: string | null
           id?: string
           is_daily_routine?: boolean
+          overdue_notified_at?: string | null
           priority?: string
           progress?: number
           status?: string
