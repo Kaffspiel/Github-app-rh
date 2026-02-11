@@ -339,7 +339,7 @@ export function TaskManagement() {
   };
 
   const TaskCard = ({ task }: { task: Task }) => (
-    <Card className={`${getPriorityColor(task.priority)} hover:shadow-md transition-shadow h-[420px] flex flex-col`}>
+    <Card className={`${getPriorityColor(task.priority)} hover:shadow-md transition-all duration-300 h-[420px] flex flex-col ${task._isNew ? 'animate-fade-in ring-2 ring-primary/40' : ''}`}>
       <CardHeader className="pb-3 shrink-0">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
