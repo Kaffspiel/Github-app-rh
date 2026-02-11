@@ -61,6 +61,7 @@ export function TaskManagement() {
   const [newRoutine, setNewRoutine] = useState({ title: "", description: "", priority: "média" });
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("minhas");
 
   // Get current employee info
   const currentEmployee = employees.find(e => e.email === user?.email);
@@ -883,7 +884,7 @@ export function TaskManagement() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="minhas" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full justify-start overflow-x-auto flex-nowrap h-auto p-1 gap-2 md:grid md:grid-cols-5 md:gap-0">
           <TabsTrigger value="minhas">
             Minhas Tarefas
