@@ -112,7 +112,7 @@ export const notificationService = {
 
     const whatsapp = employee.whatsapp;
     let hasValidPhone = false;
-    if (whatsapp?.number) {
+    if (whatsapp && whatsapp.number) {
       hasValidPhone = this.isValidBrazilianPhone(whatsapp.number);
     }
 
