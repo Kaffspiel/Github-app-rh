@@ -233,7 +233,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
   // Gera ID único
   const generateId = useCallback(() => {
-    return `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return crypto.randomUUID();
   }, []);
 
   // Busca colaborador por ID
@@ -279,6 +279,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       // Persist in Supabase
       if (currentCompanyId) {
         supabase.from('notifications').insert({
+          id: notification.id,
           type: params.type as any,
           title: params.title,
           message: params.message,

@@ -290,6 +290,8 @@ export function useTasks() {
               taskTitle: input.title,
               assigneeId: input.assignee_id,
               assigneeName: assignee.name,
+              dueDate: input.due_date,
+              priority: input.priority,
               senderName: currentEmployee?.name,
             });
           }
@@ -376,6 +378,8 @@ export function useTasks() {
               taskTitle: input.title || currentTask.title,
               assigneeId: input.assignee_id,
               assigneeName: assignee.data.name,
+              dueDate: input.due_date || currentTask.due_date,
+              priority: input.priority || currentTask.priority,
               senderName: currentEmployee?.data?.name,
             });
           }
@@ -622,7 +626,7 @@ export function useTasks() {
     if (tasks.length > 0 && prevTaskIdsRef.current.size > 0) {
       const newTasks = tasks.filter(t => !prevTaskIdsRef.current.has(t.id) && !t._isNew);
       if (newTasks.length > 0) {
-        setTasks(prev => prev.map(t => 
+        setTasks(prev => prev.map(t =>
           newTasks.some(nt => nt.id === t.id) ? { ...t, _isNew: true } : t
         ));
         // Clear animation flag after animation completes

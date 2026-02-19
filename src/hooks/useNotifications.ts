@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useNotificationContext } from "@/context/NotificationContext";
+import { supabase } from "@/integrations/supabase/client";
 import { notificationService } from "@/services/notificationService";
 import type {
   NotificationType,
@@ -62,8 +63,47 @@ export const useNotifications = () => {
 
   // Notificação genérica
   const notify = useCallback(
-    (params: NotifyParams) => {
-      const employee = getEmployeeById(params.recipientId);
+    async (params: NotifyParams) => {
+      let employee = getEmployeeById(params.recipientId);
+
+      // Fallback: busca direta no Supabase se não estiver no cache
+      if (!employee) {
+        console.log(`Employee ${params.recipientId} not found in cache, fetching from Supabase...`);
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', params.recipientId)
+          .maybeSingle();
+
+        if (data && !error) {
+          // Mapeamento mínimo necessário para as notificações
+          employee = {
+            id: data.id,
+            name: data.name,
+            role: data.role as any,
+            email: data.email || "",
+            phone: data.whatsapp_number || "",
+            whatsapp: {
+              number: data.whatsapp_number || "",
+              isVerified: data.whatsapp_verified || false,
+            },
+            notificationPreferences: {
+              enableEmail: false,
+              enableWhatsApp: data.notify_whatsapp || false,
+              enableInApp: data.notify_in_app || true,
+              quietHoursStart: data.quiet_hours_start || "22:00",
+              quietHoursEnd: data.quiet_hours_end || "07:00",
+              categories: {
+                tasks: data.notify_tasks || true,
+                timeTracking: data.notify_time_tracking || true,
+                reminders: data.notify_reminders || true,
+                announcements: data.notify_announcements || true
+              }
+            }
+          } as any;
+        }
+      }
+
       if (!employee) {
         console.warn(`Employee not found: ${params.recipientId}`);
         return null;

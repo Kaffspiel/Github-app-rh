@@ -110,8 +110,13 @@ export const notificationService = {
       allowedChannels.push("in_app");
     }
 
-    // WhatsApp se habilitado e fora do horário silencioso
-    if (prefs.enableWhatsApp && !inQuietHours && employee.whatsapp.isVerified) {
+    const whatsapp = employee.whatsapp;
+    let hasValidPhone = false;
+    if (whatsapp?.number) {
+      hasValidPhone = this.isValidBrazilianPhone(whatsapp.number);
+    }
+
+    if (prefs.enableWhatsApp && !inQuietHours && (whatsapp?.isVerified || hasValidPhone)) {
       allowedChannels.push("whatsapp");
     }
 

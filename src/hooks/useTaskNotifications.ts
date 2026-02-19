@@ -6,7 +6,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 export function useTaskNotifications() {
   const { user } = useAuth();
 
-  const { notifyTask } = useNotifications();
+  const { notifyTask, notify } = useNotifications();
 
   // Notify collaborator when task is assigned
   const notifyTaskAssigned = useCallback(async (params: {
@@ -14,6 +14,8 @@ export function useTaskNotifications() {
     taskTitle: string;
     assigneeId: string;
     assigneeName: string;
+    dueDate?: string;
+    priority?: string;
     senderName?: string;
   }) => {
     try {
@@ -22,8 +24,8 @@ export function useTaskNotifications() {
         task: {
           id: params.taskId,
           title: params.taskTitle,
-          dueDate: "", // Optional in notification
-          priority: "média", // Defaults if not passed, or we could fetch
+          dueDate: params.dueDate || "",
+          priority: params.priority || "média",
           assignee: params.assigneeName
         } as any, // Partial task object is sufficient for the template
         recipientId: params.assigneeId,
@@ -113,7 +115,7 @@ export function useTaskNotifications() {
       if (managers) {
         managers.forEach(manager => {
           // Use generic notify for routine_item_completed
-          useNotifications().notify({
+          notify({
             type: 'routine_item_completed',
             recipientId: manager.id,
             variables: {
