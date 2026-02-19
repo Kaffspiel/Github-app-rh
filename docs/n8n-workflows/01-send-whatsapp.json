@@ -57,23 +57,8 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "keypair",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "number",
-              "value": "={{ $json.body.number || $json.body.recipientPhone || $json.body.number || '5511999999999' }}"
-            },
-            {
-              "name": "text",
-              "value": "={{ $json.body.text?.message || $json.body.message || 'Mensagem do OpsControl' }}"
-            },
-            {
-              "name": "delay",
-              "value": 1200
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.body.number || $json.body.recipientPhone || '5511999999999' }}\",\n  \"text\": \"{{ $json.body.text?.message || $json.body.message || 'Mensagem do OpsControl' }}\",\n  \"delay\": 1200,\n  \"metadata\": {{ JSON.stringify($json.body.metadata || {}) }}\n}",
         "options": {}
       },
       "id": "send-text",
@@ -99,31 +84,8 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "keypair",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "number",
-              "value": "={{ $json.body.number || $json.body.recipientPhone || $json.body.number || '5511999999999' }}"
-            },
-            {
-              "name": "title",
-              "value": "={{ $json.body.buttons?.title || $json.body.title || 'Título' }}"
-            },
-            {
-              "name": "description",
-              "value": "={{ $json.body.buttons?.description || $json.body.message || '' }}"
-            },
-            {
-              "name": "footer",
-              "value": "={{ $json.body.buttons?.footer || 'OpsControl' }}"
-            },
-            {
-              "name": "buttons",
-              "value": "={{ $json.body.buttons?.buttons || [] }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.body.number || $json.body.recipientPhone || '5511999999999' }}\",\n  \"title\": \"{{ $json.body.buttons?.title || $json.body.title || 'Título' }}\",\n  \"description\": \"{{ $json.body.buttons?.description || $json.body.message || '' }}\",\n  \"footer\": \"{{ $json.body.buttons?.footer || 'OpsControl' }}\",\n  \"buttons\": {{ JSON.stringify($json.body.buttons?.buttons || []) }},\n  \"metadata\": {{ JSON.stringify($json.body.metadata || {}) }}\n}",
         "options": {}
       },
       "id": "send-buttons",
@@ -137,6 +99,45 @@
     },
     {
       "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.OPSCONTROL_URL || 'https://nnmrlucwrzoqkwzytbbl.supabase.co' }}/rest/v1/notifications?id=eq.{{ $node[\"Webhook (OpsControl)\"].json.body.metadata?.notificationId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.OPSCONTROL_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($env.OPSCONTROL_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...') }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"sent\",\n  \"sent_at\": \"{{ new Date().toISOString() }}\",\n  \"whatsapp_message_id\": \"{{ $json.key?.id || $json.id || '' }}\",\n  \"whatsapp_status\": \"sent\"\n}",
+        "options": {}
+      },
+      "id": "update-supabase",
+      "name": "Atualizar Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        64,
+        272
+      ]
+    },
+    {
+      "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { \"success\": true, \"messageId\": $json.key?.id || 'sent', \"timestamp\": new Date().toISOString() } }}",
         "options": {}
@@ -146,7 +147,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        50,
+        288,
         272
       ]
     },
@@ -209,7 +210,7 @@
       "main": [
         [
           {
-            "node": "Responder Sucesso",
+            "node": "Atualizar Supabase",
             "type": "main",
             "index": 0
           }
@@ -217,6 +218,17 @@
       ]
     },
     "Enviar WhatsApp (Botões)": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Supabase": {
       "main": [
         [
           {
