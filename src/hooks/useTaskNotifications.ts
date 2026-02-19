@@ -131,14 +131,30 @@ export function useTaskNotifications() {
     }
   }, []);
 
-  // Notify manager when task is overdue
+  // Notify manager and collaborator when task is overdue
   const notifyTaskOverdue = useCallback(async (params: {
     taskId: string;
     taskTitle: string;
     employeeName: string;
+    assigneeId: string; // Adicionado assigneeId
     companyId: string;
+    dueDate: string; // Adicionado dueDate
   }) => {
     try {
+      // 1. Notify the collaborator responsible for the task
+      notifyTask({
+        task: {
+          id: params.taskId,
+          title: params.taskTitle,
+          dueDate: params.dueDate,
+          assignee: params.employeeName
+        } as any,
+        recipientId: params.assigneeId,
+        type: "task_overdue",
+        senderName: "Sistema"
+      });
+
+      // 2. Notify managers
       const { data: managers } = await supabase
         .from('employees')
         .select('id')
@@ -147,12 +163,19 @@ export function useTaskNotifications() {
 
       if (managers) {
         managers.forEach(manager => {
-          notifyTask({
-            task: { id: params.taskId, title: params.taskTitle } as any,
-            recipientId: manager.id,
-            type: "task_overdue",
-            senderName: "Sistema"
-          });
+          if (manager.id !== params.assigneeId) { // Evita duplicar se o gestor for o responsável
+            notifyTask({
+              task: {
+                id: params.taskId,
+                title: params.taskTitle,
+                dueDate: params.dueDate,
+                assignee: params.employeeName
+              } as any,
+              recipientId: manager.id,
+              type: "task_overdue",
+              senderName: "Sistema"
+            });
+          }
         });
       }
     } catch (err) {

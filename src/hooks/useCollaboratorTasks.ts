@@ -92,26 +92,47 @@ export function useCollaboratorTasks() {
       // Check for overdue tasks
       const now = new Date();
       const updatesPromises = (tasksData || []).map(async (task) => {
-        if (task.status !== 'concluido' && task.status !== 'atrasada' && task.due_date) {
+        if (task.status !== 'concluido' && task.due_date) {
           const dueDate = new Date(task.due_date);
-          if (dueDate < now) {
-            // Update status to 'atrasada'
-            await supabase
-              .from('tasks')
-              .update({ status: 'atrasada' })
-              .eq('id', task.id);
 
-            // Notify manager
-            if (employee.company_id) {
-              notifyTaskOverdue({
-                taskId: task.id,
-                taskTitle: task.title,
-                employeeName: employee.name,
-                companyId: employee.company_id
-              });
+          if (dueDate < now) {
+            // Se ainda não foi notificada como vencida
+            if (!task.overdue_notified_at) {
+              // 1. Notificar gestor e colaborador
+              if (employee.company_id) {
+                notifyTaskOverdue({
+                  taskId: task.id,
+                  taskTitle: task.title,
+                  employeeName: employee.name,
+                  assigneeId: employee.id, // Responsável
+                  companyId: employee.company_id,
+                  dueDate: task.due_date
+                });
+              }
+
+              // 2. Marcar como notificada
+              await supabase
+                .from('tasks')
+                .update({ overdue_notified_at: now.toISOString() })
+                .eq('id', task.id);
+
+              return { ...task, overdue_notified_at: now.toISOString() };
             }
 
-            return { ...task, status: 'atrasada' };
+            // Se já foi notificada, verificar se passaram 10 minutos para mudar status para 'atrasada'
+            if (task.status !== 'atrasada') {
+              const notifiedAt = new Date(task.overdue_notified_at);
+              const tenMinutesInMs = 10 * 60 * 1000;
+
+              if (now.getTime() - notifiedAt.getTime() > tenMinutesInMs) {
+                await supabase
+                  .from('tasks')
+                  .update({ status: 'atrasada' })
+                  .eq('id', task.id);
+
+                return { ...task, status: 'atrasada' };
+              }
+            }
           }
         }
         return task;

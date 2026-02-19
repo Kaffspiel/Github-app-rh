@@ -145,12 +145,13 @@ export const defaultTemplates: MessageTemplate[] = [
   {
     id: "task_overdue",
     type: "task_overdue",
-    name: "Tarefa Atrasada",
-    textTemplate: "⚠️ Atenção {{nome}}! A tarefa abaixo está atrasada:\n\n*{{tarefa}}*\n\nPrazo era: {{prazo}}",
+    name: "Tarefa Vencida",
+    textTemplate: "⚠️ *Tarefa Vencida*\n\n📋 *Tarefa:* {{tarefa}}\n👤 *Responsável:* {{responsavel}}\n📅 *Prazo:* {{prazo}}\n\nVocê concluiu esta tarefa? (Responda com *Sim* ou *Não*)",
     buttonsTemplate: {
-      title: "Ação necessária:",
+      title: "Confirmar conclusão:",
       buttons: [
-        { id: "ver", title: "Ver Tarefa", action: "open_task" },
+        { id: "sim", title: "Sim", action: "confirm" },
+        { id: "nao", title: "Não", action: "reject" },
       ],
     },
     defaultPriority: "high",

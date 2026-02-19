@@ -60,18 +60,20 @@ serve(async (req: Request) => {
     console.log("Employee lookup result:", employee ? `${employee.name} (${employee.role})` : "not found");
 
     // 2. Vincular Notificação (se existir contexto)
-    let notificationId: string | null = null;
+    let contextNotification: any = null;
     if (employee) {
       const { data: recentNotif } = await supabase
         .from("notifications")
-        .select("id")
+        .select("*")
         .eq("recipient_phone", payload.phone)
         .in("status", ["sent", "delivered"])
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
-      if (recentNotif) notificationId = recentNotif.id;
+        .maybeSingle();
+
+      contextNotification = recentNotif;
     }
+    const notificationId = contextNotification?.id || null;
 
     // 3. Salvar Resposta no Banco
     const { data: responseRecord, error: insertError } = await supabase
@@ -229,8 +231,51 @@ serve(async (req: Request) => {
       }
     }
 
-    // 5. Lógica Legada: Respostas de Botão
-    if (payload.responseType === "button" && notificationId) {
+    // 5. Lógica Interativa: Respostas de "Tarefa Vencida"
+    if (employee && contextNotification?.type === "task_overdue") {
+      const response = payload.responseValue.toLowerCase().trim();
+      const taskId = contextNotification.related_entity_id;
+
+      // @ts-ignore: Deno global
+      const evolutionUrl = Deno.env.get("EVOLUTION_URL");
+      // @ts-ignore: Deno global
+      const evolutionKey = Deno.env.get("EVOLUTION_KEY");
+
+      const sendReply = async (text: string) => {
+        if (evolutionUrl && evolutionKey) {
+          const sendUrl = `${evolutionUrl}/message/sendText/${payload.instance}`;
+          await fetch(sendUrl, {
+            method: "POST",
+            headers: { "apikey": evolutionKey, "Content-Type": "application/json" },
+            body: JSON.stringify({ number: cleanPhone, text })
+          });
+        }
+      };
+
+      if (response === "sim" || payload.responseValue === "sim") {
+        if (taskId) {
+          const { error: updateError } = await supabase
+            .from("tasks")
+            .update({ status: "concluido", progress: 100 })
+            .eq("id", taskId);
+
+          if (!updateError) {
+            actionTaken = "task_completed_via_whatsapp";
+            await sendReply("✅ Que bom! Já marquei a tarefa como concluída no sistema. Parabéns! 🚀");
+          }
+        }
+      } else if (response === "não" || response === "nao" || payload.responseValue === "nao") {
+        actionTaken = "task_overdue_not_completed";
+        await sendReply("Entendido. Lembre-se que você tem 10 minutos para concluir antes que ela seja marcada como atrasada. Precisa de mais prazo? Solicite a prorrogação pelo App.");
+      } else {
+        // Resposta inválida para o contexto de tarefa vencida
+        actionTaken = "invalid_response_to_overdue";
+        await sendReply("Desculpe, não entendi sua resposta. Para esta tarefa, responda com *Sim* ou *Não*. Para outros assuntos, por favor utilize o App.");
+      }
+    }
+
+    // 6. Lógica Legada: Respostas de Botão
+    if (payload.responseType === "button" && notificationId && actionTaken === "none") {
       await supabase
         .from("notifications")
         .update({ status: "read", read_at: new Date().toISOString() })
