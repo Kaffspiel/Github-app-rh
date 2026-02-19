@@ -110,10 +110,10 @@ export const notificationService = {
       allowedChannels.push("in_app");
     }
 
-    const whatsapp = employee.whatsapp;
+    const whatsapp = employee?.whatsapp;
     let hasValidPhone = false;
-    if (whatsapp && whatsapp.number) {
-      hasValidPhone = this.isValidBrazilianPhone(whatsapp.number);
+    if (whatsapp !== undefined && whatsapp !== null && whatsapp.number) {
+      hasValidPhone = notificationService.isValidBrazilianPhone(whatsapp.number);
     }
 
     if (prefs.enableWhatsApp && !inQuietHours && (whatsapp?.isVerified || hasValidPhone)) {
