@@ -8,16 +8,20 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Arquivo CORS compartilhado:** `supabase/functions/_shared/cors.ts`
 
+**Total de Functions:** 11
+
 ---
 
 ## 1. create-user
 
 **Endpoint:** `POST /functions/v1/create-user`
 
-**Descrição:** Cria um novo usuário (auth + employee + user_role). Usado pelo Admin Master para adicionar admins/gestores e por admins para adicionar colaboradores.
+**Descrição:** Cria um novo usuário (auth + employee + user_role). Usado pelo Admin Master para adicionar admins/gestores e por admins/gestores para adicionar colaboradores.
+
+**Runtime:** `serve()` de `deno.land/std@0.190.0` + `@supabase/supabase-js@2.49.4`
 
 **Headers Requeridos:**
-- `Authorization: Bearer <token>` (token do admin autenticado)
+- `Authorization: Bearer <token>` (token do admin/gestor autenticado)
 
 **Payload:**
 ```json
@@ -27,31 +31,37 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
   "name": "Nome do Usuário",
   "role": "admin" | "gestor" | "colaborador",
   "companyId": "uuid-da-empresa",
-  "department": "Departamento"
+  "department": "Departamento",
+  "employeeId": "uuid-opcional (para vincular a employee existente)"
 }
 ```
 
 **Lógica:**
-1. Valida autenticação do solicitante via header `Authorization`
-2. Verifica se solicitante é admin/admin_master na tabela `user_roles`
-3. Verifica se pertence à mesma empresa (exceto admin_master)
+1. Valida autenticação do solicitante via header `Authorization` (extrai token explicitamente para `getUser(token)`)
+2. Verifica se solicitante é admin/admin_master/gestor na tabela `user_roles` (usa `maybeSingle()`)
+3. **Permissões por role:**
+   - `admin_master`: pode criar qualquer role para qualquer empresa
+   - `admin`: pode criar admin, gestor, colaborador para sua empresa
+   - `gestor`: pode criar **apenas colaboradores** para sua empresa
 4. Cria usuário no Supabase Auth (com `email_confirm: true`)
 5. Insere registro em `user_roles` com role e company_id
-6. Cria/atualiza registro em `employees` com dados do formulário
+6. Se `employeeId` fornecido: **atualiza** employee existente com `user_id` e `role`
+7. Se não: **cria** novo registro em `employees` com dados do formulário
 
 **Resposta (sucesso):**
 ```json
 {
   "success": true,
-  "userId": "uuid",
-  "message": "Usuário criado com sucesso"
+  "message": "Usuário criado com sucesso",
+  "user": { "id": "uuid", "email": "...", "name": "...", "role": "admin" }
 }
 ```
 
 **Erros comuns:**
-- `401`: Token ausente ou inválido
-- `403`: Sem permissão (não é admin/admin_master)
-- `400`: Email já existe ou dados inválidos
+- `401`: Token ausente ou inválido / Usuário sem permissões
+- `400`: Email já existe, dados inválidos, senha < 6 chars, gestor tentando criar não-colaborador
+
+**Rollback:** Se falhar ao inserir `user_roles`, o Auth user é deletado via `admin.deleteUser()`
 
 ---
 
@@ -60,6 +70,8 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 **Endpoint:** `POST /functions/v1/reset-user-password`
 
 **Descrição:** Redefine a senha de um usuário. Apenas admins podem executar.
+
+**Runtime:** `serve()` de `deno.land/std@0.190.0` + `@supabase/supabase-js@2.49.4`
 
 **Headers Requeridos:**
 - `Authorization: Bearer <token>`
@@ -73,9 +85,9 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 ```
 
 **Lógica:**
-1. Valida autenticação via header
-2. Verifica se é admin ou admin_master
-3. Se admin, verifica se o alvo pertence à mesma empresa
+1. Valida autenticação via header (usa `getUser()` sem token explícito)
+2. Verifica se é admin ou admin_master via `user_roles` (usa `maybeSingle()`)
+3. Se admin, verifica se o alvo pertence à mesma empresa (busca `user_roles` do alvo)
 4. Reseta a senha via `auth.admin.updateUserById`
 
 **Validações:**
@@ -89,7 +101,9 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Endpoint:** `POST /functions/v1/update-user-email`
 
-**Descrição:** Atualiza o email de um usuário. Requer permissão de admin.
+**Descrição:** Atualiza o email de um usuário no Supabase Auth. Requer permissão de admin.
+
+**Runtime:** `serve()` de `deno.land/std@0.190.0` + `@supabase/supabase-js@2.49.4`
 
 **Headers Requeridos:**
 - `Authorization: Bearer <token>`
@@ -103,9 +117,9 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 ```
 
 **Lógica:**
-1. Valida autenticação e permissão (admin/admin_master)
-2. Atualiza email no Supabase Auth via `auth.admin.updateUserById`
-3. Atualiza email na tabela `employees`
+1. Valida autenticação e permissão (admin/admin_master) — extrai token explicitamente para `getUser(token)`
+2. Atualiza email no Supabase Auth via `auth.admin.updateUserById` (com `email_confirm: true`)
+3. **Nota:** NÃO atualiza automaticamente a tabela `employees` (apenas Auth)
 
 ---
 
@@ -114,6 +128,8 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 **Endpoint:** `POST /functions/v1/send-whatsapp`
 
 **Descrição:** Envia mensagem de texto via WhatsApp usando a Evolution API. Inclui controle de horário de trabalho.
+
+**Runtime:** `Deno.serve()` (nativo) + `_shared/cors.ts`
 
 **Secrets Necessários:** `EVOLUTION_URL`, `EVOLUTION_KEY`
 
@@ -132,17 +148,19 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 **Lógica:**
 1. Se `employeeId` fornecido e sem `phone`:
    - Busca número WhatsApp do colaborador na tabela `employees`
+   - Seleciona: `whatsapp_number, whatsapp_verified, notify_whatsapp, work_schedule_start`
    - Verifica se `whatsapp_verified = true` e `notify_whatsapp = true`
    - Verifica horário de trabalho via `isWithinWorkHours()`
 2. Se `phone` fornecido com `employeeId`: verifica horário de trabalho
-3. Limpa telefone (remove não-dígitos)
-4. Envia via Evolution API (`POST /message/sendText/teste`)
-5. Retorna `messageId` da Evolution
+3. Se `phone` fornecido sem `employeeId`: envia direto sem verificações
+4. Limpa telefone (remove não-dígitos)
+5. Envia via Evolution API (`POST /message/sendText/teste`)
+6. Retorna `messageId` da Evolution (`result.key.id`)
 
 **Controle de Horário (`isWithinWorkHours`):**
 - Usa `work_schedule_start` do colaborador (padrão: `09:00`)
 - Jornada padrão: 9 horas
-- Fuso: UTC-3 (Brasil)
+- Fuso: UTC-3 (Brasil) — `new Date(now.getTime() - 3 * 60 * 60 * 1000)`
 - Fórmula: `currentMinutes >= startMinutes && currentMinutes <= endMinutes`
 
 **Resposta (sucesso):**
@@ -162,13 +180,24 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 }
 ```
 
+**Resposta (sem número/notificações desabilitadas):**
+```json
+{
+  "success": false,
+  "skipped": true,
+  "error": "Employee has no WhatsApp number"
+}
+```
+
 ---
 
 ## 5. send-notification
 
 **Endpoint:** `POST /functions/v1/send-notification`
 
-**Descrição:** Envia notificação via WhatsApp e registra no banco de dados. Suporta mensagens com texto simples ou botões interativos.
+**Descrição:** Envia notificação via WhatsApp e registra no banco de dados. Suporta mensagens com botões (convertidos para texto automaticamente).
+
+**Runtime:** `serve()` de `deno.land/std@0.168.0` + `@supabase/supabase-js@2`
 
 **Secrets Necessários:** `EVOLUTION_URL`, `EVOLUTION_KEY`
 
@@ -195,13 +224,20 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 ```
 
 **Lógica:**
-1. Se `recipientId` fornecido, busca dados do employee
-2. Verifica preferências de notificação (`notify_whatsapp`, `whatsapp_verified`)
-3. Verifica quiet hours (`quiet_hours_start`, `quiet_hours_end`)
-4. Insere registro na tabela `notifications` (status: `pending`)
-5. Converte botões para texto (evita erros da API Evolution com botões)
-6. Envia via Evolution API (`POST /message/sendText/{instance}`)
-7. Atualiza status para `sent` (com `whatsapp_message_id`) ou `failed` (com `whatsapp_error`)
+1. Verifica credenciais Evolution (retorna 500 se não configuradas)
+2. Se `recipientId` fornecido, busca dados do employee (`select("*")`)
+3. Verifica preferências: `notify_whatsapp`, `whatsapp_verified`, `whatsapp_number`
+4. Verifica quiet hours (`quiet_hours_start`, `quiet_hours_end`) — suporta horários que cruzam meia-noite
+5. Insere registro na tabela `notifications` (status: `pending`, channel: `["whatsapp"]`)
+6. **Conversão de botões para texto:** Se `buttons` fornecidos, converte para formato textual:
+   ```
+   Opções disponíveis:
+   1 - Aceitar
+   2 - Recusar
+   (Responda com o número opção desejada)
+   ```
+7. Envia via Evolution API (`POST /message/sendText/{instance}`) com `delay: 1200`
+8. Atualiza status para `sent` (com `whatsapp_message_id`, `whatsapp_sent_at`, `sent_at`) ou `failed` (com `whatsapp_error`)
 
 **Tipos de Notificação (enum `notification_type`):**
 - `task_assigned` — Tarefa atribuída
@@ -224,6 +260,8 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Descrição:** Verifica tarefas vencidas, atualiza status para `atrasada` e envia alertas via WhatsApp. Projetada para ser chamada via cron job ou webhook externo periodicamente.
 
+**Runtime:** `Deno.serve()` (nativo) + `_shared/cors.ts`
+
 **Secrets Necessários:** `EVOLUTION_URL`, `EVOLUTION_KEY`
 
 **Instância Evolution:** `teste`
@@ -236,14 +274,15 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
    - `status IN ('pendente', 'andamento')`
    - `overdue_notified_at IS NULL`
    - `assignee_id IS NOT NULL`
-   - Join com `employees` para dados do responsável
-2. Atualiza status para `atrasada` e marca `overdue_notified_at` (UPDATE antes de notificar)
-3. Filtra apenas tarefas efetivamente atualizadas (proteção contra duplicatas via `updatedIds`)
+   - Join com `employees` via FK `tasks_assignee_id_fkey` (seleciona: `id, name, whatsapp_number, whatsapp_verified, notify_whatsapp`)
+2. Atualiza status para `atrasada` e marca `overdue_notified_at` (UPDATE **antes** de notificar — proteção contra duplicatas)
+3. Filtra apenas tarefas efetivamente atualizadas usando `Set` de `updatedIds`
 4. Para cada tarefa (se Evolution API configurada):
-   - Verifica horário de trabalho do responsável via `isWithinWorkHours()`
-   - Envia alerta WhatsApp ao responsável: `⚠️ Tarefa Atrasada!`
+   - Faz query adicional para buscar `work_schedule_start` do assignee
+   - Verifica horário de trabalho via `isWithinWorkHours()`
+   - Envia alerta WhatsApp ao responsável: `⚠️ Tarefa Atrasada!` com título e prazo
    - Busca gestores/admins da mesma empresa com `whatsapp_verified = true` e `notify_whatsapp = true`
-   - Envia alerta aos gestores (também verificando horário de trabalho)
+   - Envia alerta aos gestores (também verificando horário de trabalho individualmente)
 
 **Proteção contra duplicatas:**
 - Marca `overdue_notified_at` ANTES de enviar notificações
@@ -267,6 +306,8 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Descrição:** Gera resumo de progresso de tarefas e cria notificações in-app para gestores. Projetada para execução periódica (cron a cada 4h).
 
+**Runtime:** `serve()` de `deno.land/std@0.168.0` + `@supabase/supabase-js@2`
+
 **Query Parameters:**
 | Param | Tipo | Padrão | Descrição |
 |-------|------|--------|-----------|
@@ -274,17 +315,21 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 | `company_id` | uuid | null | Filtrar por empresa específica |
 
 **Lógica:**
-1. Busca `task_progress_logs` das últimas X horas (join com `employees` e `tasks`)
+1. Busca `task_progress_logs` das últimas X horas (join com `employees` e `tasks` via FKs explícitas)
 2. Agrupa por colaborador (`Map<employeeId, TaskProgressSummary>`):
-   - Contagem de tarefas concluídas (`completed`)
-   - Contagem de tarefas iniciadas (`started`)
-   - Contagem de itens de checklist marcados (`checklistItems`)
-   - Lista de ações recentes com detalhes
+   - `task_completed` → incrementa `completed`, adiciona ação "concluiu"
+   - `task_started` → incrementa `started`, adiciona ação "iniciou"
+   - `checklist_completed` → incrementa `checklistItems`, adiciona ação "marcou como feito" (com texto do item)
 3. Para cada empresa com atividade:
-   - Busca gestores/admins com `notify_tasks = true`
+   - Busca gestores/admins com `notify_tasks = true` **E** `notify_in_app = true`
    - Filtra resumos de funcionários da mesma empresa
    - Gera mensagem formatada com totais individuais e da empresa
-4. Insere notificações na tabela `notifications` (tipo: `task_completed`, canal: `in_app`)
+4. Insere notificações com:
+   - `type: "announcement"` (não `task_completed`)
+   - `channels: ["in_app"]`
+   - `status: "pending"`
+   - `in_app_status: "delivered"`
+   - `in_app_delivered_at: now()`
 
 **Resposta:**
 ```json
@@ -304,6 +349,8 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Descrição:** Recebe atualizações de status de mensagens WhatsApp da Evolution API. Chamada automaticamente pela Evolution via webhook configurado no n8n.
 
+**Runtime:** `serve()` de `deno.land/std@0.168.0` + `@supabase/supabase-js@2`
+
 **Payload (da Evolution API):**
 ```json
 {
@@ -317,12 +364,13 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 ```
 
 **Lógica:**
-1. Busca notificação pelo `whatsapp_message_id` na tabela `notifications`
-2. Se não encontrar, busca pela última notificação enviada ao telefone (`recipient_phone`)
+1. Busca notificação pelo `whatsapp_message_id` na tabela `notifications` (usa `single()`)
+2. Se não encontrar, busca pela última notificação enviada ao telefone com `whatsapp_status = 'sent'` (fallback)
 3. Atualiza campos conforme o status:
-   - `delivered` → `whatsapp_delivered_at`, `whatsapp_status = 'delivered'`
+   - `delivered` → `whatsapp_delivered_at`, `status = 'delivered'`
    - `read` → `whatsapp_read_at`, `read_at`, `whatsapp_status = 'read'`, `status = 'read'`
 4. Sempre atualiza `whatsapp_status` com o status recebido
+5. Também atualiza `whatsapp_message_id` no fallback (para rastreio futuro)
 
 ---
 
@@ -332,6 +380,8 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Descrição:** Recebe respostas de mensagens WhatsApp dos colaboradores. Inclui funcionalidade de criação de tarefas via IA (GPT-4o-mini) para gestores e lógica interativa para tarefas vencidas.
 
+**Runtime:** `serve()` de `deno.land/std@0.168.0` + `@supabase/supabase-js@2`
+
 **Secrets Necessários:** `OPENAI_API_KEY`, `EVOLUTION_URL`, `EVOLUTION_KEY`
 
 **Payload (da Evolution API via n8n):**
@@ -340,7 +390,7 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
   "messageId": "msg-id",
   "phone": "5511999999999",
   "pushName": "Nome WhatsApp",
-  "responseType": "text | button | audio_transcription",
+  "responseType": "text | button | list | audio_transcription",
   "responseValue": "Texto da mensagem ou transcrição",
   "timestamp": "ISO-8601",
   "instance": "teste",
@@ -366,28 +416,29 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 ### Etapa 4: Criação de Tarefas por IA (Gestores)
 **Condições:** `responseType IN ('text', 'audio_transcription')` + `employee.role IN ('admin', 'gestor')` + `OPENAI_API_KEY` configurada
 
-1. Busca lista de funcionários da empresa (`coworkers`)
+1. Busca lista de funcionários da empresa (`coworkers`) — `id, name` com `is_active = true`
 2. Busca nome da empresa
-3. Envia prompt para GPT-4o-mini com:
+3. Envia prompt para **GPT-4o-mini** (temperature: 0, `response_format: json_object`) com:
    - Mensagem do gestor
-   - Data e dia da semana atuais
+   - Data e dia da semana atuais (em português)
    - Lista de funcionários disponíveis (nome + ID)
+   - Regras para extrair horário específico (formato HH:MM)
 4. IA retorna JSON: `{ is_task, title, assignee_id, due_date, due_time }`
 5. Se `is_task = true` e `assignee_id` identificado:
-   - Converte horário BRT para UTC (+3h)
+   - Converte horário BRT para UTC (+3h) — padrão: `18:00` BRT se não especificado
    - Insere tarefa em `tasks` (status: `pendente`, prioridade: `média`)
-   - Envia confirmação ao gestor via WhatsApp
-   - Notifica colaborador responsável via WhatsApp
+   - Envia confirmação ao gestor via WhatsApp (usando `payload.instance` como instância)
+   - Notifica colaborador responsável via WhatsApp (se diferente do gestor)
 
 ### Etapa 5: Lógica Interativa (Tarefa Vencida)
 **Condição:** `contextNotification.type === 'task_overdue'`
 
-- Resposta `"sim"`: Marca tarefa como `concluido` (progress: 100) + envia confirmação
+- Resposta `"sim"`: Marca tarefa como `concluido` (progress: 100) + envia confirmação ✅
 - Resposta `"não"/"nao"`: Informa sobre prazo de 10min + sugere prorrogação pelo App
 - Outra resposta: Pede para responder com "Sim" ou "Não"
 
 ### Etapa 6: Lógica Legada (Botões)
-- Se `responseType === 'button'` e há `notificationId`: marca notificação como `read`
+- Se `responseType === 'button'` e há `notificationId` e `actionTaken === 'none'`: marca notificação como `read`
 
 ### Etapa Final
 - Atualiza `whatsapp_last_seen` do employee
@@ -396,7 +447,7 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 ```json
 {
   "success": true,
-  "action": "task_created | task_completed_via_whatsapp | button_processed | none",
+  "action": "task_created | task_completed_via_whatsapp | task_overdue_not_completed | invalid_response_to_overdue | button_processed | none",
   "confirmationMessage": "mensagem ou null",
   "employeeFound": true
 }
@@ -409,6 +460,8 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 **Endpoint:** `POST /functions/v1/parse-time-document`
 
 **Descrição:** Processa documentos de ponto (CSV, Excel, PDF) usando IA para extrair registros de horário estruturados. Usa Google Gemini como prioridade e OpenAI como fallback.
+
+**Runtime:** `serve()` de `deno.land/std@0.168.0` + XHR polyfill
 
 **Secrets Necessários:** `GOOGLE_AI_API_KEY` (prioridade) ou `OPENAI_API_KEY` (fallback)
 
@@ -423,37 +476,48 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Lógica:**
 1. Verifica disponibilidade das chaves de API (Gemini e/ou OpenAI)
-2. Tenta processar com Google Gemini (`gemini-1.5-flash`, max_tokens: 16000)
-3. Se Gemini falhar, tenta com OpenAI (`gpt-4o-mini`, max_tokens: 16000)
+2. Tenta processar com **Google Gemini** (`gemini-2.0-flash`, maxOutputTokens: **32000**, responseMimeType: `application/json`)
+   - Envia até **30.000 chars** do conteúdo
+3. Se Gemini falhar, tenta com **OpenAI** (`gpt-4o-mini`, max_tokens: **16000**)
+   - Envia até **25.000 chars** do conteúdo
 4. Prompt especializado para documentos de ponto brasileiro:
-   - Formato esperado: nome, data, entrada/saída (até 4 pares)
-   - Suporta registros diários (`records`) e acumulados (`accumulatedRecords`)
+   - **Tipo 1 (daily):** Registros diários com CPF, nome, data, batidas (array de HH:MM)
+   - **Tipo 2 (accumulated):** Resumo acumulado por colaborador (previstas, trabalhadas, abonos, saldo)
+   - Regras: separador CSV (`;` ou `,`), remoção de sufixos `(C)/(I)/(A)`, conversão de datas BR
 5. Extração robusta de JSON da resposta da IA:
    - Remove marcadores de Markdown
    - Limpa caracteres de controle
-   - `repairTruncatedJson()` para fechar estruturas incompletas
+   - `repairTruncatedJson()` para fechar estruturas incompletas (preserva apenas records completos)
 
 **Interfaces de Saída:**
 ```typescript
 interface TimeRecord {
-  employeeName: string;
-  date: string;       // YYYY-MM-DD
-  entry1?: string;    // HH:MM
-  exit1?: string;
-  entry2?: string;
-  exit2?: string;
-  entry3?: string;
-  exit3?: string;
-  entry4?: string;
-  exit4?: string;
+  externalEmployeeId: string;  // CPF (apenas números)
+  employeeName?: string;
+  date: string;                // YYYY-MM-DD
+  punches: string[];           // Array de HH:MM
 }
 
 interface AccumulatedRecord {
   employeeName: string;
-  totalWorkedHours?: string;
-  totalExpectedHours?: string;
-  balance?: string;
-  overtimeHours?: string;
+  predictedHours: string;      // "203:00"
+  workedHours: string;         // "184:31"
+  bonusHours: string;          // "13:29"
+  balance: string;             // "-04:56"
+}
+
+interface ParseResult {
+  success: boolean;
+  documentType: 'daily' | 'accumulated';
+  periodStart?: string;
+  periodEnd?: string;
+  companyName?: string;
+  records: TimeRecord[];
+  accumulatedRecords?: AccumulatedRecord[];
+  errors: { row: number; message: string }[];
+  totalRows: number;
+  suggestedMapping?: { ... };
+  provider?: string;           // "Google Gemini" | "OpenAI" | "OpenAI (fallback)"
 }
 ```
 
@@ -461,9 +525,12 @@ interface AccumulatedRecord {
 ```json
 {
   "success": true,
+  "documentType": "daily",
   "records": [...],
   "accumulatedRecords": [],
-  "errors": []
+  "errors": [],
+  "totalRows": 42,
+  "provider": "Google Gemini"
 }
 ```
 
@@ -474,6 +541,8 @@ interface AccumulatedRecord {
 **Endpoint:** `POST /functions/v1/setup-test-users`
 
 **Descrição:** Cria usuários de teste para uma empresa. Uso exclusivo para desenvolvimento/testes.
+
+**Runtime:** `serve()` de `deno.land/std@0.190.0` + `@supabase/supabase-js@2.49.4`
 
 **Payload:**
 ```json
@@ -492,7 +561,8 @@ interface AccumulatedRecord {
 **Lógica:**
 1. Para cada usuário de teste:
    - Cria no Supabase Auth (`admin.createUser` com `email_confirm: true`)
-   - Insere role em `user_roles`
+   - Se email já existe: pula com status `"already exists"`
+   - Insere role em `user_roles` (com `company_id` para roles não-admin_master)
    - Cria registro em `employees`
 
 ---
@@ -500,6 +570,8 @@ interface AccumulatedRecord {
 ## Configuração (supabase/config.toml)
 
 ```toml
+project_id = "nnmrlucwrzoqkwzytbbl"
+
 [functions.create-user]
 verify_jwt = false
 
@@ -544,11 +616,29 @@ verify_jwt = false
 |--------|-----------|-----------|
 | `SUPABASE_URL` | Todas | URL do projeto (auto-injetada) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Todas | Chave de serviço (auto-injetada) |
-| `SUPABASE_ANON_KEY` | reset-user-password | Chave pública |
+| `SUPABASE_ANON_KEY` | create-user, reset-user-password, update-user-email | Chave pública para client autenticado |
 | `EVOLUTION_URL` | send-whatsapp, send-notification, check-overdue-tasks, webhook-response | URL da Evolution API |
 | `EVOLUTION_KEY` | send-whatsapp, send-notification, check-overdue-tasks, webhook-response | API Key da Evolution |
 | `OPENAI_API_KEY` | webhook-response, parse-time-document (fallback) | Chave OpenAI (GPT-4o-mini) |
 | `GOOGLE_AI_API_KEY` | parse-time-document | Chave Google Gemini (prioridade) |
+
+---
+
+## Diferenças de Runtime
+
+| Function | Import Style | Serve |
+|----------|-------------|-------|
+| send-whatsapp | `_shared/cors.ts` | `Deno.serve()` |
+| check-overdue-tasks | `_shared/cors.ts` | `Deno.serve()` |
+| create-user | inline CORS, `jsr:@supabase/functions-js/edge-runtime.d.ts` | `serve()` std@0.190.0 |
+| update-user-email | inline CORS, `jsr:@supabase/functions-js/edge-runtime.d.ts` | `serve()` std@0.190.0 |
+| reset-user-password | inline CORS | `serve()` std@0.190.0 |
+| setup-test-users | inline CORS | `serve()` std@0.190.0 |
+| send-notification | inline CORS | `serve()` std@0.168.0 |
+| webhook-status | inline CORS | `serve()` std@0.168.0 |
+| webhook-response | inline CORS | `serve()` std@0.168.0 |
+| task-progress-summary | inline CORS | `serve()` std@0.168.0 |
+| parse-time-document | inline CORS + XHR polyfill | `serve()` std@0.168.0 |
 
 ---
 
@@ -586,6 +676,6 @@ verify_jwt = false
 │     → Notifica responsável + gestores via WhatsApp               │
 │                                                                   │
 │  task-progress-summary → Resumo de progresso                     │
-│     → Notificação in-app para gestores                           │
+│     → Notificação in-app para gestores (tipo: announcement)      │
 └──────────────────────────────────────────────────────────────────┘
 ```
