@@ -45,11 +45,11 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Found ${overdueTasks.length} overdue tasks`);
 
-    // Update status to 'atrasada' and mark as notified BEFORE sending notifications
+    // Mark as notified but DON'T change status yet — only changes to 'atrasada' if user replies 'Não'
     const overdueIds = overdueTasks.map(t => t.id);
     const { error: updateError, data: updatedRows } = await supabase
       .from("tasks")
-      .update({ status: "atrasada", overdue_notified_at: new Date().toISOString() })
+      .update({ overdue_notified_at: new Date().toISOString() })
       .in("id", overdueIds)
       .select("id");
 
