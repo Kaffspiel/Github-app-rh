@@ -45,7 +45,25 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Found ${overdueTasks.length} overdue tasks`);
 
-    // Mark as notified but DON'T change status yet — only changes to 'atrasada' if user replies 'Não'
+    // === AUTO-TIMEOUT: Mark tasks as 'atrasada' if no "Sim" response within 15 minutes ===
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: timedOutTasks } = await supabase
+      .from("tasks")
+      .select("id, title")
+      .not("overdue_notified_at", "is", null)
+      .lt("overdue_notified_at", fifteenMinAgo)
+      .in("status", ["pendente", "andamento"]);
+
+    if (timedOutTasks && timedOutTasks.length > 0) {
+      console.log(`Auto-marking ${timedOutTasks.length} tasks as atrasada (no response in 15min)`);
+      const timedOutIds = timedOutTasks.map(t => t.id);
+      await supabase
+        .from("tasks")
+        .update({ status: "atrasada" })
+        .in("id", timedOutIds);
+    }
+
+    // Mark as notified but DON'T change status yet — only changes to 'atrasada' if user replies 'Não' or timeout
     const overdueIds = overdueTasks.map(t => t.id);
     const { error: updateError, data: updatedRows } = await supabase
       .from("tasks")
