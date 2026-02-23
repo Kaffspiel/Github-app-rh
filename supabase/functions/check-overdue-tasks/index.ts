@@ -128,7 +128,30 @@ Deno.serve(async (req: Request) => {
         }
 
         const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString("pt-BR") : "N/A";
-        const message = `⚠️ *Tarefa Atrasada!*\n\n📋 *Tarefa:* ${task.title}\n📅 *Prazo:* ${dueDate}\n\nPor favor, atualize o status da tarefa o mais rápido possível.`;
+        const message = `⚠️ *Tarefa Vencida!*\n\n📋 *Tarefa:* ${task.title}\n👤 *Responsável:* ${assignee.name}\n📅 *Prazo:* ${dueDate}\n\nVocê já completou esta tarefa?\nResponda *Sim* ou *Não*`;
+
+        // Create notification record linked to the task for context matching
+        const { data: notifRecord } = await supabase
+          .from("notifications")
+          .insert({
+            title: "Tarefa Vencida",
+            message,
+            type: "task_overdue",
+            recipient_id: assignee.id,
+            recipient_phone: assignee.whatsapp_number,
+            company_id: task.company_id,
+            related_entity_type: "task",
+            related_entity_id: task.id,
+            status: "sent",
+            channels: ["whatsapp"],
+            sent_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (notifRecord) {
+          console.log(`Created notification ${notifRecord.id} for overdue task ${task.id}`);
+        }
 
         await sendWhatsApp(assignee.whatsapp_number, message);
 
@@ -148,7 +171,7 @@ Deno.serve(async (req: Request) => {
               console.log(`Skipping manager notification for ${mgr.name}: outside work hours`);
               continue;
             }
-            const mgrMsg = `⚠️ *Tarefa Atrasada*\n\n📋 *Tarefa:* ${task.title}\n👤 *Responsável:* ${assignee.name}\n📅 *Prazo:* ${dueDate}`;
+            const mgrMsg = `⚠️ *Tarefa Vencida*\n\n📋 *Tarefa:* ${task.title}\n👤 *Responsável:* ${assignee.name}\n📅 *Prazo:* ${dueDate}`;
             await sendWhatsApp(mgr.whatsapp_number, mgrMsg);
           }
         }
