@@ -252,7 +252,7 @@ serve(async (req: Request) => {
         }
       };
 
-      if (response === "sim" || payload.responseValue === "sim") {
+      if (response === "sim" || response === "s") {
         if (taskId) {
           const { error: updateError } = await supabase
             .from("tasks")
@@ -261,16 +261,20 @@ serve(async (req: Request) => {
 
           if (!updateError) {
             actionTaken = "task_completed_via_whatsapp";
-            await sendReply("✅ Que bom! Já marquei a tarefa como concluída no sistema. Parabéns! 🚀");
+            // Mark notification as read
+            await supabase
+              .from("notifications")
+              .update({ status: "read", read_at: new Date().toISOString() })
+              .eq("id", contextNotification.id);
+            await sendReply("✅ Ótimo! Tarefa marcada como *concluída* no sistema. Parabéns! 🎉");
           }
         }
-      } else if (response === "não" || response === "nao" || payload.responseValue === "nao") {
+      } else if (response === "não" || response === "nao" || response === "n") {
         actionTaken = "task_overdue_not_completed";
-        await sendReply("Entendido. Lembre-se que você tem 10 minutos para concluir antes que ela seja marcada como atrasada. Precisa de mais prazo? Solicite a prorrogação pelo App.");
+        await sendReply("📱 Entendido. Acesse o *App* e envie uma *solicitação de aumento de prazo* para o seu gestor aprovar.\n\nAcesse: Tarefas → Solicitar Prorrogação");
       } else {
-        // Resposta inválida para o contexto de tarefa vencida
         actionTaken = "invalid_response_to_overdue";
-        await sendReply("Desculpe, não entendi sua resposta. Para esta tarefa, responda com *Sim* ou *Não*. Para outros assuntos, por favor utilize o App.");
+        await sendReply("Não entendi. Responda *Sim* se já completou a tarefa ou *Não* para solicitar mais prazo pelo App.");
       }
     }
 
