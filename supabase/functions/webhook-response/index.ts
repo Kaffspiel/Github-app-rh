@@ -266,10 +266,37 @@ serve(async (req: Request) => {
               .from("notifications")
               .update({ status: "read", read_at: new Date().toISOString() })
               .eq("id", contextNotification.id);
-            await sendReply("✅ Ótimo! Tarefa marcada como *concluída* no sistema. Parabéns! 🎉");
+
+            // Award points for completing via WhatsApp
+            const { data: taskData } = await supabase
+              .from("tasks")
+              .select("title, company_id")
+              .eq("id", taskId)
+              .single();
+
+            if (taskData) {
+              await supabase
+                .from("occurrences")
+                .insert({
+                  company_id: taskData.company_id,
+                  employee_id: employee.id,
+                  type: "aprovacao_tarefa",
+                  points: 10,
+                  description: `Tarefa concluída via WhatsApp: ${taskData.title}`,
+                });
+            }
+
+            await sendReply("✅ Ótimo! Tarefa marcada como *concluída* no sistema. +10 pontos! Parabéns! 🎉");
           }
         }
       } else if (response === "não" || response === "nao" || response === "n") {
+        // NOW mark as atrasada — triggers auto_penalize_on_task_overdue
+        if (taskId) {
+          await supabase
+            .from("tasks")
+            .update({ status: "atrasada" })
+            .eq("id", taskId);
+        }
         actionTaken = "task_overdue_not_completed";
         await sendReply("📱 Entendido. Acesse o *App* e envie uma *solicitação de aumento de prazo* para o seu gestor aprovar.\n\nAcesse: Tarefas → Solicitar Prorrogação");
       } else {
