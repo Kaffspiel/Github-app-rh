@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut, AlertTriangle, BookOpen, BarChart3 } from "lucide-react";
+import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut, AlertTriangle, BookOpen, BarChart3, Brain } from "lucide-react";
 import { Occurrences } from "../components/Occurrences";
 import { RulesAndGuidelines } from "../components/RulesAndGuidelines";
 import { Dashboard } from "@/components/Dashboard";
@@ -11,6 +11,7 @@ import { Absenteeism } from "../components/Absenteeism";
 import { Gamification } from "@/components/Gamification";
 import { Reports } from "@/components/Reports";
 import { EmployeeManagement } from "@/components/EmployeeManagement";
+import { StrategicRH } from "@/components/StrategicRH";
 import { useApp, View } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCompany } from "@/context/CompanyContext";
@@ -33,6 +34,7 @@ const Index = () => {
     { id: "occurrences" as View, name: "Ocorrências", icon: AlertTriangle },
     { id: "rules" as View, name: "Regras e Diretrizes", icon: BookOpen },
     { id: "reports" as View, name: "Relatórios", icon: FileText },
+    { id: "strategic_rh" as View, name: "RH Estratégico", icon: Brain },
   ];
 
   const renderView = () => {
@@ -47,6 +49,7 @@ const Index = () => {
       case "occurrences": return <Occurrences />;
       case "rules": return <RulesAndGuidelines />;
       case "reports": return <Reports />;
+      case "strategic_rh": return <StrategicRH />;
       default: return <Dashboard />;
     }
   };

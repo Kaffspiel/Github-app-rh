@@ -1,0 +1,36 @@
+[
+    {
+        "parameters": {
+            "mode": "retrieve-as-tool",
+            "toolDescription": "Busca histórico individual: pontos, ocorrências, tarefas e gamificação. Requer employee_id.",
+            "operation": "executeQuery",
+            "query": "=(SELECT 'Ponto' as categoria, record_date::text as data, status as acao, 'Entrada: ' || COALESCE(entry_1, '--') || ' Saída: ' || COALESCE(exit_1, '--') as detalhes\n FROM time_tracking_records WHERE employee_id = '{{ $json.body.context.employee_id }}')\nUNION ALL\n(SELECT 'Ocorrência' as categoria, created_at::text, type, description\n FROM occurrences WHERE employee_id = '{{ $json.body.context.employee_id }}')\nUNION ALL\n(SELECT 'Tarefa' as categoria, created_at::text, title, status\n FROM tasks WHERE assignee_id = '{{ $json.body.context.employee_id }}')\nUNION ALL\n(SELECT 'Gamificação' as categoria, updated_at::text, 'Pontuação Atual', points::text\n FROM employees WHERE id = '{{ $json.body.context.employee_id }}')\nORDER BY data DESC LIMIT 30;",
+            "options": {}
+        },
+        "id": "tool-360-v3",
+        "name": "consultar_historico_360",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+            1100,
+            -100
+        ]
+    },
+    {
+        "parameters": {
+            "mode": "retrieve-as-tool",
+            "toolDescription": "Busca rankings gerais: quem mais falta, quem tem mais atestados e líderes de pontos.",
+            "operation": "executeQuery",
+            "query": "SELECT \n    e.name as colaborador, \n    COUNT(CASE WHEN o.type = 'falta' THEN 1 END) as qtd_faltas,\n    COUNT(CASE WHEN o.type = 'atestado' THEN 1 END) as qtd_atestados,\n    MAX(e.points) as pontos_totais,\n    e.department as departamento\nFROM employees e\nLEFT JOIN occurrences o ON e.id = o.employee_id\nWHERE e.is_active = true\nGROUP BY e.name, e.department, e.points\nORDER BY qtd_faltas DESC, qtd_atestados DESC, pontos_totais DESC;",
+            "options": {}
+        },
+        "id": "tool-global-v3",
+        "name": "analisar_estatisticas_globais",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+            1320,
+            -100
+        ]
+    }
+]

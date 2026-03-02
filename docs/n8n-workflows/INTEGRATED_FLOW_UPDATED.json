@@ -1,0 +1,607 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "opscontrol-send",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                176,
+                32
+            ],
+            "id": "f37c3baa-5872-46e3-86ff-9a1beb1e7c7d",
+            "name": "Webhook",
+            "webhookId": "bd62a246-2ebc-4190-a12e-d367a8e0adde"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 3
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.event }}",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "exists",
+                                            "singleValue": true
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "incoming"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 3
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.messageType || $json.body.type }}",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "exists",
+                                            "singleValue": true
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "outgoing"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.4,
+            "position": [
+                336,
+                32
+            ],
+            "id": "bb113785-587b-4361-9e60-b98a10a89dd2",
+            "name": "Switch Entrada/Saída"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 3
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.responseType }}",
+                                        "rightValue": "audio_pending",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "77b3c63f-6a06-4784-8ff3-c3249a415837"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "audio"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 3
+                                },
+                                "conditions": [
+                                    {
+                                        "id": "68170c12-9a9a-4235-9982-e3d55329c574",
+                                        "leftValue": "={{ $json.responseType }}",
+                                        "rightValue": "text",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals",
+                                            "name": "filter.operator.equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "text"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 3
+                                },
+                                "conditions": [
+                                    {
+                                        "id": "58009974-1c63-4d11-9390-823726b466f3",
+                                        "leftValue": "={{ $json.responseType }}",
+                                        "rightValue": "button",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals",
+                                            "name": "filter.operator.equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "button"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.4,
+            "position": [
+                800,
+                32
+            ],
+            "id": "d9b735d3-e50f-459c-94b0-5e3d779fbacb",
+            "name": "Switch Resposta"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "=https://evolution.kaffspiel.cloud/chat/getBase64FromMediaMessage/{{ $json.instance }}",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "message",
+                            "value": "={{ $json.rawMessage }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                976,
+                -128
+            ],
+            "id": "7d5cf4e2-552d-4ed5-8101-6ecdbddf15a4",
+            "name": "Baixar Áudio"
+        },
+        {
+            "parameters": {
+                "operation": "toBinary",
+                "sourceProperty": "base64",
+                "options": {
+                    "fileName": "audio.ogg"
+                }
+            },
+            "type": "n8n-nodes-base.convertToFile",
+            "typeVersion": 1.1,
+            "position": [
+                1200,
+                -128
+            ],
+            "id": "ab98b5c3-ca8b-4d7b-8103-67a07a7bbdf9",
+            "name": "Convert to File"
+        },
+        {
+            "parameters": {
+                "resource": "audio",
+                "operation": "transcribe",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.openAi",
+            "typeVersion": 2.1,
+            "position": [
+                1408,
+                -128
+            ],
+            "id": "fee54baa-63c8-4c1b-835a-695aba68fe89",
+            "name": "Transcribe AI",
+            "credentials": {
+                "openAiApi": {
+                    "id": "ruZztICKyLrn18pZ",
+                    "name": "OpenAi account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://nnmrlucwrzoqkwzytbbl.supabase.co/functions/v1/webhook-response",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubXJsdWN3cnpvcWt3enl0YmJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTA4MzIsImV4cCI6MjA4NTI4NjgzMn0.I4dLM5R-_qQe8xy1VYevXLd6BvkAcam5CYZ9jQvOxRA"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "messageId",
+                            "value": "={{ $('Code in JavaScript').first().json.messageId }}"
+                        },
+                        {
+                            "name": "phone",
+                            "value": "={{ $('Code in JavaScript').first().json.phone }}"
+                        },
+                        {
+                            "name": "pushName",
+                            "value": "={{ $('Code in JavaScript').first().json.pushName }}"
+                        },
+                        {
+                            "name": "responseType",
+                            "value": "={{ $json.text ? 'audio_transcription' : $('Code in JavaScript').first().json.responseType }}"
+                        },
+                        {
+                            "name": "responseValue",
+                            "value": "={{ $json.text || $('Code in JavaScript').first().json.responseValue }}"
+                        },
+                        {
+                            "name": "instance",
+                            "value": "={{ $('Code in JavaScript').first().json.instance }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                1632,
+                48
+            ],
+            "id": "6d7f8d2d-c6f5-468a-812c-37c4dc5c869e",
+            "name": "Enviar Resposta Supabase"
+        },
+        {
+            "parameters": {
+                "dataType": "string",
+                "value1": "={{ $json.body.messageType || $json.body.type }}",
+                "rules": {
+                    "rules": [
+                        {
+                            "value2": "text"
+                        },
+                        {
+                            "value2": "buttons"
+                        }
+                    ]
+                },
+                "fallbackOutput": 2
+            },
+            "id": "b0f05731-4231-4dc1-91bd-96290e898a08",
+            "name": "Tipo Mensagem Saída",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                544,
+                432
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendText/' + $json.body.instance }}",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"number\": \"{{ $json.body.number }}\",\n  \"text\": \"{{ $json.body.text?.message || $json.body.message }}\",\n  \"delay\": 1200,\n  \"metadata\": {{ JSON.stringify($json.body.metadata || {}) }}\n}",
+                "options": {}
+            },
+            "id": "0e571039-a055-4d48-b2bf-03bace9569c0",
+            "name": "Enviar WhatsApp (Texto)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                784,
+                288
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendButtons/' + ($json.body.instanceName || $json.body.instance) }}",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"number\": \"{{ $json.body.number }}\",\n  \"title\": \"{{ $json.body.buttons?.title || $json.body.title }}\",\n  \"description\": \"{{ $json.body.buttons?.description || $json.body.message }}\",\n  \"footer\": \"{{ $json.body.buttons?.footer || 'OpsControl' }}\",\n  \"buttons\": {{ JSON.stringify($json.body.buttons?.buttons || []) }},\n  \"metadata\": {{ JSON.stringify($json.body.metadata || {}) }}\n}",
+                "options": {}
+            },
+            "id": "74b2460c-109c-4ce7-b50c-31437bd07c5e",
+            "name": "Enviar WhatsApp (Botões)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                784,
+                560
+            ]
+        },
+        {
+            "parameters": {
+                "method": "PATCH",
+                "url": "={{ 'https://nnmrlucwrzoqkwzytbbl.supabase.co/rest/v1/notifications?id=eq.' + $node[\"Webhook\"].json.body.metadata?.notificationId }}",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubXJsdWN3cnpvcWt3enl0YmJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTA4MzIsImV4cCI6MjA4NTI4NjgzMn0.I4dLM5R-_qQe8xy1VYevXLd6BvkAcam5CYZ9jQvOxRA"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubXJsdWN3cnpvcWt3enl0YmJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTA4MzIsImV4cCI6MjA4NTI4NjgzMn0.I4dLM5R-_qQe8xy1VYevXLd6BvkAcam5CYZ9jQvOxRA"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "Prefer",
+                            "value": "return=minimal"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"status\": \"sent\",\n  \"sent_at\": \"{{ new Date().toISOString() }}\",\n  \"whatsapp_message_id\": \"{{ $json.key?.id || '' }}\",\n  \"whatsapp_status\": \"sent\"\n}",
+                "options": {}
+            },
+            "id": "update-status-supabase",
+            "name": "Atualizar Status Supabase",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                1100,
+                432
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ { \"success\": true, \"messageId\": $json.key?.id || 'sent', \"timestamp\": new Date().toISOString() } }}",
+                "options": {}
+            },
+            "id": "bb753ee2-4c03-4269-a16e-25b4b57914e2",
+            "name": "Responder Sucesso",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                1350,
+                432
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const body = $json.body || {};\nconst data = body.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\nlet responseType = 'text';\nlet responseValue = '';\n\nif (message.buttonsResponseMessage) {\n  responseType = 'button';\n  responseValue = message.buttonsResponseMessage.selectedButtonId;\n} else if (message.audioMessage) {\n  responseType = 'audio_pending';\n} else if (message.conversation) {\n  responseValue = message.conversation;\n} else if (message.extendedTextMessage) {\n  responseValue = message.extendedTextMessage.text;\n}\n\nreturn {\n  messageId: key.id,\n  phone: key.remoteJid?.replace('@s.whatsapp.net', '').replace('@c.us', ''),\n  pushName: data.pushName,\n  responseType,\n  responseValue,\n  instance: body.instance,\n  rawMessage: data \n};"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                512,
+                -144
+            ],
+            "id": "29fdc99e-dafa-4675-97ad-03fb4f8155cf",
+            "name": "Processar Áudio"
+        },
+        {
+            "parameters": {
+                "jsCode": "const body = $json.body || {};\nconst data = body.data || {};\n\nlet remoteJid = data.key?.remoteJid || \n                data.message?.key?.remoteJid || \n                body.data?.key?.remoteJid || \n                '';\n\nconst phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');\n\nconst message = data.message || {};\nlet responseType = 'text';\nlet responseValue = '';\n\nif (message.buttonsResponseMessage) {\n  responseType = 'button';\n  responseValue = message.buttonsResponseMessage.selectedButtonId || '';\n} else if (message.audioMessage) {\n  responseType = 'audio_pending';\n} else if (message.conversation) {\n  responseValue = message.conversation || '';\n} else if (message.extendedTextMessage) {\n  responseValue = message.extendedTextMessage.text || '';\n}\n\nreturn {\n  messageId: data.key?.id || 'ID_NAO_ENCONTRADO',\n  phone: phone || 'TELEFONE_NAO_ENCONTRADO',\n  pushName: data.pushName || 'Desconhecido',\n  responseType,\n  responseValue,\n  instance: body.instance || 'default',\n  rawMessage: data \n};"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                576,
+                16
+            ],
+            "id": "57a6b001-4de9-4689-8bd3-7b8e0b2f0bc4",
+            "name": "Processar Mensagem"
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Switch Entrada/Saída",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Switch Entrada/Saída": {
+            "main": [
+                [
+                    {
+                        "node": "Processar Mensagem",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Tipo Mensagem Saída",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Processar Mensagem": {
+            "main": [
+                [
+                    {
+                        "node": "Switch Resposta",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Switch Resposta": {
+            "main": [
+                [
+                    {
+                        "node": "Baixar Áudio",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Enviar Resposta Supabase",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Enviar Resposta Supabase",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Baixar Áudio": {
+            "main": [
+                [
+                    {
+                        "node": "Convert to File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Convert to File": {
+            "main": [
+                [
+                    {
+                        "node": "Transcribe AI",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Transcribe AI": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar Resposta Supabase",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tipo Mensagem Saída": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar WhatsApp (Texto)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Enviar WhatsApp (Botões)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar WhatsApp (Texto)": {
+            "main": [
+                [
+                    {
+                        "node": "Atualizar Status Supabase",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar WhatsApp (Botões)": {
+            "main": [
+                [
+                    {
+                        "node": "Atualizar Status Supabase",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Atualizar Status Supabase": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Sucesso",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

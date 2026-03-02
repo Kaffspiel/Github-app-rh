@@ -1,0 +1,36 @@
+[
+    {
+        "parameters": {
+            "mode": "retrieve-as-tool",
+            "toolDescription": "Utilize esta ferramenta para buscar o histórico 360 de um funcionário: registros de ponto, ocorrências (faltas/atestados), tarefas e pontos de gamificação. É necessário que o contexto contenha o employee_id.",
+            "operation": "executeQuery",
+            "query": "=(SELECT 'Ponto' as categoria, record_date::text as data, status as acao, 'Entrada: ' || COALESCE(entry_1, '--') || ' Saída: ' || COALESCE(exit_1, '--') as detalhes\n FROM public.time_tracking_records WHERE employee_id = '{{ $json.body.context.employee_id }}')\nUNION ALL\n(SELECT 'Ocorrência' as categoria, created_at::text, type, description\n FROM public.occurrences WHERE employee_id = '{{ $json.body.context.employee_id }}')\nUNION ALL\n(SELECT 'Tarefa' as categoria, created_at::text, title, status\n FROM public.tasks WHERE employee_id = '{{ $json.body.context.employee_id }}')\nUNION ALL\n(SELECT 'Gamificação' as categoria, updated_at::text, 'Pontuação Atual', points::text\n FROM public.employees WHERE id = '{{ $json.body.context.employee_id }}')\nORDER BY data DESC LIMIT 30;",
+            "options": {}
+        },
+        "id": "tool-historico-360",
+        "name": "consultar_historico_360",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+            1100,
+            -400
+        ]
+    },
+    {
+        "parameters": {
+            "mode": "retrieve-as-tool",
+            "toolDescription": "Utilize para responder perguntas sobre o ranking da empresa: quem tem mais faltas, quem aplica mais atestado, líderes de gamificação e estatísticas por departamento.",
+            "operation": "executeQuery",
+            "query": "SELECT \n    e.name as colaborador, \n    COUNT(CASE WHEN o.type = 'falta' THEN 1 END) as qtd_faltas,\n    COUNT(CASE WHEN o.type = 'atestado' THEN 1 END) as qtd_atestados,\n    MAX(e.points) as pontos_totais,\n    e.department as departamento\nFROM public.employees e\nLEFT JOIN public.occurrences o ON e.id = o.employee_id\nWHERE e.is_active = true\nGROUP BY e.name, e.department\nORDER BY qtd_faltas DESC, qtd_atestados DESC, pontos_totais DESC;",
+            "options": {}
+        },
+        "id": "tool-ranking-global",
+        "name": "analisar_estatisticas_globais",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+            1300,
+            -400
+        ]
+    }
+]
