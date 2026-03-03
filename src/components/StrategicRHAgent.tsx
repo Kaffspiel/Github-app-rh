@@ -23,6 +23,13 @@ interface Message {
     id: string;
 }
 
+interface ChatSession {
+    id: string;
+    employeeId: string;
+    title: string;
+    createdAt: number;
+}
+
 interface StrategicRHAgentProps {
     selectedEmployeeId?: string;
     employeeName?: string;
@@ -30,6 +37,8 @@ interface StrategicRHAgentProps {
 
 export function StrategicRHAgent({ selectedEmployeeId, employeeName }: StrategicRHAgentProps) {
     const [messages, setMessages] = useState<Message[]>([]);
+    const [sessions, setSessions] = useState<ChatSession[]>([]);
+    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [employeeSummary, setEmployeeSummary] = useState<any>(null);
@@ -40,26 +49,94 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
     const { companyId } = useCompany();
     const { toast } = useToast();
 
-    // Load messages from localStorage
+    // Load sessions index
     useEffect(() => {
         if (user?.id && companyId) {
-            const savedMessages = localStorage.getItem(`chat_history_${companyId}_${user.id}`);
-            if (savedMessages) {
+            const sessionsKey = `chat_sessions_${companyId}_${user.id}`;
+            const savedSessions = localStorage.getItem(sessionsKey);
+            if (savedSessions) {
                 try {
-                    setMessages(JSON.parse(savedMessages));
+                    const parsedSessions = JSON.parse(savedSessions);
+                    setSessions(parsedSessions);
                 } catch (e) {
-                    console.error("Error parsing saved messages:", e);
+                    console.error("Error parsing sessions:", e);
                 }
             }
         }
     }, [user?.id, companyId]);
 
-    // Save messages to localStorage
+    // Update currentSessionId when employee change or sessions load
     useEffect(() => {
-        if (user?.id && companyId && messages.length > 0) {
-            localStorage.setItem(`chat_history_${companyId}_${user.id}`, JSON.stringify(messages));
+        if (!selectedEmployeeId) return;
+
+        // Find most recent session for this employee
+        const employeeSessions = sessions.filter(s => s.employeeId === selectedEmployeeId);
+        if (employeeSessions.length > 0) {
+            if (!currentSessionId || !employeeSessions.find(s => s.id === currentSessionId)) {
+                setCurrentSessionId(employeeSessions[0].id);
+            }
+        } else {
+            // Create initial session if none exist
+            const newId = Date.now().toString();
+            const newSession: ChatSession = {
+                id: newId,
+                employeeId: selectedEmployeeId,
+                title: "Nova conversa",
+                createdAt: Date.now()
+            };
+            setSessions(prev => [newSession, ...prev]);
+            setCurrentSessionId(newId);
         }
-    }, [messages, user?.id, companyId]);
+    }, [selectedEmployeeId, sessions.length]);
+
+    // Load messages for current session
+    useEffect(() => {
+        if (currentSessionId) {
+            const messagesKey = `chat_messages_${currentSessionId}`;
+            const savedMessages = localStorage.getItem(messagesKey);
+            if (savedMessages) {
+                try {
+                    setMessages(JSON.parse(savedMessages));
+                } catch (e) {
+                    console.error("Error parsing saved messages:", e);
+                    setMessages([]);
+                }
+            } else {
+                setMessages([]);
+            }
+        } else {
+            setMessages([]);
+        }
+    }, [currentSessionId]);
+
+    // Save messages and update session title
+    useEffect(() => {
+        if (currentSessionId && messages.length > 0) {
+            const messagesKey = `chat_messages_${currentSessionId}`;
+            localStorage.setItem(messagesKey, JSON.stringify(messages));
+
+            // Auto-rename session if it's the first user message
+            const firstUserMessage = messages.find(m => m.role === "user");
+            const session = sessions.find(s => s.id === currentSessionId);
+
+            if (firstUserMessage && session && session.title === "Nova conversa") {
+                const newTitle = firstUserMessage.content.slice(0, 30) + (firstUserMessage.content.length > 30 ? "..." : "");
+                const updatedSessions = sessions.map(s =>
+                    s.id === currentSessionId ? { ...s, title: newTitle } : s
+                );
+                setSessions(updatedSessions);
+                localStorage.setItem(`chat_sessions_${companyId}_${user?.id}`, JSON.stringify(updatedSessions));
+            }
+        }
+    }, [messages, currentSessionId]);
+
+    // Save sessions index when changed
+    useEffect(() => {
+        if (user?.id && companyId && sessions.length > 0) {
+            const sessionsKey = `chat_sessions_${companyId}_${user.id}`;
+            localStorage.setItem(sessionsKey, JSON.stringify(sessions));
+        }
+    }, [sessions, companyId, user?.id]);
 
     // Fetch employee history when selectedEmployeeId changes
     useEffect(() => {
@@ -177,7 +254,7 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    sessionId: `${companyId}_${user?.id}`,
+                    sessionId: currentSessionId,
                     message: currentInput,
                     history: history,
                     file: currentFile,
@@ -216,9 +293,18 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
     };
 
     const startNewChat = () => {
-        if (user?.id && companyId) {
-            localStorage.removeItem(`chat_history_${companyId}_${user.id}`);
-        }
+        if (!selectedEmployeeId) return;
+
+        const newId = Date.now().toString();
+        const newSession: ChatSession = {
+            id: newId,
+            employeeId: selectedEmployeeId,
+            title: "Nova conversa",
+            createdAt: Date.now()
+        };
+
+        setSessions(prev => [newSession, ...prev]);
+        setCurrentSessionId(newId);
         setMessages([]);
         setInput("");
         setSelectedFile(null);
@@ -241,12 +327,25 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
 
                 <div className="flex-1 overflow-y-auto px-2 space-y-1">
                     <div className="p-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Recentes
+                        Conversas Recentes
                     </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-800/50 text-sm text-gray-200 cursor-pointer border border-gray-700/50">
-                        <MessageSquare className="w-4 h-4 text-gray-400" />
-                        <span className="truncate">Análise de Performance...</span>
-                    </div>
+                    {sessions
+                        .filter(s => s.employeeId === selectedEmployeeId)
+                        .map(session => (
+                            <div
+                                key={session.id}
+                                onClick={() => setCurrentSessionId(session.id)}
+                                className={cn(
+                                    "flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer transition-colors border",
+                                    currentSessionId === session.id
+                                        ? "bg-gray-800 text-white border-gray-700"
+                                        : "text-gray-400 border-transparent hover:bg-gray-800/30 hover:text-gray-200"
+                                )}
+                            >
+                                <MessageSquare className="w-4 h-4 text-gray-400" />
+                                <span className="truncate">{session.title}</span>
+                            </div>
+                        ))}
                 </div>
 
                 <div className="p-4 border-t border-gray-800">

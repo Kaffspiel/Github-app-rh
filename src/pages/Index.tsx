@@ -34,7 +34,7 @@ const Index = () => {
     { id: "occurrences" as View, name: "Ocorrências", icon: AlertTriangle },
     { id: "rules" as View, name: "Regras e Diretrizes", icon: BookOpen },
     { id: "reports" as View, name: "Relatórios", icon: FileText },
-    { id: "strategic_rh" as View, name: "RH Estratégico", icon: Brain },
+    ...(currentRole === "admin" ? [{ id: "strategic_rh" as View, name: "RH Estratégico", icon: Brain }] : []),
   ];
 
   const renderView = () => {
@@ -49,7 +49,8 @@ const Index = () => {
       case "occurrences": return <Occurrences />;
       case "rules": return <RulesAndGuidelines />;
       case "reports": return <Reports />;
-      case "strategic_rh": return <StrategicRH />;
+      case "strategic_rh":
+        return currentRole === "admin" ? <StrategicRH /> : <Dashboard />;
       default: return <Dashboard />;
     }
   };

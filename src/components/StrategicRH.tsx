@@ -7,28 +7,38 @@ import { Brain, Users, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StrategicRHAgent } from "./StrategicRHAgent";
+import { useCompany } from "@/context/CompanyContext";
 
 export function StrategicRH() {
+    const { companyId } = useCompany();
     const [employees, setEmployees] = useState<any[]>([]);
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("all");
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
     const [loading, setLoading] = useState(true);
 
     const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
     useEffect(() => {
-        fetchEmployees();
-    }, []);
+        if (companyId) {
+            fetchEmployees();
+        }
+    }, [companyId]);
 
     const fetchEmployees = async () => {
+        if (!companyId) return;
+
         setLoading(true);
         const { data, error } = await supabase
             .from("employees")
             .select("id, name, department")
+            .eq("company_id", companyId)
             .eq("is_active", true)
             .order("name");
 
         if (!error && data) {
             setEmployees(data);
+            if (data.length > 0 && !selectedEmployeeId) {
+                setSelectedEmployeeId(data[0].id);
+            }
         }
         setLoading(false);
     };
@@ -66,10 +76,9 @@ export function StrategicRH() {
                                     onValueChange={setSelectedEmployeeId}
                                 >
                                     <SelectTrigger id="employee-select" className="bg-white">
-                                        <SelectValue placeholder="Todos os funcionários" />
+                                        <SelectValue placeholder="Selecione um funcionário" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">Geral (Sem foco)</SelectItem>
                                         {employees.map((emp) => (
                                             <SelectItem key={emp.id} value={emp.id}>
                                                 {emp.name} ({emp.department})
