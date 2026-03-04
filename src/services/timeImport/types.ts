@@ -1,3 +1,11 @@
+export interface AccumulatedRecord {
+  employeeName: string;
+  predictedHours: string;
+  workedHours: string;
+  bonusHours: string;
+  balance: string;
+}
+
 export interface ParsedTimeRecord {
   externalEmployeeId: string;
   employeeName?: string;
@@ -8,7 +16,12 @@ export interface ParsedTimeRecord {
 
 export interface ParseResult {
   success: boolean;
+  documentType?: 'daily' | 'accumulated';
+  periodStart?: string;
+  periodEnd?: string;
+  companyName?: string;
   records: ParsedTimeRecord[];
+  accumulatedRecords?: AccumulatedRecord[];
   errors: ParseError[];
   totalRows: number;
 }

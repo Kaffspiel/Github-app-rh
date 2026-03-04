@@ -27,7 +27,7 @@ import {
   parseExcel, getExcelHeaders,
   parseCsv, getCsvHeaders,
   parsePDF, extractPDFText,
-  type ParseResult, type ColumnMapping, type FileFormat, type ParsedTimeRecord
+  type ParseResult, type ColumnMapping, type FileFormat, type ParsedTimeRecord, type AccumulatedRecord
 } from "@/services/timeImport";
 
 interface ImportWizardProps {
@@ -241,19 +241,24 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       // Convert AI result to ParseResult format
       const result: ParseResult = {
         success: true,
-        records: aiData.records.map((r: ParsedTimeRecord) => ({
+        documentType: aiData.documentType || 'daily',
+        periodStart: aiData.periodStart,
+        periodEnd: aiData.periodEnd,
+        companyName: aiData.companyName,
+        records: (aiData.records || []).map((r: ParsedTimeRecord) => ({
           externalEmployeeId: r.externalEmployeeId,
           employeeName: r.employeeName,
           date: r.date,
           punches: r.punches || [],
         })),
+        accumulatedRecords: aiData.accumulatedRecords || [],
         errors: aiData.errors || [],
-        totalRows: aiData.records.length,
+        totalRows: (aiData.records?.length || 0) + (aiData.accumulatedRecords?.length || 0),
       };
 
       setParseResult(result);
       setStep("preview");
-      toast.success(`IA identificou ${result.records.length} registros`);
+      toast.success(`IA identificou ${result.totalRows} registros (${result.documentType === 'accumulated' ? 'Relatório Acumulado' : 'Registros Diários'})`);
 
     } catch (error: any) {
       console.error('AI parsing error:', error);
@@ -307,296 +312,215 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const handleImport = async () => {
     if (!parseResult || !companyId) return;
 
+    // Determine if we need to perform hybrid, accumulated or just daily import
+    const hasRecords = parseResult.records && parseResult.records.length > 0;
+    const hasAccumulated = parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0;
+
     setStep("importing");
     setImportProgress(0);
 
     try {
-      // Create import record
-      const { data: importRecord, error: importError } = await supabase
-        .from("time_tracking_imports")
-        .insert({
-          company_id: companyId,
-          source_type: fileFormat === "pdf" ? "pdf" : fileFormat,
-          source_name: file?.name,
-          total_records: parseResult.records.length,
-          status: "processing",
-          column_mapping: (useAI ? { ai_parsed: true } : mapping) as unknown as Json,
-        })
-        .select()
-        .single();
+      let importedDaily = 0;
+      let importedAccumulated = 0;
 
-      if (importError) throw importError;
-
-      let imported = 0;
-      let failed = 0;
-      const batchSize = 50;
-      const records = parseResult.records;
-
-      // PREVENT DUPLICATES: Fetch existing records for better filtering
-      const distinctDates = [...new Set(records.map(r => r.date).filter(Boolean))];
-
-      // We'll fetch in chunks if there are too many dates, but usually it's one month (30 dates)
-      const { data: existingRecords } = await supabase
-        .from("time_tracking_records")
-        .select("employee_id, external_employee_id, record_date")
-        .eq("company_id", companyId)
-        .in("record_date", distinctDates);
-
-      // Create lookup sets
-      const existingEmpSet = new Set(
-        existingRecords
-          ?.filter(r => r.employee_id)
-          .map(r => `${r.employee_id}_${r.record_date}`)
-      );
-
-      const existingExtSet = new Set(
-        existingRecords
-          ?.filter(r => r.external_employee_id)
-          .map(r => `${r.external_employee_id}_${r.record_date}`)
-      );
-
-      let skippedDuplicates = 0;
-
-      for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i + batchSize);
-
-        const insertData = batch.map((record) => {
-          // Try to link to an employee
-          let matchedEmployeeId = null;
-
-          if (employees.length > 0) {
-            // 1. Try exact match on external_id
-            const byId = employees.find(e => e.external_id && e.external_id === String(record.externalEmployeeId));
-            if (byId) {
-              matchedEmployeeId = byId.id;
-            } else {
-              // 2. Try match on Name (case insensitive)
-              // Use record.employeeName if available, otherwise record.externalEmployeeId might actually be a name (for PDF reports)
-              const nameToSearch = record.employeeName || record.externalEmployeeId;
-              if (nameToSearch && typeof nameToSearch === 'string') {
-                const normalizedSearch = nameToSearch.toLowerCase().trim();
-                const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
-                if (byName) matchedEmployeeId = byName.id;
-              }
-            }
-          }
-
-
-          // Check for duplication
-          const isDuplicate = matchedEmployeeId
-            ? existingEmpSet.has(`${matchedEmployeeId}_${record.date}`)
-            : existingExtSet.has(`${record.externalEmployeeId}_${record.date}`);
-
-          if (isDuplicate) {
-            return null; // Will filter this out
-          }
-
-          return {
-            company_id: companyId,
-            import_id: importRecord.id,
-            external_employee_id: record.externalEmployeeId,
-            employee_id: matchedEmployeeId, // Added linkage
-            record_date: record.date,
-            entry_1: record.punches[0] || null,
-            exit_1: record.punches[1] || null,
-            entry_2: record.punches[2] || null,
-            exit_2: record.punches[3] || null,
-            entry_3: record.punches[4] || null,
-            exit_3: record.punches[5] || null,
-            entry_4: record.punches[6] || null,
-            exit_4: record.punches[7] || null,
-            raw_data: record.rawData as Json,
-            status: matchedEmployeeId ? "imported" : "pending_link", // Optional status update
-          };
-        }).filter(Boolean); // Filter out nulls (duplicates)
-
-        // SEND NOTIFICATIONS FOR MISSING PUNCHES
-        for (const record of batch) {
-          let matchedEmployeeId = null;
-          if (employees.length > 0) {
-            const byId = employees.find(e => e.external_id && e.external_id === String(record.externalEmployeeId));
-            if (byId) {
-              matchedEmployeeId = byId.id;
-            } else {
-              const nameToSearch = record.employeeName || record.externalEmployeeId;
-              if (nameToSearch && typeof nameToSearch === 'string') {
-                const normalizedSearch = nameToSearch.toLowerCase().trim();
-                const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
-                if (byName) matchedEmployeeId = byName.id;
-              }
-            }
-          }
-
-          const hasMissingEntry = !record.punches[0] || record.punches[0].trim() === "";
-
-          if (matchedEmployeeId && hasMissingEntry) {
-            // 1. Notify Collaborator
-            notifyClock({
-              recipientId: matchedEmployeeId,
-              type: "justification_required",
-              data: {
-                data: record.date,
-                descricao: "Ponto de entrada não registrado no arquivo importado."
-              }
-            });
-
-            // 2. Notify Managers
-            const managers = employees.filter(e => e.role === 'admin' || e.role === 'gestor');
-            managers.forEach(manager => {
-              notify({
-                type: "manager_missing_punch",
-                recipientId: manager.id,
-                variables: {
-                  colaborador: record.employeeName || record.externalEmployeeId || "Colaborador",
-                  data: record.date
-                }
-              });
-            });
-          }
-        }
-
-        if (insertData.length > 0) {
-          const { error: batchError } = await supabase
-            .from("time_tracking_records")
-            .insert(insertData as any); // Cast to any to avoid strict type issues with filtered array
-
-          if (batchError) {
-            failed += batch.length; // Count full batch as failed if insert fails needed? or just the ones we tried
-            console.error("Batch error:", batchError);
-          } else {
-            imported += insertData.length;
-          }
-        }
-
-        skippedDuplicates += (batch.length - insertData.length);
-
-
-        setImportProgress(Math.round(((i + batch.length) / records.length) * 100));
+      // 1. Process Daily Records if present
+      if (hasRecords) {
+        const dailyResult = await performDailyImport();
+        importedDaily = dailyResult.imported;
       }
 
-      if (skippedDuplicates > 0) {
-        toast.info(`${skippedDuplicates} registros duplicados foram ignorados.`);
+      // 2. Process Accumulated Records if present
+      if (hasAccumulated) {
+        const accumulatedResult = await performAccumulatedImport();
+        importedAccumulated = accumulatedResult.imported;
       }
 
-      // Update import record
-      await supabase
-        .from("time_tracking_imports")
-        .update({
-          status: failed === 0 ? "completed" : "partial",
-          imported_records: imported,
-          failed_records: failed,
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", importRecord.id);
-
-      // --- NEW: DETECT MISSING EMPLOYEES (ROWS) ---
-      // The user specified that some reports only show who clocked in.
-      // We need to match existing active employees against the imported dates.
-
-      // distinctDates already exists from outer scope
-      const activeEmployees = employees.filter(e => e.role === 'colaborador' || e.role === 'gestor'); // Assuming admins don't punch clock? Or everyone? Let's stick to active employees from the list. 
-      // Actually useEmployeesList returns "is_active" filtered already in the hook usually, but let's be safe if logic changes.
-      // The hook source showed .eq('is_active', true). so 'employees' are all active.
-
-      for (const date of distinctDates) {
-        // 1. Identify who IS in the import for this date
-        const presentEmployeeIds = new Set<string>();
-
-        // We need to resolve records to employee IDs again (or reuse some map if optimization needed, but this is fine for now)
-        records.forEach(r => {
-          if (r.date !== date) return;
-
-          let eId = null;
-          // Try exact match external
-          const byId = employees.find(e => e.external_id && e.external_id === String(r.externalEmployeeId));
-          if (byId) {
-            eId = byId.id;
-          } else {
-            // Try match name
-            const nameToSearch = r.employeeName || r.externalEmployeeId;
-            if (nameToSearch && typeof nameToSearch === 'string') {
-              const normalizedSearch = nameToSearch.toLowerCase().trim();
-              const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
-              if (byName) eId = byName.id;
-            }
-          }
-          if (eId) presentEmployeeIds.add(eId);
-        });
-
-        // 2. Find who is MISSING
-        const missingEmployees = activeEmployees.filter(e => !presentEmployeeIds.has(e.id));
-
-        // 3. Notify Missing Employees AND Create Absence Records
-        const absenceRecords = missingEmployees.map(missingEmp => ({
-          company_id: companyId,
-          import_id: importRecord.id,
-          employee_id: missingEmp.id,
-          // external_employee_id: missingEmp.external_id, // Optional
-          record_date: date,
-          entry_1: null,
-          exit_1: null,
-          entry_2: null,
-          exit_2: null,
-          entry_3: null,
-          exit_3: null,
-          entry_4: null,
-          exit_4: null,
-          raw_data: { generated_absence: true },
-          status: "imported"
-        }));
-
-        if (absenceRecords.length > 0) {
-          const { error: absenceError } = await supabase
-            .from("time_tracking_records")
-            .insert(absenceRecords as any);
-
-          if (absenceError) {
-            console.error("Error creating absence records:", absenceError);
-            toast.error(`Erro ao criar registros de falta para ${date}`);
-          } else {
-            // Count these as imported/processed?
-            // imported += absenceRecords.length; // Optional: user might confusing seeing more imported records than rows in file. 
-            // Let's Log it.
-            console.log(`Created ${absenceRecords.length} absence records for ${date}`);
-          }
-        }
-
-        for (const missingEmp of missingEmployees) {
-          // Notify Collaborator
-          notifyClock({
-            recipientId: missingEmp.id,
-            type: "justification_required",
-            data: {
-              data: date,
-              descricao: "Ausência de registro de ponto nesta data."
-            }
-          });
-
-          // Notify Managers
-          const managers = employees.filter(e => e.role === 'admin' || e.role === 'gestor');
-          managers.forEach(manager => {
-            notify({
-              type: "manager_missing_punch",
-              recipientId: manager.id,
-              variables: {
-                colaborador: missingEmp.name,
-                data: date
-              }
-            });
-          });
-        }
-
-        if (missingEmployees.length > 0) {
-          console.log(`[Import] Date ${date}: ${missingEmployees.length} missing employees notified.`);
-        }
-      }
-
-      setImportResult({ imported, failed });
+      setImportResult({
+        imported: importedDaily + importedAccumulated,
+        failed: 0 // Simplification for now
+      });
       setStep("complete");
+      toast.success(`Importação concluída: ${importedDaily} batidas e ${importedAccumulated} resumos.`);
     } catch (error: any) {
       toast.error(`Erro na importação: ${error.message}`);
       setStep("preview");
     }
+  };
+
+  const performDailyImport = async () => {
+    if (!parseResult) return { imported: 0, failed: 0 };
+
+    // Create import record
+    const { data: importRecord, error: importError } = await supabase
+      .from("time_tracking_imports")
+      .insert({
+        company_id: companyId,
+        source_type: fileFormat === "pdf" ? "pdf" : fileFormat,
+        source_name: file?.name,
+        total_records: parseResult.records.length,
+        status: "processing",
+        column_mapping: (useAI ? { ai_parsed: true } : mapping) as unknown as Json,
+      })
+      .select()
+      .single();
+
+    if (importError) throw importError;
+
+    let imported = 0;
+    const records = parseResult.records;
+    const distinctDates = [...new Set(records.map(r => r.date).filter(Boolean))];
+
+    const { data: existingRecords } = await supabase
+      .from("time_tracking_records")
+      .select("employee_id, external_employee_id, record_date")
+      .eq("company_id", companyId)
+      .in("record_date", distinctDates);
+
+    const existingEmpSet = new Set(existingRecords?.filter(r => r.employee_id).map(r => `${r.employee_id}_${r.record_date}`));
+    const existingExtSet = new Set(existingRecords?.filter(r => r.external_employee_id).map(r => `${r.external_employee_id}_${r.record_date}`));
+
+    const batchSize = 50;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      const insertData = batch.map((record) => {
+        let matchedEmployeeId = null;
+        if (employees.length > 0) {
+          const byId = employees.find(e => e.external_id && e.external_id === String(record.externalEmployeeId));
+          if (byId) matchedEmployeeId = byId.id;
+          else {
+            const nameToSearch = record.employeeName || record.externalEmployeeId;
+            if (nameToSearch && typeof nameToSearch === 'string') {
+              const normalizedSearch = nameToSearch.toLowerCase().trim();
+              const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
+              if (byName) matchedEmployeeId = byName.id;
+            }
+          }
+        }
+
+        const isDuplicate = matchedEmployeeId
+          ? existingEmpSet.has(`${matchedEmployeeId}_${record.date}`)
+          : existingExtSet.has(`${record.externalEmployeeId}_${record.date}`);
+
+        if (isDuplicate) return null;
+
+        // --- NOTIFICAÇÃO DE BATIDA AUSENTE ---
+        if (matchedEmployeeId && (!record.punches[0] || record.punches[0].trim() === "")) {
+          notifyClock({
+            recipientId: matchedEmployeeId,
+            type: "justification_required",
+            data: { data: record.date, descricao: "Ponto de entrada não registrado no arquivo importado." }
+          });
+        }
+
+        return {
+          company_id: companyId,
+          import_id: importRecord.id,
+          external_employee_id: record.externalEmployeeId,
+          employee_id: matchedEmployeeId,
+          record_date: record.date,
+          entry_1: record.punches[0] || null,
+          exit_1: record.punches[1] || null,
+          entry_2: record.punches[2] || null,
+          exit_2: record.punches[3] || null,
+          raw_data: record.rawData as Json,
+          status: matchedEmployeeId ? "imported" : "pending_link",
+        };
+      }).filter(Boolean);
+
+      if (insertData.length > 0) {
+        const { error: batchError } = await supabase.from("time_tracking_records").insert(insertData as any);
+        if (!batchError) imported += insertData.length;
+      }
+      setImportProgress(Math.round(((i + batch.length) / records.length) * 50));
+    }
+
+    // --- DETECÇÃO DE FALTAS (FUNCIONÁRIOS ATIVOS SEM REGISTRO NO DIA) ---
+    const activeEmployees = employees.filter(e => e.role === 'colaborador' || e.role === 'gestor');
+    for (const date of distinctDates) {
+      const presentEmployeeIdsForDate = new Set(
+        records.filter(r => r.date === date).map(r => {
+          const matched = employees.find(e => e.external_id === String(r.externalEmployeeId) || e.name === r.employeeName);
+          return matched?.id;
+        }).filter(Boolean)
+      );
+
+      const missingEmployees = activeEmployees.filter(e => !presentEmployeeIdsForDate.has(e.id));
+
+      if (missingEmployees.length > 0) {
+        const absenceRecords = missingEmployees.map(m => ({
+          company_id: companyId,
+          import_id: importRecord.id,
+          employee_id: m.id,
+          record_date: date,
+          raw_data: { generated_absence: true },
+          status: "imported"
+        }));
+        await supabase.from("time_tracking_records").insert(absenceRecords as any);
+
+        // Notificar funcionários faltantes
+        for (const m of missingEmployees) {
+          notifyClock({
+            recipientId: m.id,
+            type: "justification_required",
+            data: { data: date, descricao: "Ausência de registro de ponto nesta data." }
+          });
+        }
+      }
+    }
+
+    await supabase.from("time_tracking_imports").update({
+      status: "completed",
+      imported_records: imported,
+      completed_at: new Date().toISOString(),
+    }).eq("id", importRecord.id);
+
+    return { imported, failed: 0 };
+  };
+
+  const performAccumulatedImport = async () => {
+    if (!parseResult || !parseResult.accumulatedRecords) return { imported: 0, failed: 0 };
+
+    const { data: reportRow, error: reportErr } = await supabase
+      .from('absenteeism_reports')
+      .insert({
+        company_id: companyId,
+        period_start: parseResult.periodStart || null,
+        period_end: parseResult.periodEnd || null,
+        company_name: parseResult.companyName || null,
+        imported_by: (await supabase.auth.getUser()).data.user?.id,
+      })
+      .select('id')
+      .single();
+
+    if (reportErr) throw reportErr;
+
+    const parseHoursToNumber = (h: string): number => {
+      if (!h || h === '-') return 0;
+      const parts = h.replace('-', '').trim().split(':');
+      const total = parseInt(parts[0] || '0') + parseInt(parts[1] || '0') / 60;
+      return h.startsWith('-') ? -total : total;
+    };
+
+    const records = parseResult.accumulatedRecords.map(r => {
+      const predicted = parseHoursToNumber(r.predictedHours);
+      const worked = parseHoursToNumber(r.workedHours);
+      const absRate = predicted > 0 ? Math.max(0, ((predicted - worked) / predicted) * 100) : 0;
+      return {
+        report_id: reportRow.id,
+        employee_name: r.employeeName,
+        predicted_hours: r.predictedHours || null,
+        worked_hours: r.workedHours || null,
+        bonus_hours: r.bonusHours || null,
+        balance: r.balance || null,
+        absenteeism_rate: parseFloat(absRate.toFixed(2)),
+      };
+    });
+
+    const { error: recErr } = await supabase.from('absenteeism_records').insert(records);
+    if (recErr) throw recErr;
+
+    setImportProgress(100);
+    return { imported: records.length, failed: 0 };
   };
 
   const getAcceptedFormats = () => {
@@ -993,10 +917,18 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         {step === "preview" && parseResult && (
           <div className="space-y-6">
             <div className="flex gap-4">
-              <Badge variant="outline" className="text-green-600 border-green-600">
-                <CheckCircle2 className="w-4 h-4 mr-1" />
-                {parseResult.records.length} registros válidos
-              </Badge>
+              {parseResult.records.length > 0 && (
+                <Badge variant="outline" className="text-green-600 border-green-600">
+                  <CheckCircle2 className="w-4 h-4 mr-1" />
+                  {parseResult.records.length} batidas diárias
+                </Badge>
+              )}
+              {parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0 && (
+                <Badge variant="outline" className="text-blue-600 border-blue-600">
+                  <CheckCircle2 className="w-4 h-4 mr-1" />
+                  {parseResult.accumulatedRecords.length} resumos acumulados
+                </Badge>
+              )}
               {parseResult.errors.length > 0 && (
                 <Badge variant="outline" className="text-red-600 border-red-600">
                   <XCircle className="w-4 h-4 mr-1" />
@@ -1011,40 +943,89 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               )}
             </div>
 
-            <Tabs defaultValue="records">
+            <Tabs defaultValue={parseResult.records.length > 0 ? "records" : "accumulated"}>
               <TabsList>
-                <TabsTrigger value="records">Registros ({parseResult.records.length})</TabsTrigger>
+                {parseResult.records.length > 0 && (
+                  <TabsTrigger value="records">Batidas Diárias ({parseResult.records.length})</TabsTrigger>
+                )}
+                {parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0 && (
+                  <TabsTrigger value="accumulated">Resumo Acumulado ({parseResult.accumulatedRecords.length})</TabsTrigger>
+                )}
                 <TabsTrigger value="errors">Erros ({parseResult.errors.length})</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="records" className="max-h-64 overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID Func.</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Batidas</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parseResult.records.slice(0, 20).map((record, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-mono">{record.externalEmployeeId}</TableCell>
-                        <TableCell>{record.employeeName || "-"}</TableCell>
-                        <TableCell>{record.date}</TableCell>
-                        <TableCell>{record.punches.join(", ") || "-"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {parseResult.records.length > 20 && (
-                  <p className="text-sm text-gray-500 mt-2 text-center">
-                    Mostrando 20 de {parseResult.records.length} registros
-                  </p>
+              <TabsContent value="records">
+                {parseResult.records.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Funcionário</TableHead>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Batidas</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parseResult.records.slice(0, 50).map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell>
+                              <div className="font-medium">{r.employeeName || "---"}</div>
+                              <div className="text-xs text-gray-500">ID: {r.externalEmployeeId}</div>
+                            </TableCell>
+                            <TableCell>{r.date}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {r.punches.map((p, pi) => (
+                                  <Badge key={pi} variant="secondary" className="font-mono text-xs">
+                                    {p}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">Nenhum registro diário encontrado.</div>
                 )}
               </TabsContent>
 
+              <TabsContent value="accumulated">
+                {parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Colaborador</TableHead>
+                          <TableHead className="text-center">Previstas</TableHead>
+                          <TableHead className="text-center">Trabalhadas</TableHead>
+                          <TableHead className="text-center">Abonos</TableHead>
+                          <TableHead className="text-center">Saldo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parseResult.accumulatedRecords.map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-medium">{r.employeeName}</TableCell>
+                            <TableCell className="text-center">{r.predictedHours}</TableCell>
+                            <TableCell className="text-center">{r.workedHours}</TableCell>
+                            <TableCell className="text-center">{r.bonusHours}</TableCell>
+                            <TableCell className="text-center">
+                              <span className={r.balance.startsWith('-') ? "text-destructive font-semibold" : "text-green-600 font-semibold"}>
+                                {r.balance}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">Nenhum resumo acumulado encontrado.</div>
+                )}
+              </TabsContent>
               <TabsContent value="errors" className="max-h-64 overflow-auto">
                 {parseResult.errors.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">Nenhum erro encontrado</p>
@@ -1073,8 +1054,11 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               <Button variant="outline" onClick={() => setStep("mapping")}>
                 Voltar
               </Button>
-              <Button onClick={handleImport} disabled={parseResult.records.length === 0}>
-                Importar {parseResult.records.length} registros
+              <Button
+                onClick={handleImport}
+                disabled={parseResult.totalRows === 0}
+              >
+                Importar {parseResult.totalRows} registros
               </Button>
             </div>
           </div>

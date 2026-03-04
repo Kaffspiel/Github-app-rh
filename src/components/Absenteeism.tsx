@@ -185,6 +185,7 @@ export function Absenteeism() {
     const handleWizardComplete = () => {
         setShowImportWizard(false);
         loadCompanyStats();
+        loadSavedReports();
     };
 
     const handlePDFUpload = useCallback(async (file: File) => {

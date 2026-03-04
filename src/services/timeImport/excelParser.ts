@@ -39,11 +39,18 @@ export function parseExcel(
       const requiredColumns = [mapping.employeeId, mapping.date].map(c => c.toLowerCase());
 
       let foundHeaders = false;
+      let sheetYear: number | undefined;
 
       for (let i = 0; i < Math.min(20, rawData.length); i++) {
         const row = rawData[i];
         const rowValues = row.map((v: any) => String(v).trim().toLowerCase());
         const rowString = rowValues.join(" ");
+
+        // Try to extract Year from first rows (common in reports)
+        const yearMatch = rowString.match(/\b(202[0-9])\b/);
+        if (yearMatch && !sheetYear) {
+          sheetYear = parseInt(yearMatch[1]);
+        }
 
         // Try to extract metadata "Nome: ..."
         if (!sheetEmployeeName) {
@@ -168,7 +175,7 @@ export function parseExcel(
           }
 
           const dateValue = getValue(row, mapping.date);
-          const date = parseDate(dateValue);
+          const date = parseDate(dateValue, sheetYear);
 
           if (!date) {
             // If date is invalid, it's likely not a data row (header, footer, spacer)
@@ -299,7 +306,7 @@ export function getExcelHeaders(file: ArrayBuffer): string[] {
   }
 }
 
-function parseDate(value: unknown): string | null {
+function parseDate(value: unknown, defaultYear?: number): string | null {
   if (!value) return null;
 
   // Handle Excel serial date
@@ -316,6 +323,14 @@ function parseDate(value: unknown): string | null {
   const brMatch = strValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (brMatch) {
     const [, day, month, year] = brMatch;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  // Try DD/MM format (using defaultYear)
+  const dmMatch = strValue.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (dmMatch) {
+    const year = defaultYear || new Date().getFullYear();
+    const [, day, month] = dmMatch;
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
