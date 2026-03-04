@@ -23,41 +23,38 @@ Dado um trecho de uma planilha convertida para CSV, identifique EXATAMENTE os no
 
 IMPORTANTE: Planilhas brasileiras de folha de ponto frequentemente têm:
 - Linhas de metadados no topo (Nome do empregador, CNPJ, endereço, dados do trabalhador)
-- Uma linha de cabeçalho real mais abaixo com as colunas de dados
-- A coluna "Marcações" pode ser um cabeçalho que abrange várias sub-colunas sem nome (Col3, Col4, Col5, etc.)
+- Uma linha de cabeçalho real mais abaixo com as colunas de dados (com "Dia", "Marcações", etc.)
+- A coluna "Marcações" pode abranger várias sub-colunas sem nome (Col3, Col4, Col5, etc.)
 - O nome do funcionário pode estar em uma linha de metadado "Nome: XXXX" antes da tabela de dados
-- Cada batida de ponto pode estar em uma sub-coluna vazia adjacente à coluna "Marcações"
+- Cada batida de ponto pode estar em sub-colunas vazias adjacentes à coluna "Marcações"
 
-Ao analisar, procure PRIMEIRO a linha de cabeçalho real da tabela de dados (que contém "Dia", "Marcações", "Previstas", etc.)
-Depois, para as colunas de batidas, se "Marcações" abrange múltiplas colunas, liste as sub-colunas como Col3, Col4, Col5 para punch1, punch2, punch3.
+REGRA CRÍTICA para "employeeId":
+- Se o nome do funcionário só aparece como metadado "Nome: Amanda Ferreira..." (e NÃO existe coluna "Nome" na tabela de dados), use o valor literal "Nome" como employeeId.
+  O sistema vai extrair o nome automaticamente da linha de metadado "Nome: XXXX".
+- Se existe uma coluna real "Nome" ou "Matrícula" na tabela de dados, use esse nome de coluna.
+- NUNCA use o valor do dado (ex: "Nome: Amanda Ferreira da Silva") — use apenas o identificador do campo.
 
-Se o nome do funcionário só aparece em linha de metadado (Ex: "Nome: Amanda...") e NÃO como coluna de dados, 
-então use a coluna de data ou algum campo identificador disponível na tabela para "employeeId".
+Para colunas sem nome no CSV (sub-colunas de "Marcações"), use "Col3", "Col4", "Col5" etc. (posição 1-indexada).
 
 Retorne um JSON com esta estrutura:
 {
-  "employeeId": "nome exato da coluna que representa ID ou matrícula do funcionário (pode ser o campo de Nome da tabela, ou 'Nome' do metadado)",
-  "employeeName": "nome exato da coluna do nome do funcionário (ou null se só existir como metadado)",
-  "date": "nome exato da coluna da data (geralmente 'Dia' ou 'Data')",
-  "punch1": "nome exato da 1ª coluna de batida/marcação (ou null)",
-  "punch2": "nome exato da 2ª coluna de batida (ou null) — pode ser Col3, Col4 etc se sub-colunas sem nome",
-  "punch3": "nome exato da 3ª coluna de batida (ou null)",
-  "punch4": "nome exato da 4ª coluna de batida (ou null)",
-  "punch5": "nome exato da 5ª coluna (ou null)",
-  "punch6": "nome exato da 6ª coluna (ou null)",
-  "punch7": "nome exato da 7ª coluna (ou null)",
-  "punch8": "nome exato da 8ª coluna (ou null)",
-  "headerRow": número da linha (0-indexado) onde está o cabeçalho real da tabela de dados,
+  "employeeId": "Nome" (se nome só está em metadado) ou nome da coluna real,
+  "employeeName": null (se nome só está em metadado) ou nome da coluna real,
+  "date": "Dia" ou nome exato da coluna de data,
+  "punch1": nome da 1ª coluna de batida ou null,
+  "punch2": nome da 2ª coluna de batida ou null,
+  "punch3": nome da 3ª coluna ou null,
+  "punch4": nome da 4ª coluna ou null,
+  "punch5": nome da 5ª coluna ou null,
+  "punch6": nome da 6ª coluna ou null,
+  "punch7": nome da 7ª coluna ou null,
+  "punch8": nome da 8ª coluna ou null,
+  "headerRow": número da linha 0-indexado do cabeçalho real da tabela,
   "confidence": "alta|média|baixa",
-  "notes": "observações sobre o formato detectado"
+  "notes": "observações sobre o formato"
 }
 
-Regras importantes:
-- "date" é OBRIGATÓRIO. Use "Dia" ou "Data" ou o nome exato da coluna de data.
-- "employeeId" é OBRIGATÓRIO.
-- Use os nomes EXATOS como aparecem no cabeçalho da tabela.
-- Para sub-colunas sem nome depois de "Marcações", use "Col3", "Col4" etc (número baseado na posição da coluna, 1-indexado).
-- Retorne APENAS o JSON, sem markdown ou texto adicional.`;
+Retorne APENAS o JSON, sem markdown ou texto adicional.`;
 
 
     const userPrompt = `Arquivo: ${fileName}\n\nAmostra da planilha (CSV):\n${csvSample}`;
