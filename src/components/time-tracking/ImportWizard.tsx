@@ -85,9 +85,10 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         const workbook = read(fileContent as ArrayBuffer, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        csvSample = utils.sheet_to_csv(worksheet).split("\n").slice(0, 15).join("\n");
+        // Send 30 rows so AI sees metadata + actual header + data rows
+        csvSample = utils.sheet_to_csv(worksheet).split("\n").slice(0, 30).join("\n");
       } else {
-        csvSample = (fileContent as string).split("\n").slice(0, 15).join("\n");
+        csvSample = (fileContent as string).split("\n").slice(0, 30).join("\n");
       }
 
       toast.info("IA analisando colunas da planilha...");

@@ -21,31 +21,44 @@ serve(async (req) => {
     const systemPrompt = `Você é um especialista em análise de planilhas de controle de ponto (time tracking) brasileiras.
 Dado um trecho de uma planilha convertida para CSV, identifique EXATAMENTE os nomes das colunas que correspondem a cada campo.
 
+IMPORTANTE: Planilhas brasileiras de folha de ponto frequentemente têm:
+- Linhas de metadados no topo (Nome do empregador, CNPJ, endereço, dados do trabalhador)
+- Uma linha de cabeçalho real mais abaixo com as colunas de dados
+- A coluna "Marcações" pode ser um cabeçalho que abrange várias sub-colunas sem nome (Col3, Col4, Col5, etc.)
+- O nome do funcionário pode estar em uma linha de metadado "Nome: XXXX" antes da tabela de dados
+- Cada batida de ponto pode estar em uma sub-coluna vazia adjacente à coluna "Marcações"
+
+Ao analisar, procure PRIMEIRO a linha de cabeçalho real da tabela de dados (que contém "Dia", "Marcações", "Previstas", etc.)
+Depois, para as colunas de batidas, se "Marcações" abrange múltiplas colunas, liste as sub-colunas como Col3, Col4, Col5 para punch1, punch2, punch3.
+
+Se o nome do funcionário só aparece em linha de metadado (Ex: "Nome: Amanda...") e NÃO como coluna de dados, 
+então use a coluna de data ou algum campo identificador disponível na tabela para "employeeId".
+
 Retorne um JSON com esta estrutura:
 {
-  "employeeId": "nome exato da coluna que representa ID ou matrícula do funcionário (pode ser nome se não houver ID)",
-  "employeeName": "nome exato da coluna do nome do funcionário (ou null se não existir separado)",
-  "date": "nome exato da coluna da data",
-  "punch1": "nome exato da coluna da 1ª batida/marcação de ponto (ou null)",
-  "punch2": "nome exato da coluna da 2ª batida (ou null)",
-  "punch3": "nome exato da coluna da 3ª batida (ou null)",
-  "punch4": "nome exato da coluna da 4ª batida (ou null)",
-  "punch5": "nome exato da coluna da 5ª batida (ou null)",
-  "punch6": "nome exato da coluna da 6ª batida (ou null)",
-  "punch7": "nome exato da coluna da 7ª batida (ou null)",
-  "punch8": "nome exato da coluna da 8ª batida (ou null)",
+  "employeeId": "nome exato da coluna que representa ID ou matrícula do funcionário (pode ser o campo de Nome da tabela, ou 'Nome' do metadado)",
+  "employeeName": "nome exato da coluna do nome do funcionário (ou null se só existir como metadado)",
+  "date": "nome exato da coluna da data (geralmente 'Dia' ou 'Data')",
+  "punch1": "nome exato da 1ª coluna de batida/marcação (ou null)",
+  "punch2": "nome exato da 2ª coluna de batida (ou null) — pode ser Col3, Col4 etc se sub-colunas sem nome",
+  "punch3": "nome exato da 3ª coluna de batida (ou null)",
+  "punch4": "nome exato da 4ª coluna de batida (ou null)",
+  "punch5": "nome exato da 5ª coluna (ou null)",
+  "punch6": "nome exato da 6ª coluna (ou null)",
+  "punch7": "nome exato da 7ª coluna (ou null)",
+  "punch8": "nome exato da 8ª coluna (ou null)",
+  "headerRow": número da linha (0-indexado) onde está o cabeçalho real da tabela de dados,
   "confidence": "alta|média|baixa",
   "notes": "observações sobre o formato detectado"
 }
 
 Regras importantes:
-- "employeeId" é OBRIGATÓRIO. Se não houver coluna de ID/matrícula, use a coluna de nome.
-- "date" é OBRIGATÓRIO.
-- As batidas são as colunas de horários (entrada 1, saída 1, entrada 2, saída 2, etc.)
-- Se uma coluna não existir, retorne null para ela.
-- Use os nomes EXATOS das colunas como aparecem no cabeçalho da planilha.
-- Planilhas brasileiras costumam ter: Nome, Matrícula, Data, Dia, Entrada, Saída, 1ª Entrada, 1ª Saída, etc.
+- "date" é OBRIGATÓRIO. Use "Dia" ou "Data" ou o nome exato da coluna de data.
+- "employeeId" é OBRIGATÓRIO.
+- Use os nomes EXATOS como aparecem no cabeçalho da tabela.
+- Para sub-colunas sem nome depois de "Marcações", use "Col3", "Col4" etc (número baseado na posição da coluna, 1-indexado).
 - Retorne APENAS o JSON, sem markdown ou texto adicional.`;
+
 
     const userPrompt = `Arquivo: ${fileName}\n\nAmostra da planilha (CSV):\n${csvSample}`;
 
