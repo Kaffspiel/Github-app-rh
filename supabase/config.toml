@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.check-overdue-tasks]
 verify_jwt = false
+
+[functions.detect-column-mapping]
+verify_jwt = false
