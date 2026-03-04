@@ -28,6 +28,7 @@ interface ChatSession {
     employeeId: string;
     title: string;
     createdAt: number;
+    isPinned?: boolean;
 }
 
 interface StrategicRHAgentProps {
@@ -39,6 +40,7 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
     const [messages, setMessages] = useState<Message[]>([]);
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [employeeSummary, setEmployeeSummary] = useState<any>(null);
@@ -60,14 +62,21 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
                     setSessions(parsedSessions);
                 } catch (e) {
                     console.error("Error parsing sessions:", e);
+                    setSessions([]);
                 }
+            } else {
+                setSessions([]);
             }
+        } else {
+            setSessions([]);
+            setMessages([]);
+            setCurrentSessionId(null);
         }
     }, [user?.id, companyId]);
 
     // Update currentSessionId when employee change or sessions load
     useEffect(() => {
-        if (!selectedEmployeeId) return;
+        if (!selectedEmployeeId || !user?.id) return;
 
         // Find most recent session for this employee
         const employeeSessions = sessions.filter(s => s.employeeId === selectedEmployeeId);
@@ -77,7 +86,7 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
             }
         } else {
             // Create initial session if none exist
-            const newId = Date.now().toString();
+            const newId = `${user.id}_${Date.now()}`;
             const newSession: ChatSession = {
                 id: newId,
                 employeeId: selectedEmployeeId,
@@ -87,12 +96,12 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
             setSessions(prev => [newSession, ...prev]);
             setCurrentSessionId(newId);
         }
-    }, [selectedEmployeeId, sessions.length]);
+    }, [selectedEmployeeId, sessions.length, user?.id]);
 
     // Load messages for current session
     useEffect(() => {
-        if (currentSessionId) {
-            const messagesKey = `chat_messages_${currentSessionId}`;
+        if (currentSessionId && user?.id) {
+            const messagesKey = `chat_messages_${user.id}_${currentSessionId}`;
             const savedMessages = localStorage.getItem(messagesKey);
             if (savedMessages) {
                 try {
@@ -107,12 +116,12 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
         } else {
             setMessages([]);
         }
-    }, [currentSessionId]);
+    }, [currentSessionId, user?.id]);
 
     // Save messages and update session title
     useEffect(() => {
-        if (currentSessionId && messages.length > 0) {
-            const messagesKey = `chat_messages_${currentSessionId}`;
+        if (currentSessionId && messages.length > 0 && user?.id) {
+            const messagesKey = `chat_messages_${user.id}_${currentSessionId}`;
             localStorage.setItem(messagesKey, JSON.stringify(messages));
 
             // Auto-rename session if it's the first user message
@@ -125,10 +134,10 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
                     s.id === currentSessionId ? { ...s, title: newTitle } : s
                 );
                 setSessions(updatedSessions);
-                localStorage.setItem(`chat_sessions_${companyId}_${user?.id}`, JSON.stringify(updatedSessions));
+                localStorage.setItem(`chat_sessions_${companyId}_${user.id}`, JSON.stringify(updatedSessions));
             }
         }
-    }, [messages, currentSessionId]);
+    }, [messages, currentSessionId, user?.id]);
 
     // Save sessions index when changed
     useEffect(() => {
@@ -293,14 +302,15 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
     };
 
     const startNewChat = () => {
-        if (!selectedEmployeeId) return;
+        if (!selectedEmployeeId || !user?.id) return;
 
-        const newId = Date.now().toString();
+        const newId = `${user.id}_${Date.now()}`;
         const newSession: ChatSession = {
             id: newId,
             employeeId: selectedEmployeeId,
             title: "Nova conversa",
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            isPinned: false
         };
 
         setSessions(prev => [newSession, ...prev]);
@@ -309,6 +319,53 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
         setInput("");
         setSelectedFile(null);
     };
+
+    const togglePinSession = (e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation();
+        const updatedSessions = sessions.map(s =>
+            s.id === sessionId ? { ...s, isPinned: !s.isPinned } : s
+        );
+        setSessions(updatedSessions);
+        if (user?.id && companyId) {
+            localStorage.setItem(`chat_sessions_${companyId}_${user.id}`, JSON.stringify(updatedSessions));
+        }
+    };
+
+    const deleteSession = (e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation();
+        const updatedSessions = sessions.filter(s => s.id !== sessionId);
+        setSessions(updatedSessions);
+
+        // Cleanup messages
+        if (user?.id) {
+            localStorage.removeItem(`chat_messages_${user.id}_${sessionId}`);
+        }
+
+        // Cleanup index
+        if (user?.id && companyId) {
+            localStorage.setItem(`chat_sessions_${companyId}_${user.id}`, JSON.stringify(updatedSessions));
+        }
+
+        if (currentSessionId === sessionId) {
+            if (updatedSessions.length > 0) {
+                const nextSession = updatedSessions.filter(s => s.employeeId === selectedEmployeeId)[0];
+                setCurrentSessionId(nextSession?.id || null);
+            } else {
+                setCurrentSessionId(null);
+            }
+        }
+    };
+
+    const filteredSessions = sessions
+        .filter(s =>
+            s.employeeId === selectedEmployeeId &&
+            s.title.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        .sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return b.createdAt - a.createdAt;
+        });
 
     return (
         <div className="flex h-full w-full bg-[#0d0d0d] text-gray-100 rounded-xl overflow-hidden border border-gray-800 shadow-2xl">
@@ -325,27 +382,67 @@ export function StrategicRHAgent({ selectedEmployeeId, employeeName }: Strategic
                     </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-2 space-y-1">
-                    <div className="p-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Conversas Recentes
+                <div className="px-4 pb-2">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                        <Input
+                            placeholder="Pesquisar chats..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="h-8 pl-8 bg-gray-900/50 border-gray-800 text-xs focus-visible:ring-indigo-500/30"
+                        />
                     </div>
-                    {sessions
-                        .filter(s => s.employeeId === selectedEmployeeId)
-                        .map(session => (
-                            <div
-                                key={session.id}
-                                onClick={() => setCurrentSessionId(session.id)}
-                                className={cn(
-                                    "flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer transition-colors border",
-                                    currentSessionId === session.id
-                                        ? "bg-gray-800 text-white border-gray-700"
-                                        : "text-gray-400 border-transparent hover:bg-gray-800/30 hover:text-gray-200"
-                                )}
-                            >
-                                <MessageSquare className="w-4 h-4 text-gray-400" />
-                                <span className="truncate">{session.title}</span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-2 space-y-1">
+                    <div className="p-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>Conversas</span>
+                        <span className="text-[10px] bg-gray-800 px-1.5 py-0.5 rounded text-gray-400">
+                            {filteredSessions.length}
+                        </span>
+                    </div>
+                    {filteredSessions.map(session => (
+                        <div
+                            key={session.id}
+                            onClick={() => setCurrentSessionId(session.id)}
+                            className={cn(
+                                "group flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer transition-all border relative",
+                                currentSessionId === session.id
+                                    ? "bg-gray-800 text-white border-gray-700 shadow-sm"
+                                    : "text-gray-400 border-transparent hover:bg-gray-800/60 hover:text-gray-200"
+                            )}
+                        >
+                            <MessageSquare className={cn("w-4 h-4 flex-shrink-0", currentSessionId === session.id ? "text-indigo-400" : "text-gray-500")} />
+                            <span className="truncate flex-1 pr-12">{session.title}</span>
+
+                            <div className={cn(
+                                "absolute right-2 flex items-center gap-1.5 transition-opacity",
+                                currentSessionId === session.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                            )}>
+                                <button
+                                    onClick={(e) => togglePinSession(e, session.id)}
+                                    className={cn(
+                                        "p-1 rounded hover:bg-gray-700 transition-colors",
+                                        session.isPinned ? "text-indigo-400" : "text-gray-500"
+                                    )}
+                                >
+                                    <Plus className={cn("w-3 h-3 transition-transform", session.isPinned ? "rotate-45" : "")}
+                                        style={{ transform: session.isPinned ? 'rotate(45deg)' : 'none' }} />
+                                </button>
+                                <button
+                                    onClick={(e) => deleteSession(e, session.id)}
+                                    className="p-1 rounded hover:bg-red-900/40 text-gray-500 hover:text-red-400 transition-colors"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
                             </div>
-                        ))}
+                        </div>
+                    ))}
+                    {filteredSessions.length === 0 && (
+                        <div className="p-4 text-center text-xs text-gray-600 italic">
+                            Nenhuma conversa encontrada
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-4 border-t border-gray-800">
