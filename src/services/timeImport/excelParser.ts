@@ -248,15 +248,52 @@ export function getExcelHeaders(file: ArrayBuffer): string[] {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
-    const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
-    const headers: string[] = [];
+    const rawData = XLSX.utils.sheet_to_json<any[]>(worksheet, {
+      header: 1,
+      raw: false,
+      defval: "",
+    });
 
-    for (let col = range.s.c; col <= range.e.c; col++) {
-      const cell = worksheet[XLSX.utils.encode_cell({ r: 0, c: col })];
-      headers.push(cell?.v?.toString() || `Coluna ${col + 1}`);
+    // Find the actual header row (not metadata rows)
+    // Look for a row that has multiple non-empty cells and contains known time-tracking keywords
+    const timeKeywords = ["dia", "data", "marcaç", "entrada", "saída", "saida", "nome", "matrícula", "matricula", "ponto", "batida"];
+    
+    let headerRowIndex = 0;
+    let bestScore = 0;
+
+    for (let i = 0; i < Math.min(25, rawData.length); i++) {
+      const row = rawData[i];
+      const rowStr = row.map((v: any) => String(v || "").toLowerCase()).join(" ");
+      const nonEmpty = row.filter((v: any) => String(v || "").trim().length > 0).length;
+      
+      // Score based on keyword matches and non-empty cells
+      let score = 0;
+      timeKeywords.forEach(kw => { if (rowStr.includes(kw)) score += 10; });
+      score += Math.min(nonEmpty * 2, 20); // reward rows with more filled cells
+      
+      if (score > bestScore) {
+        bestScore = score;
+        headerRowIndex = i;
+      }
     }
 
-    return headers;
+    const headerRow = rawData[headerRowIndex] || [];
+    
+    // Build headers — for empty cells, generate positional names
+    const headers: string[] = [];
+    let lastNonEmpty = "";
+    headerRow.forEach((cell: any, idx: number) => {
+      const val = String(cell || "").trim();
+      if (val) {
+        headers.push(val);
+        lastNonEmpty = val;
+      } else {
+        // Use "ColN" for truly empty headers so they can still be mapped
+        headers.push(`Col${idx + 1}`);
+      }
+    });
+
+    return headers.filter(h => h.length > 0);
   } catch {
     return [];
   }
