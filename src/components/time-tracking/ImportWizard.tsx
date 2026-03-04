@@ -68,9 +68,67 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [setAsDefault, setSetAsDefault] = useState(false);
+  const [isDetectingColumns, setIsDetectingColumns] = useState(false);
 
   const applyTemplate = (tpl: typeof defaultTemplate) => {
     if (tpl) setMapping(tpl.mapping);
+  };
+
+  const handleDetectColumns = async () => {
+    if (!file || !fileContent) return;
+    setIsDetectingColumns(true);
+    try {
+      // Convert Excel to CSV sample for AI analysis
+      let csvSample = "";
+      if (fileFormat === "excel") {
+        const { utils, read } = await import("xlsx");
+        const workbook = read(fileContent as ArrayBuffer, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        csvSample = utils.sheet_to_csv(worksheet).split("\n").slice(0, 15).join("\n");
+      } else {
+        csvSample = (fileContent as string).split("\n").slice(0, 15).join("\n");
+      }
+
+      toast.info("IA analisando colunas da planilha...");
+
+      const { data, error } = await supabase.functions.invoke("detect-column-mapping", {
+        body: { csvSample, fileName: file.name },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || error?.message || "Erro na detecção");
+      }
+
+      const detected = data.mapping;
+      // Apply detected mapping (filter out nulls)
+      const newMapping: ColumnMapping = {
+        employeeId: detected.employeeId || "",
+        employeeName: detected.employeeName || "",
+        date: detected.date || "",
+        punch1: detected.punch1 || "",
+        punch2: detected.punch2 || "",
+        punch3: detected.punch3 || "",
+        punch4: detected.punch4 || "",
+        punch5: detected.punch5 || "",
+        punch6: detected.punch6 || "",
+        punch7: detected.punch7 || "",
+        punch8: detected.punch8 || "",
+      };
+      setMapping(newMapping);
+
+      const confidence = detected.confidence === "alta" ? "✅ Alta" : detected.confidence === "média" ? "⚠️ Média" : "❗ Baixa";
+      toast.success(`Colunas detectadas! Confiança: ${confidence}${detected.notes ? ` — ${detected.notes}` : ""}`);
+      
+      // Auto-open save dialog to encourage saving as template
+      setTemplateName("Padrão " + (file.name.split(".")[0] || "Empresa"));
+      setSetAsDefault(true);
+      setShowSaveTemplateDialog(true);
+    } catch (err: any) {
+      toast.error(`Erro ao detectar colunas: ${err.message}`);
+    } finally {
+      setIsDetectingColumns(false);
+    }
   };
 
   const handleFileSelect = useCallback(async (selectedFile: File) => {
@@ -711,13 +769,23 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               </div>
             ) : (
               <>
-                {/* Template selector */}
-                {templates.length > 0 && (
-                  <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                {/* Template selector + AI detect */}
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <p className="text-sm font-medium flex items-center gap-2">
                       <Save className="w-4 h-4 text-primary" />
                       Modelos salvos da empresa
                     </p>
+                    {templates.length === 0 && (
+                      <Alert className="py-2 px-3 flex-1">
+                        <Brain className="w-4 h-4 text-purple-600" />
+                        <AlertDescription className="text-xs text-muted-foreground">
+                          Nenhum modelo salvo. Use a IA para detectar as colunas automaticamente e salve como modelo padrão.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                  {templates.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {templates.map((tpl) => (
                         <div key={tpl.id} className="flex items-center gap-1 bg-background border rounded-full px-3 py-1">
@@ -738,8 +806,27 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDetectColumns}
+                    disabled={isDetectingColumns}
+                    className="w-full border-dashed border-purple-400 text-purple-700 hover:bg-purple-50"
+                  >
+                    {isDetectingColumns ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Detectando colunas com IA...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-4 h-4 mr-2" />
+                        🔍 Detectar colunas com IA e salvar como modelo
+                      </>
+                    )}
+                  </Button>
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
