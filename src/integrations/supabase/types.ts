@@ -986,11 +986,11 @@ export type Database = {
           id: string
           import_id: string | null
           notes: string | null
-          overtime: unknown
+          overtime: string | null
           raw_data: Json | null
           record_date: string
           status: string | null
-          total_hours: unknown
+          total_hours: string | null
           updated_at: string
         }
         Insert: {
@@ -1010,11 +1010,11 @@ export type Database = {
           id?: string
           import_id?: string | null
           notes?: string | null
-          overtime?: unknown
+          overtime?: string | null
           raw_data?: Json | null
           record_date: string
           status?: string | null
-          total_hours?: unknown
+          total_hours?: string | null
           updated_at?: string
         }
         Update: {
@@ -1034,11 +1034,11 @@ export type Database = {
           id?: string
           import_id?: string | null
           notes?: string | null
-          overtime?: unknown
+          overtime?: string | null
           raw_data?: Json | null
           record_date?: string
           status?: string | null
-          total_hours?: unknown
+          total_hours?: string | null
           updated_at?: string
         }
         Relationships: [

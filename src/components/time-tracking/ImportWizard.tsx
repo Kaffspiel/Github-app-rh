@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
@@ -9,14 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/context/CompanyContext";
 import { toast } from "sonner";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useColumnMappingTemplates } from "@/hooks/useColumnMappingTemplates";
 import {
   Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle,
-  AlertTriangle, ArrowRight, Download, RefreshCw, Brain, FileType
+  AlertTriangle, ArrowRight, Download, RefreshCw, Brain, FileType,
+  BookTemplate, Save, Trash2, Star, StarOff
 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 import {
@@ -38,6 +42,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const { companyId } = useCompany();
   const { employees } = useEmployeesList();
   const { notify, notifyClock } = useNotifications();
+  const { templates, saveTemplate, deleteTemplate, setDefaultTemplate, defaultTemplate } = useColumnMappingTemplates("excel");
+
   const [step, setStep] = useState<Step>("upload");
   const [fileFormat, setFileFormat] = useState<ExtendedFileFormat>("excel");
   const [file, setFile] = useState<File | null>(null);
@@ -58,6 +64,15 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const [useAI, setUseAI] = useState(false);
   const [isAIParsing, setIsAIParsing] = useState(false);
 
+  // Template management state
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [setAsDefault, setSetAsDefault] = useState(false);
+
+  const applyTemplate = (tpl: typeof defaultTemplate) => {
+    if (tpl) setMapping(tpl.mapping);
+  };
+
   const handleFileSelect = useCallback(async (selectedFile: File) => {
     setFile(selectedFile);
 
@@ -67,7 +82,6 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         setUseAI(true);
         const text = await selectedFile.text();
         setFileContent(text);
-        // Skip mapping step for AI parsing - go directly to AI processing
         setStep("mapping");
         return;
       }
@@ -77,6 +91,11 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         setFileContent(buffer);
         const hdrs = getExcelHeaders(buffer);
         setHeaders(hdrs);
+        // Auto-apply default template if available
+        if (defaultTemplate) {
+          setMapping(defaultTemplate.mapping);
+          toast.info(`Modelo "${defaultTemplate.name}" aplicado automaticamente`);
+        }
       } else {
         const text = await selectedFile.text();
         setFileContent(text);
@@ -87,7 +106,18 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     } catch (error) {
       toast.error("Erro ao ler arquivo");
     }
-  }, [fileFormat]);
+  }, [fileFormat, defaultTemplate]);
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) {
+      toast.error("Digite um nome para o modelo");
+      return;
+    }
+    await saveTemplate(templateName.trim(), mapping, setAsDefault);
+    setShowSaveTemplateDialog(false);
+    setTemplateName("");
+    setSetAsDefault(false);
+  };
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -655,7 +685,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               <FileSpreadsheet className="w-4 h-4" />
               <AlertDescription>
                 Arquivo: <strong>{file?.name}</strong>
-                {!useAI && fileFormat !== "pdf" && ` - ${headers.length} colunas encontradas`}
+                {!useAI && fileFormat !== "pdf" && ` — ${headers.length} colunas encontradas`}
               </AlertDescription>
             </Alert>
 
@@ -665,7 +695,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
                   <>
                     <Brain className="w-16 h-16 mx-auto text-purple-600 animate-pulse" />
                     <p className="text-lg font-medium">Analisando documento com IA...</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       A IA está identificando registros de ponto automaticamente
                     </p>
                   </>
@@ -673,7 +703,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
                   <>
                     <Brain className="w-16 h-16 mx-auto text-purple-600" />
                     <p className="text-lg font-medium">Pronto para análise com IA</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Clique em "Processar com IA" para extrair os registros automaticamente
                     </p>
                   </>
@@ -681,6 +711,36 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               </div>
             ) : (
               <>
+                {/* Template selector */}
+                {templates.length > 0 && (
+                  <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <Save className="w-4 h-4 text-primary" />
+                      Modelos salvos da empresa
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {templates.map((tpl) => (
+                        <div key={tpl.id} className="flex items-center gap-1 bg-background border rounded-full px-3 py-1">
+                          {tpl.is_default && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
+                          <button
+                            className="text-sm hover:text-primary transition-colors"
+                            onClick={() => applyTemplate(tpl)}
+                          >
+                            {tpl.name}
+                          </button>
+                          <button
+                            className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+                            onClick={() => deleteTemplate(tpl.id)}
+                            title="Excluir modelo"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>ID do Funcionário *</Label>
@@ -751,6 +811,19 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
                     ))}
                   </div>
                 </div>
+
+                {/* Save template button */}
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSaveTemplateDialog(true)}
+                    disabled={!mapping.employeeId || !mapping.date}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar modelo da empresa
+                  </Button>
+                </div>
               </>
             )}
 
@@ -780,6 +853,53 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
             </div>
           </div>
         )}
+
+        {/* Save Template Dialog */}
+        <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Save className="w-5 h-5 text-primary" />
+                Salvar modelo de mapeamento
+              </DialogTitle>
+              <DialogDescription>
+                Salve este mapeamento de colunas para reutilizar nas próximas importações sem precisar configurar novamente.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="template-name">Nome do modelo *</Label>
+                <Input
+                  id="template-name"
+                  placeholder="Ex: Padrão Empresa, Folha Mensal..."
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveTemplate()}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="set-default"
+                  checked={setAsDefault}
+                  onCheckedChange={setSetAsDefault}
+                />
+                <Label htmlFor="set-default" className="flex items-center gap-1 cursor-pointer">
+                  <Star className="w-4 h-4 text-yellow-500" />
+                  Definir como padrão (aplicar automaticamente)
+                </Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSaveTemplateDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveTemplate} disabled={!templateName.trim()}>
+                <Save className="w-4 h-4 mr-2" />
+                Salvar modelo
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Step: Preview */}
         {step === "preview" && parseResult && (
