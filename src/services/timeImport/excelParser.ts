@@ -12,9 +12,9 @@ export function parseExcel(
   try {
     const workbook = XLSX.read(file, { type: "array" });
 
-    // Keep track of the last valid column map to use as fallback for continuation sheets
+    // Keep track of characters to reuse across sheets
     let globalColumnMap: Record<string, number> | null = null;
-    let globalHeaderRowIndex = -1; // To know if we should skip the first row or not? 
+    let globalYear: number | undefined;
     // Actually, if we reuse map, we assume data starts at 0 unless we find a new header.
 
     // Process all sheets
@@ -48,8 +48,9 @@ export function parseExcel(
 
         // Try to extract Year from first rows (common in reports)
         const yearMatch = rowString.match(/\b(202[0-9])\b/);
-        if (yearMatch && !sheetYear) {
+        if (yearMatch) {
           sheetYear = parseInt(yearMatch[1]);
+          if (!globalYear) globalYear = sheetYear;
         }
 
         // Try to extract metadata "Nome: ..."
@@ -175,7 +176,7 @@ export function parseExcel(
           }
 
           const dateValue = getValue(row, mapping.date);
-          const date = parseDate(dateValue, sheetYear);
+          const date = parseDate(dateValue, sheetYear || globalYear);
 
           if (!date) {
             // If date is invalid, it's likely not a data row (header, footer, spacer)
@@ -193,13 +194,16 @@ export function parseExcel(
             const val = getValue(row, field);
             if (val) {
               const valStr = String(val);
-              // Check if it has MULTIPLE times in one cell (e.g. "08:00 12:00")
-              // Regex finds HH:MM patterns
+              // Check if it has times in the cell (e.g. "08:00(E) 12:00(S)" or just "08:00")
+              // Regex finds HH:MM patterns, allowing for suffixes like (E), (S), (A), *, etc.
               const timeMatches = valStr.match(/(\d{1,2}:\d{2})/g);
 
               if (timeMatches && timeMatches.length > 0) {
                 // Push all found times
-                timeMatches.forEach(t => punches.push(t));
+                timeMatches.forEach(t => {
+                  const formattedTime = t.padStart(5, "0"); // Ensure HH:mm
+                  punches.push(formattedTime);
+                });
               } else {
                 // Try standard single parse
                 const time = parseTime(val);
@@ -252,56 +256,51 @@ export function parseExcel(
 export function getExcelHeaders(file: ArrayBuffer): string[] {
   try {
     const workbook = XLSX.read(file, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-
-    const rawData = XLSX.utils.sheet_to_json<any[]>(worksheet, {
-      header: 1,
-      raw: false,
-      defval: "",
-    });
-
-    // Find the actual header row (not metadata rows)
-    // Look for a row that has multiple non-empty cells and contains known time-tracking keywords
+    const allHeaders = new Set<string>();
     const timeKeywords = ["dia", "data", "marcaç", "entrada", "saída", "saida", "nome", "matrícula", "matricula", "ponto", "batida"];
-    
-    let headerRowIndex = 0;
-    let bestScore = 0;
 
-    for (let i = 0; i < Math.min(25, rawData.length); i++) {
-      const row = rawData[i];
-      const rowStr = row.map((v: any) => String(v || "").toLowerCase()).join(" ");
-      const nonEmpty = row.filter((v: any) => String(v || "").trim().length > 0).length;
-      
-      // Score based on keyword matches and non-empty cells
-      let score = 0;
-      timeKeywords.forEach(kw => { if (rowStr.includes(kw)) score += 10; });
-      score += Math.min(nonEmpty * 2, 20); // reward rows with more filled cells
-      
-      if (score > bestScore) {
-        bestScore = score;
-        headerRowIndex = i;
+    workbook.SheetNames.forEach(sheetName => {
+      const worksheet = workbook.Sheets[sheetName];
+      const rawData = XLSX.utils.sheet_to_json<any[]>(worksheet, {
+        header: 1,
+        raw: false,
+        defval: "",
+      });
+
+      let bestScore = 0;
+      let headerRowIndex = -1;
+
+      for (let i = 0; i < Math.min(25, rawData.length); i++) {
+        const row = rawData[i];
+        if (!row || row.length === 0) continue;
+
+        const rowStr = row.map((v: any) => String(v || "").toLowerCase()).join(" ");
+        const nonEmpty = row.filter((v: any) => String(v || "").trim().length > 0).length;
+
+        let score = 0;
+        timeKeywords.forEach(kw => { if (rowStr.includes(kw)) score += 10; });
+        score += Math.min(nonEmpty * 2, 20);
+
+        if (score > bestScore && score > 15) { // Minimum threshold to be considered a header
+          bestScore = score;
+          headerRowIndex = i;
+        }
       }
-    }
 
-    const headerRow = rawData[headerRowIndex] || [];
-    
-    // Build headers — for empty cells, generate positional names
-    const headers: string[] = [];
-    let lastNonEmpty = "";
-    headerRow.forEach((cell: any, idx: number) => {
-      const val = String(cell || "").trim();
-      if (val) {
-        headers.push(val);
-        lastNonEmpty = val;
-      } else {
-        // Use "ColN" for truly empty headers so they can still be mapped
-        headers.push(`Col${idx + 1}`);
+      if (headerRowIndex !== -1) {
+        const headerRow = rawData[headerRowIndex] || [];
+        headerRow.forEach((cell: any, idx: number) => {
+          const val = String(cell || "").trim();
+          if (val && val.length > 1) {
+            allHeaders.add(val);
+          }
+        });
       }
     });
 
-    return headers.filter(h => h.length > 0);
-  } catch {
+    return Array.from(allHeaders);
+  } catch (err) {
+    console.error("Error getting Excel headers:", err);
     return [];
   }
 }
@@ -354,7 +353,11 @@ function parseTime(value: unknown): string | null {
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   }
 
-  const strValue = String(value).trim();
+  // Clean common suffixes and prefixes used in time reports
+  const strValue = String(value).trim()
+    .replace(/\([A-Z*]\)/gi, "") // Remove (E), (S), (A), (*), etc.
+    .replace(/\*/g, "")          // Remove bare asterisks
+    .trim();
 
   // Try HH:MM format
   const timeMatch = strValue.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);

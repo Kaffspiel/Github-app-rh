@@ -33,12 +33,13 @@ import {
 interface ImportWizardProps {
   onComplete: () => void;
   onCancel: () => void;
+  mode?: 'time-tracking' | 'absenteeism';
 }
 
 type Step = "upload" | "mapping" | "preview" | "importing" | "complete";
 type ExtendedFileFormat = FileFormat | "pdf";
 
-export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
+export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: ImportWizardProps) {
   const { companyId } = useCompany();
   const { employees } = useEmployeesList();
   const { notify, notifyClock } = useNotifications();
@@ -46,8 +47,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
   const [step, setStep] = useState<Step>("upload");
   const [fileFormat, setFileFormat] = useState<ExtendedFileFormat>("excel");
-  const [file, setFile] = useState<File | null>(null);
-  const [fileContent, setFileContent] = useState<ArrayBuffer | string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileContents, setFileContents] = useState<Array<(ArrayBuffer | string)>>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<ColumnMapping>({
     employeeId: "",
@@ -75,26 +76,26 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   };
 
   const handleDetectColumns = async () => {
-    if (!file || !fileContent) return;
+    if (files.length === 0 || fileContents.length === 0) return;
     setIsDetectingColumns(true);
     try {
       // Convert Excel to CSV sample for AI analysis
       let csvSample = "";
       if (fileFormat === "excel") {
         const { utils, read } = await import("xlsx");
-        const workbook = read(fileContent as ArrayBuffer, { type: "array" });
+        const workbook = read(fileContents[0] as ArrayBuffer, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         // Send 30 rows so AI sees metadata + actual header + data rows
         csvSample = utils.sheet_to_csv(worksheet).split("\n").slice(0, 30).join("\n");
       } else {
-        csvSample = (fileContent as string).split("\n").slice(0, 30).join("\n");
+        csvSample = (fileContents[0] as string).split("\n").slice(0, 30).join("\n");
       }
 
       toast.info("IA analisando colunas da planilha...");
 
       const { data, error } = await supabase.functions.invoke("detect-column-mapping", {
-        body: { csvSample, fileName: file.name },
+        body: { csvSample, fileName: files[0].name },
       });
 
       if (error || !data?.success) {
@@ -120,9 +121,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
       const confidence = detected.confidence === "alta" ? "✅ Alta" : detected.confidence === "média" ? "⚠️ Média" : "❗ Baixa";
       toast.success(`Colunas detectadas! Confiança: ${confidence}${detected.notes ? ` — ${detected.notes}` : ""}`);
-      
+
       // Auto-open save dialog to encourage saving as template
-      setTemplateName("Padrão " + (file.name.split(".")[0] || "Empresa"));
+      setTemplateName("Padrão " + (files[0].name.split(".")[0] || "Empresa"));
       setSetAsDefault(true);
       setShowSaveTemplateDialog(true);
     } catch (err: any) {
@@ -132,38 +133,46 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     }
   };
 
-  const handleFileSelect = useCallback(async (selectedFile: File) => {
-    setFile(selectedFile);
+  const handleFileSelect = useCallback(async (selectedFiles: FileList | File[]) => {
+    const newFiles = Array.from(selectedFiles);
+    setFiles(prev => [...prev, ...newFiles]);
 
     try {
-      // For PDF, always use AI
-      if (fileFormat === "pdf") {
-        setUseAI(true);
-        const text = await selectedFile.text();
-        setFileContent(text);
-        setStep("mapping");
-        return;
+      const newContents: Array<ArrayBuffer | string> = [];
+
+      for (const file of newFiles) {
+        if (fileFormat === "pdf" || fileFormat === "excel") {
+          const buffer = await file.arrayBuffer();
+          newContents.push(buffer);
+          if (fileFormat === "pdf") setUseAI(true);
+        } else {
+          const text = await file.text();
+          newContents.push(text);
+        }
       }
 
-      if (fileFormat === "excel") {
-        const buffer = await selectedFile.arrayBuffer();
-        setFileContent(buffer);
-        const hdrs = getExcelHeaders(buffer);
-        setHeaders(hdrs);
-        // Auto-apply default template if available
+      setFileContents(prev => [...prev, ...newContents]);
+
+      if (fileFormat !== "pdf") {
+        // Just use the first file for header detection for now
+        if (fileFormat === "excel") {
+          const headers = await getExcelHeaders(newContents[0] as ArrayBuffer);
+          setHeaders(headers);
+        } else {
+          const headers = await getCsvHeaders(newContents[0] as string);
+          setHeaders(headers);
+        }
+        // Auto-apply default template if available after headers are set
         if (defaultTemplate) {
           setMapping(defaultTemplate.mapping);
           toast.info(`Modelo "${defaultTemplate.name}" aplicado automaticamente`);
         }
+        setStep("mapping");
       } else {
-        const text = await selectedFile.text();
-        setFileContent(text);
-        const hdrs = getCsvHeaders(text);
-        setHeaders(hdrs);
+        setStep("mapping");
       }
-      setStep("mapping");
-    } catch (error) {
-      toast.error("Erro ao ler arquivo");
+    } catch (err: any) {
+      toast.error(`Erro ao ler arquivo: ${err.message}`);
     }
   }, [fileFormat, defaultTemplate]);
 
@@ -178,11 +187,10 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     setSetAsDefault(false);
   };
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      handleFileSelect(droppedFile);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileSelect(e.dataTransfer.files);
     }
   }, [handleFileSelect]);
 
@@ -190,123 +198,89 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     e.preventDefault();
   };
 
-  const handleAIParse = async () => {
-    if (!file) return;
-
+  const handleParse = async () => {
+    if (files.length === 0 || fileContents.length === 0) return;
     setIsAIParsing(true);
+
     try {
-      console.log('AI Parse started for format:', fileFormat);
-      // Read file content for AI
-      let content: string;
-      if (fileFormat === "excel") {
-        // For Excel, convert to text representation
-        const buffer = await file.arrayBuffer();
-        const { utils, read } = await import("xlsx");
-        const workbook = read(buffer, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        content = utils.sheet_to_csv(worksheet);
-      } else if (fileFormat === "pdf") {
-        // For PDF, extract text using PDF.js before sending to AI
-        const buffer = await file.arrayBuffer();
-        content = await extractPDFText(buffer);
-      } else {
-        content = await file.text();
-      }
-
-      console.log('Document content extracted, length:', content.length);
-      console.log('Content preview:', content.substring(0, 500) + '...');
-
-      toast.info("Analisando documento com IA...");
-
-      // Use the Edge Function that uses OPENAI_API_KEY
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('parse-time-document', {
-        body: {
-          fileContent: content.substring(0, 20000),
-          fileType: fileFormat,
-          fileName: file.name,
-        },
-      });
-
-      if (aiError) {
-        throw new Error(`Erro na Edge Function: ${aiError.message}`);
-      }
-
-      console.log('AI Response:', aiData);
-
-      if (!aiData.success) {
-        throw new Error(aiData.error || 'Falha no parsing com IA');
-      }
-
-      // Convert AI result to ParseResult format
-      const result: ParseResult = {
+      let aggregatedResult: ParseResult = {
         success: true,
-        documentType: aiData.documentType || 'daily',
-        periodStart: aiData.periodStart,
-        periodEnd: aiData.periodEnd,
-        companyName: aiData.companyName,
-        records: (aiData.records || []).map((r: ParsedTimeRecord) => ({
-          externalEmployeeId: r.externalEmployeeId,
-          employeeName: r.employeeName,
-          date: r.date,
-          punches: r.punches || [],
-        })),
-        accumulatedRecords: aiData.accumulatedRecords || [],
-        errors: aiData.errors || [],
-        totalRows: (aiData.records?.length || 0) + (aiData.accumulatedRecords?.length || 0),
+        sourceName: files.map(f => f.name).join(", "),
+        documentType: 'hybrid',
+        records: [],
+        accumulatedRecords: [],
+        errors: [],
+        totalRows: 0
       };
 
-      setParseResult(result);
-      setStep("preview");
-      toast.success(`IA identificou ${result.totalRows} registros (${result.documentType === 'accumulated' ? 'Relatório Acumulado' : 'Registros Diários'})`);
+      for (let i = 0; i < files.length; i++) {
+        const currentFile = files[i];
+        const currentContent = fileContents[i];
 
+        let result: ParseResult;
+
+        if (useAI || fileFormat === "pdf") {
+          toast.info(`Processando "${currentFile.name}" com IA...`);
+
+          let aiContent = "";
+          if (fileFormat === "pdf") {
+            const buffer = currentContent as ArrayBuffer;
+            aiContent = await extractPDFText(buffer);
+          } else if (fileFormat === "excel") {
+            const { utils, read } = await import("xlsx");
+            const workbook = read(currentContent as ArrayBuffer, { type: "array" });
+            aiContent = workbook.SheetNames.map(name => {
+              const sheet = workbook.Sheets[name];
+              const rows = utils.sheet_to_json<any[]>(sheet, { header: 1 });
+              const filteredRows = rows.map((row: any[]) =>
+                row.filter((cell: any) => cell !== null && cell !== undefined && String(cell).trim() !== "")
+              ).filter(row => row.length > 0);
+              return `--- ABA: ${name} ---\n${filteredRows.map(row => row.join(",")).join("\n")}`;
+            }).join("\n\n");
+          } else {
+            aiContent = currentContent as string;
+          }
+
+          const { data, error } = await supabase.functions.invoke("parse-time-document", {
+            body: {
+              fileContent: aiContent.substring(0, 100000),
+              fileName: currentFile.name,
+              fileType: fileFormat,
+            },
+          });
+
+          if (error) throw error;
+          result = data as ParseResult;
+
+          if (!result.success) {
+            throw new Error(result.error || result.errors?.[0]?.message || `Falha no parsing de ${currentFile.name}`);
+          }
+
+          if (result.records?.length === 0 && result.accumulatedRecords?.length > 0) {
+            toast.warning(`A IA não extraiu pontos individuais de "${currentFile.name}".`);
+          }
+        } else {
+          result = fileFormat === "excel"
+            ? await parseExcel(currentContent as ArrayBuffer, mapping)
+            : await parseCsv(currentContent as string, mapping);
+        }
+
+        // Merge results
+        aggregatedResult.records = [...aggregatedResult.records, ...(result.records || [])];
+        aggregatedResult.accumulatedRecords = [...(aggregatedResult.accumulatedRecords || []), ...(result.accumulatedRecords || [])];
+        aggregatedResult.errors = [...aggregatedResult.errors, ...(result.errors || [])];
+        aggregatedResult.totalRows += result.totalRows || (result.records?.length || 0);
+      }
+
+      setParseResult(aggregatedResult);
+      setStep("preview");
+      toast.success(`Identificados ${aggregatedResult.totalRows} registros no total.`);
     } catch (error: any) {
-      console.error('AI parsing error:', error);
-      toast.error(`Erro no parsing com IA: ${error.message}`);
+      console.error('Parsing error:', error);
+      toast.error(`Erro no processamento: ${error.message}`);
     } finally {
       setIsAIParsing(false);
     }
-  };
-
-  const handleParse = () => {
-    // If using AI, use AI parsing
-    if (useAI) {
-      handleAIParse();
-      return;
-    }
-
-    if (!fileContent) {
-      toast.error("Erro ao ler arquivo");
-      return;
-    }
-
-    let result: ParseResult | Promise<ParseResult>;
-
-    if (fileFormat === "excel") {
-      result = parseExcel(fileContent as ArrayBuffer, mapping);
-    } else if (fileFormat === "pdf") {
-      // Standard PDF parsing (heuristic)
-      toast.info("Processando PDF...");
-      // Wrap async result for unified handling
-      parsePDF(fileContent as ArrayBuffer).then(res => {
-        setParseResult(res);
-        setStep("preview");
-      }).catch(err => {
-        toast.error("Erro ao processar PDF");
-        console.error(err);
-      });
-      return;
-    } else {
-      if (!mapping.employeeId || !mapping.date) {
-        toast.error("Configure o mapeamento obrigatório");
-        return;
-      }
-      result = parseCsv(fileContent as string, mapping);
-    }
-
-    // For sync results (Excel/CSV)
-    setParseResult(result as ParseResult);
-    setStep("preview");
   };
 
   const handleImport = async () => {
@@ -323,24 +297,28 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       let importedDaily = 0;
       let importedAccumulated = 0;
 
-      // 1. Process Daily Records if present
-      if (hasRecords) {
+      // 1. Process Daily Records if present AND mode is time-tracking
+      if (hasRecords && mode === 'time-tracking') {
         const dailyResult = await performDailyImport();
         importedDaily = dailyResult.imported;
       }
 
-      // 2. Process Accumulated Records if present
-      if (hasAccumulated) {
+      // 2. Process Accumulated Records if present AND mode is absenteeism
+      if (hasAccumulated && mode === 'absenteeism') {
         const accumulatedResult = await performAccumulatedImport();
         importedAccumulated = accumulatedResult.imported;
       }
 
       setImportResult({
         imported: importedDaily + importedAccumulated,
-        failed: 0 // Simplification for now
+        failed: 0
       });
       setStep("complete");
-      toast.success(`Importação concluída: ${importedDaily} batidas e ${importedAccumulated} resumos.`);
+
+      const parts = [];
+      if (importedDaily > 0) parts.push(`${importedDaily} batidas`);
+      if (importedAccumulated > 0) parts.push(`${importedAccumulated} resumos`);
+      toast.success(`Importação concluída: ${parts.join(" e ")}.`);
     } catch (error: any) {
       toast.error(`Erro na importação: ${error.message}`);
       setStep("preview");
@@ -356,7 +334,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       .insert({
         company_id: companyId,
         source_type: fileFormat === "pdf" ? "pdf" : fileFormat,
-        source_name: file?.name,
+        source_name: files.map(f => f.name).join(", "),
         total_records: parseResult.records.length,
         status: "processing",
         column_mapping: (useAI ? { ai_parsed: true } : mapping) as unknown as Json,
@@ -367,6 +345,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     if (importError) throw importError;
 
     let imported = 0;
+    let skipped = 0;
     const records = parseResult.records;
     const distinctDates = [...new Set(records.map(r => r.date).filter(Boolean))];
 
@@ -384,16 +363,19 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       const batch = records.slice(i, i + batchSize);
       const insertData = batch.map((record) => {
         let matchedEmployeeId = null;
-        if (employees.length > 0) {
-          const byId = employees.find(e => e.external_id && e.external_id === String(record.externalEmployeeId));
-          if (byId) matchedEmployeeId = byId.id;
-          else {
-            const nameToSearch = record.employeeName || record.externalEmployeeId;
-            if (nameToSearch && typeof nameToSearch === 'string') {
-              const normalizedSearch = nameToSearch.toLowerCase().trim();
-              const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
-              if (byName) matchedEmployeeId = byName.id;
-            }
+        const byId = employees.find(e => {
+          if (!e.external_id) return false;
+          const extId = String(e.external_id).trim().replace(/^0+/, '');
+          const recordId = String(record.externalEmployeeId).trim().replace(/^0+/, '');
+          return extId === recordId;
+        });
+        if (byId) matchedEmployeeId = byId.id;
+        else {
+          const nameToSearch = record.employeeName || record.externalEmployeeId;
+          if (nameToSearch && typeof nameToSearch === 'string') {
+            const normalizedSearch = nameToSearch.toLowerCase().trim();
+            const byName = employees.find(e => e.name.toLowerCase().trim() === normalizedSearch);
+            if (byName) matchedEmployeeId = byName.id;
           }
         }
 
@@ -401,7 +383,10 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           ? existingEmpSet.has(`${matchedEmployeeId}_${record.date}`)
           : existingExtSet.has(`${record.externalEmployeeId}_${record.date}`);
 
-        if (isDuplicate) return null;
+        if (isDuplicate) {
+          skipped++;
+          return null;
+        }
 
         // --- NOTIFICAÇÃO DE BATIDA AUSENTE ---
         if (matchedEmployeeId && (!record.punches[0] || record.punches[0].trim() === "")) {
@@ -422,6 +407,10 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           exit_1: record.punches[1] || null,
           entry_2: record.punches[2] || null,
           exit_2: record.punches[3] || null,
+          entry_3: record.punches[4] || null,
+          exit_3: record.punches[5] || null,
+          entry_4: record.punches[6] || null,
+          exit_4: record.punches[7] || null,
           raw_data: record.rawData as Json,
           status: matchedEmployeeId ? "imported" : "pending_link",
         };
@@ -473,6 +462,10 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       imported_records: imported,
       completed_at: new Date().toISOString(),
     }).eq("id", importRecord.id);
+
+    if (skipped > 0) {
+      toast.info(`${skipped} registros já existiam e foram pulados.`);
+    }
 
     return { imported, failed: 0 };
   };
@@ -546,9 +539,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           )}
         </CardTitle>
         <CardDescription>
-          {step === "upload" && "Selecione o arquivo para importar"}
-          {step === "mapping" && (useAI || fileFormat === "pdf" ? "Processamento com IA" : "Configure o mapeamento de colunas")}
-          {step === "preview" && "Revise os dados antes de importar"}
+          {step === "upload" && (mode === 'time-tracking' ? "Selecione os arquivos de batidas diárias" : "Selecione os arquivos de relatório acumulado")}
+          {step === "mapping" && (useAI || fileFormat === "pdf" ? "Processamento inteligente com IA" : "Configure o mapeamento de colunas")}
+          {step === "preview" && (mode === 'time-tracking' ? "Revise as batidas antes de importar" : "Revise o resumo antes de importar")}
           {step === "importing" && "Importando registros..."}
           {step === "complete" && "Importação concluída!"}
         </CardDescription>
@@ -647,9 +640,10 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               <input
                 id="file-input"
                 type="file"
+                multiple
                 accept={getAcceptedFormats()}
                 className="hidden"
-                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+                onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
               />
             </div>
 
@@ -667,8 +661,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
             <Alert>
               <FileSpreadsheet className="w-4 h-4" />
               <AlertDescription>
-                Arquivo: <strong>{file?.name}</strong>
-                {!useAI && fileFormat !== "pdf" && ` — ${headers.length} colunas encontradas`}
+                Arquivos selecionados: <strong>{files.length}</strong>
+                {!useAI && fileFormat !== "pdf" && ` — ${headers.length} colunas encontradas no primeiro arquivo`}
               </AlertDescription>
             </Alert>
 
@@ -943,12 +937,12 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               )}
             </div>
 
-            <Tabs defaultValue={parseResult.records.length > 0 ? "records" : "accumulated"}>
+            <Tabs defaultValue={mode === 'time-tracking' && parseResult.records.length > 0 ? "records" : "accumulated"}>
               <TabsList>
-                {parseResult.records.length > 0 && (
+                {mode === 'time-tracking' && parseResult.records.length > 0 && (
                   <TabsTrigger value="records">Batidas Diárias ({parseResult.records.length})</TabsTrigger>
                 )}
-                {parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0 && (
+                {mode === 'absenteeism' && parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0 && (
                   <TabsTrigger value="accumulated">Resumo Acumulado ({parseResult.accumulatedRecords.length})</TabsTrigger>
                 )}
                 <TabsTrigger value="errors">Erros ({parseResult.errors.length})</TabsTrigger>

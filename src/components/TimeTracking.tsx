@@ -166,6 +166,7 @@ export function TimeTracking() {
     return (
       <div className="p-6">
         <ImportWizard
+          mode="time-tracking"
           onComplete={handleWizardComplete}
           onCancel={() => setShowImportWizard(false)}
         />

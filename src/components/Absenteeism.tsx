@@ -306,6 +306,7 @@ export function Absenteeism() {
             {showImportWizard && (
                 <div className="mb-6">
                     <ImportWizard
+                        mode="absenteeism"
                         onComplete={handleWizardComplete}
                         onCancel={() => setShowImportWizard(false)}
                     />

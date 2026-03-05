@@ -165,35 +165,53 @@ const systemPrompt = `Você é um especialista em análise de documentos de cont
 Sua tarefa é extrair TODOS os registros de ponto de um documento (PDF/Excel) e retornar um JSON formatado.
 
 MUITO IMPORTANTE:
-O documento geralmente contém DUAS seções que você deve extrair COMPLETAMENTE:
+O documento pode conter múltiplas abas ou páginas. Elas podem estar delimitadas por "--- ABA: [Nome] ---" ou "--- PÁGINA X ---".
+Analise o documento INTEIRO e extraia records para TODOS os colaboradores encontrados em QUALQUER parte do arquivo.
+Não pare a extração antes de percorrer o arquivo completo.
+
+REGRA DE OURO:
+A extração das BATIDAS DIÁRIAS (records) é a prioridade absoluta. Se um colaborador aparece no resumo mas não tem registros diários extraídos, você falhou.
+Cada objeto em "records" deve representar UM dia de UM colaborador com suas batidas exatas.
 
 ### SEÇÃO 1: Registros Diários (records)
 Extraia cada batida de cada colaborador em cada dia.
-Procure por tabelas com colunas: PIS/CPF/ID, Nome, Data/Dia, Horários (Ent. 1, Saí. 1, etc.).
-- Se houver múltiplos colaboradores, extraia registros para TODOS eles.
+Procure por tabelas com colunas: PIS/CPF/ID, Nome, Data/Dia, Horários.
 - Converta datas para YYYY-MM-DD.
-- Horas devem ser HH:mm.
+- No campo "punches", inclua todas as batidas (Ex: ["08:00", "12:05", "13:00", "18:10"]).
 
 ### SEÇÃO 2: Resumo Mensal/Acumulado (accumulatedRecords)
-Extraia a tabela de totais que geralmente fica no final ou em outra seção.
-Colunas: Colaborador, Horas Previstas, Horas Trabalhadas, Abonos/Justificado, Saldo do Período.
+Extraia tabelas de totais (Colaborador, Horas Previstas, Trabalhadas, Saldo).
 
-Regras Adicionais:
-- DocumentType: "hybrid" se encontrar AMBOS, "daily" se apenas diário, "accumulated" se apenas resumo.
-- Não pule nenhum dia ou colaborador.
-- Remova marcações como "(C)", "(A)", "*" dos horários.
+Regras:
+- DocumentType: "hybrid" se ambos, "daily" se apenas diário, "accumulated" se apenas resumo.
+- Remova marcações como "(E)", "(S)", "(C)", "(A)", "*" dos horários (ex: "08:00(E)" vira "08:00").
+- Horas devem ser sempre no formato HH:mm.
 
-Retorne:
+Retorne obrigatoriamente neste formato JSON:
 {
   "documentType": "daily" | "accumulated" | "hybrid",
-  "records": [{ "externalEmployeeId": "...", "employeeName": "...", "date": "...", "punches": ["08:00", "12:00"] }],
-  "accumulatedRecords": [{ "employeeName": "...", "predictedHours": "...", "workedHours": "...", "bonusHours": "...", "balance": "..." }],
+  "records": [
+    {
+      "externalEmployeeId": "ID/PIS/CPF",
+      "employeeName": "Nome",
+      "date": "YYYY-MM-DD",
+      "punches": ["08:00", "12:00", "13:00", "18:00"]
+    }
+  ],
+  "accumulatedRecords": [
+    {
+      "employeeName": "Nome",
+      "predictedHours": "HH:mm",
+      "workedHours": "HH:mm",
+      "balance": "HH:mm"
+    }
+  ],
   "errors": []
 }`;
 
 async function callGoogleGemini(apiKey: string, fileContent: string, fileName: string): Promise<string> {
   const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais E o resumo acumulado.
-${fileContent.substring(0, 30000)}`;
+${fileContent.substring(0, 100000)}`;
 
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
     method: 'POST',
@@ -211,7 +229,7 @@ ${fileContent.substring(0, 30000)}`;
 
 async function callOpenAI(apiKey: string, fileContent: string, fileName: string): Promise<string> {
   const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais E o resumo acumulado.
-${fileContent.substring(0, 25000)}`;
+${fileContent.substring(0, 100000)}`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

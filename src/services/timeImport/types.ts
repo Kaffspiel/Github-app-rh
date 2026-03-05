@@ -16,13 +16,15 @@ export interface ParsedTimeRecord {
 
 export interface ParseResult {
   success: boolean;
-  documentType?: 'daily' | 'accumulated';
+  documentType?: 'daily' | 'accumulated' | 'hybrid';
+  sourceName?: string;
   periodStart?: string;
   periodEnd?: string;
   companyName?: string;
   records: ParsedTimeRecord[];
   accumulatedRecords?: AccumulatedRecord[];
   errors: ParseError[];
+  error?: string; // Top-level error
   totalRows: number;
 }
 
