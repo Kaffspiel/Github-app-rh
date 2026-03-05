@@ -438,12 +438,17 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
     for (const date of distinctDates) {
       const presentEmployeeIdsForDate = new Set(
         records.filter(r => r.date === date).map(r => {
-          const matched = employees.find(e => e.external_id === String(r.externalEmployeeId) || e.name === r.employeeName);
-          return matched?.id;
+          const byExtId = employees.find(e => e.external_id && String(e.external_id).trim().replace(/^0+/, '') === String(r.externalEmployeeId).trim().replace(/^0+/, ''));
+          if (byExtId) return byExtId.id;
+          const byName = employees.find(e => e.name.toLowerCase().trim() === (r.employeeName || '').toLowerCase().trim());
+          return byName?.id;
         }).filter(Boolean)
       );
 
-      const missingEmployees = activeEmployees.filter(e => !presentEmployeeIdsForDate.has(e.id));
+      // Also include employees who already have a record in DB for this date (to avoid duplicate absence records)
+      const alreadyInDb = new Set(existingRecords?.filter(r => r.record_date === date && r.employee_id).map(r => r.employee_id) || []);
+
+      const missingEmployees = activeEmployees.filter(e => !presentEmployeeIdsForDate.has(e.id) && !alreadyInDb.has(e.id));
 
       if (missingEmployees.length > 0) {
         const absenceRecords = missingEmployees.map(m => ({
