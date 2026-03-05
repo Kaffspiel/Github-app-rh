@@ -228,7 +228,8 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
 
           let aiContent = "";
           if (fileFormat === "pdf") {
-            const buffer = currentContent as ArrayBuffer;
+            // Clone the buffer to prevent "detached ArrayBuffer" error on reuse
+            const buffer = (currentContent as ArrayBuffer).slice(0);
             aiContent = await extractPDFText(buffer);
           } else if (fileFormat === "excel") {
             const { utils, read } = await import("xlsx");
