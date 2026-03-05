@@ -45,10 +45,11 @@ export async function extractPDFText(file: ArrayBuffer): Promise<string> {
 
                 lineItems.forEach((item, index) => {
                     if (index > 0) {
-                        // Opção Nuclear: Força divisores de coluna para qualquer fragmento de texto
+                        // Força divisores de coluna para qualquer fragmento de texto
                         lineStr += " | ";
                     }
-                    lineStr += item.str;
+                    // Preserve the raw string including (E)/(S) markers
+                    lineStr += item.str.trim();
                 });
                 return lineStr;
             }).join("\n");

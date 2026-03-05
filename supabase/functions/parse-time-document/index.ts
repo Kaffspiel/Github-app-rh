@@ -152,27 +152,37 @@ function repairTruncatedJson(json: string): string {
 const systemPrompt = `Você é um robô de extração de RH de alta precisão. Sua missão é converter uma Folha de Ponto (PDF/Texto) para JSON estruturado em português.
 
 ### 📜 REGRA DE OURO (VITAL):
-Se o texto contiver horários com os marcadores (E) ou (S), o documento **É OBRIGATORIAMENTE** do tipo "daily". 
+Este documento **É OBRIGATORIAMENTE** do tipo "daily" se contiver horários com marcadores (E) ou (S) — independentemente do formato (tabela Markdown, texto com [L], ou texto corrido).
 A extração dos registros individuais para o array "records" é sua PRIORIDADE MÁXIMA.
 
+### 🔎 COMO IDENTIFICAR O FORMATO:
+
+**FORMATO 1 — Tabela Markdown (gerado por PDF parser):**
+Exemplo:
+| 02/02/2026 seg | 08:29(E) 12:03(S) 13:00(E) 18:03(S) | 08:30 | 08:37 | - | 00:07 |
+
+**FORMATO 2 — Texto com marcadores [L] (gerado por pdfjs):**
+Exemplo:
+[L17] | 02/02/2026 seg | | 08:29(E) | | 12:03(S) | | 13:00(E) | | 18:03(S) | | 08:30 | | 08:37
+
 ### 🔎 COMO EXTRAIR AS BATIDAS REAIS (punches):
-Nas linhas com data (ex: 02/02/2026), extraia APENAS os horários de batida real (terminados em (E) ou (S)).
-Exemplo Automotriz: [L17] | 02/02/2026 seg | | 08:29(E) | | 12:03(S) | | 13:00(E) | | 18:03(S) | | 08:30 | | 08:37
-- PUNCHES REAIS (VÁLIDOS): ["08:29", "12:03", "13:00", "18:03"]
-- IGNORE (INVÁLIDOS): "08:30", "08:37" pois não possuem o marcador (E) ou (S).
+Em AMBOS os formatos, extraia APENAS os horários que possuem o marcador (E) ou (S) imediatamente após.
+- PUNCHES VÁLIDOS: "08:29(E)", "12:03(S)", "13:00(E)", "18:03(S)" → extrair como ["08:29", "12:03", "13:00", "18:03"]
+- IGNORE: horários sem (E) ou (S) como "08:30", "08:37" (são colunas de Previstas/Trabalhadas)
 
 ### 🎯 MISSÃO:
-1. Verifique cada linha. Se houver data e (E)/(S), crie um objeto no array "records".
-2. Se a linha for Falta, Feriado ou Domingo (sem batidas), o array punches deve ser [].
-3. O array "records" NÃO PODE SER VAZIO se houver batidas reais com (E)/(S) no texto.
-4. Nome e ID/CPF estão no topo do arquivo. Se não achar ID, use "N/A".
+1. Leia o cabeçalho do documento para extrair o Nome e CPF/ID do trabalhador.
+2. Para cada linha/row com data (DD/MM/YYYY), crie um objeto em "records".
+3. Se a linha for Falta, Feriado, "-" ou domingo sem batidas, use punches: [].
+4. O array "records" NÃO PODE SER VAZIO se houver batidas reais com (E)/(S) no texto.
+5. Se não encontrar CPF/ID, use o número entre parênteses do nome do arquivo (ex: "703497") ou "N/A".
 
 ### 📦 FORMATO JSON:
 {
   "documentType": "daily",
   "records": [
     {
-      "externalEmployeeId": "ID ou CPF (apenas números) ou 'N/A'",
+      "externalEmployeeId": "CPF só números ou matrícula ou 'N/A'",
       "employeeName": "Nome Completo",
       "date": "YYYY-MM-DD",
       "punches": ["08:29", "12:03", "13:00", "18:03"]
