@@ -77,6 +77,10 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
 
   const handleDetectColumns = async () => {
     if (files.length === 0 || fileContents.length === 0) return;
+
+    // PDF não usa detecção de colunas manual, processamos direto pela IA no próximo passo
+    if (fileFormat === "pdf") return;
+
     setIsDetectingColumns(true);
     try {
       // Convert Excel to CSV sample for AI analysis
@@ -241,6 +245,8 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
             aiContent = currentContent as string;
           }
 
+          console.log(`[DEBUG] Conteúdo extraído para IA de "${currentFile.name}" (primeiros 15000 chars):`, aiContent.substring(0, 15000));
+
           const { data, error } = await supabase.functions.invoke("parse-time-document", {
             body: {
               fileContent: aiContent.substring(0, 100000),
@@ -257,7 +263,10 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
           }
 
           if (result.records?.length === 0 && result.accumulatedRecords?.length > 0) {
-            toast.warning(`A IA não extraiu pontos individuais de "${currentFile.name}".`);
+            console.warn(`IA retornou apenas acumulados para "${currentFile.name}":`, JSON.stringify(result, null, 2));
+            toast.warning(`A IA não extraiu os pontos diários de "${currentFile.name}". Verifique se o formato é legível.`);
+          } else {
+            console.log(`Parsing concluído para "${currentFile.name}":`, result);
           }
         } else {
           result = fileFormat === "excel"
@@ -937,13 +946,17 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
               )}
             </div>
 
-            <Tabs defaultValue={mode === 'time-tracking' && parseResult.records.length > 0 ? "records" : "accumulated"}>
+            <Tabs defaultValue={mode === 'time-tracking' ? "records" : "accumulated"}>
               <TabsList>
-                {mode === 'time-tracking' && parseResult.records.length > 0 && (
-                  <TabsTrigger value="records">Batidas Diárias ({parseResult.records.length})</TabsTrigger>
+                {parseResult.records.length > 0 && (
+                  <TabsTrigger value="records" className={mode !== 'time-tracking' ? "opacity-50" : ""}>
+                    Batidas Diárias ({parseResult.records.length})
+                  </TabsTrigger>
                 )}
-                {mode === 'absenteeism' && parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0 && (
-                  <TabsTrigger value="accumulated">Resumo Acumulado ({parseResult.accumulatedRecords.length})</TabsTrigger>
+                {parseResult.accumulatedRecords && parseResult.accumulatedRecords.length > 0 && (
+                  <TabsTrigger value="accumulated" className={mode !== 'absenteeism' ? "opacity-50" : ""}>
+                    Resumo Acumulado ({parseResult.accumulatedRecords.length})
+                  </TabsTrigger>
                 )}
                 <TabsTrigger value="errors">Erros ({parseResult.errors.length})</TabsTrigger>
               </TabsList>

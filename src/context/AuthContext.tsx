@@ -75,13 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchUserRoles(session.user.id).then((roles) => {
           setUserRoles(roles);
           setIsLoading(false);
-
-          // Script temporário para atualizar departamentos da NOVAPEÇAS
-          if (roles.some(r => r.role === 'admin_master' || r.role === 'admin')) {
-            import("@/scripts/update_departments").then(({ updateNovaPecasDepartments }) => {
-              updateNovaPecasDepartments();
-            });
-          }
         });
       } else {
         setIsLoading(false);

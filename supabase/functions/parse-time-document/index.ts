@@ -3,7 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -43,27 +43,23 @@ interface ParseResult {
 
 // Robust JSON extraction from AI responses - handles truncated responses
 function extractJsonFromResponse(response: string): any {
-  // Step 1: Try direct parse first
   try {
     return JSON.parse(response.trim());
   } catch {
-    // Continue to other methods
+    // Continue
   }
 
-  // Step 2: Remove markdown code blocks
   let cleaned = response
     .replace(/```json\s*/gi, "")
     .replace(/```\s*/g, "")
     .trim();
 
-  // Step 3: Try parse after cleaning markdown
   try {
     return JSON.parse(cleaned);
   } catch {
-    // Continue to extraction
+    // Continue
   }
 
-  // Step 4: Find JSON boundaries
   const jsonStart = cleaned.indexOf("{");
   let jsonEnd = cleaned.lastIndexOf("}");
 
@@ -71,7 +67,6 @@ function extractJsonFromResponse(response: string): any {
     throw new Error("No JSON object found in response");
   }
 
-  // If no closing brace, the JSON was truncated
   if (jsonEnd === -1 || jsonEnd < jsonStart) {
     cleaned = cleaned.substring(jsonStart);
     cleaned = repairTruncatedJson(cleaned);
@@ -79,36 +74,29 @@ function extractJsonFromResponse(response: string): any {
     cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
   }
 
-  // Step 5: Attempt parse with error handling
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    // Step 6: Try to fix common issues and repair truncation
     cleaned = cleaned
-      .replace(/,\s*}/g, "}") // Remove trailing commas before }
-      .replace(/,\s*]/g, "]") // Remove trailing commas before ]
-      .replace(/[\x00-\x1F\x7F]/g, ""); // Remove control characters
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, "");
 
     try {
       return JSON.parse(cleaned);
     } catch {
-      // Final attempt: repair truncated JSON
       return JSON.parse(repairTruncatedJson(cleaned));
     }
   }
 }
 
-// Repair truncated JSON by closing open brackets/braces
 function repairTruncatedJson(json: string): string {
   let repaired = json.trim();
-
   const recordsMatch = repaired.match(/"records"\s*:\s*\[/);
   if (recordsMatch) {
     const recordsStart = repaired.indexOf(recordsMatch[0]) + recordsMatch[0].length;
     const beforeRecords = repaired.substring(0, recordsStart);
     let recordsContent = repaired.substring(recordsStart);
-
-    // Find all complete objects in the array
     const completeRecords: string[] = [];
     let depth = 0;
     let currentRecord = "";
@@ -161,56 +149,41 @@ function repairTruncatedJson(json: string): string {
   return repaired;
 }
 
-const systemPrompt = `Você é um especialista em análise de documentos de controle de ponto (Brasil).
-Sua tarefa é extrair TODOS os registros de ponto de um documento (PDF/Excel) e retornar um JSON formatado.
+const systemPrompt = `Você é um robô de extração de RH de alta precisão. Sua missão é converter uma Folha de Ponto (PDF/Texto) para JSON estruturado em português.
 
-MUITO IMPORTANTE:
-O documento pode conter múltiplas abas ou páginas. Elas podem estar delimitadas por "--- ABA: [Nome] ---" ou "--- PÁGINA X ---".
-Analise o documento INTEIRO e extraia records para TODOS os colaboradores encontrados em QUALQUER parte do arquivo.
-Não pare a extração antes de percorrer o arquivo completo.
+### 📜 REGRA DE OURO (VITAL):
+Se o texto contiver horários com os marcadores (E) ou (S), o documento **É OBRIGATORIAMENTE** do tipo "daily". 
+A extração dos registros individuais para o array "records" é sua PRIORIDADE MÁXIMA.
 
-REGRA DE OURO:
-A extração das BATIDAS DIÁRIAS (records) é a prioridade absoluta. Se um colaborador aparece no resumo mas não tem registros diários extraídos, você falhou.
-Cada objeto em "records" deve representar UM dia de UM colaborador com suas batidas exatas.
+### 🔎 COMO EXTRAIR AS BATIDAS REAIS (punches):
+Nas linhas com data (ex: 02/02/2026), extraia APENAS os horários de batida real (terminados em (E) ou (S)).
+Exemplo Automotriz: [L17] | 02/02/2026 seg | | 08:29(E) | | 12:03(S) | | 13:00(E) | | 18:03(S) | | 08:30 | | 08:37
+- PUNCHES REAIS (VÁLIDOS): ["08:29", "12:03", "13:00", "18:03"]
+- IGNORE (INVÁLIDOS): "08:30", "08:37" pois não possuem o marcador (E) ou (S).
 
-### SEÇÃO 1: Registros Diários (records)
-Extraia cada batida de cada colaborador em cada dia.
-Procure por tabelas com colunas: PIS/CPF/ID, Nome, Data/Dia, Horários.
-- Converta datas para YYYY-MM-DD.
-- No campo "punches", inclua todas as batidas (Ex: ["08:00", "12:05", "13:00", "18:10"]).
+### 🎯 MISSÃO:
+1. Verifique cada linha. Se houver data e (E)/(S), crie um objeto no array "records".
+2. Se a linha for Falta, Feriado ou Domingo (sem batidas), o array punches deve ser [].
+3. O array "records" NÃO PODE SER VAZIO se houver batidas reais com (E)/(S) no texto.
+4. Nome e ID/CPF estão no topo do arquivo. Se não achar ID, use "N/A".
 
-### SEÇÃO 2: Resumo Mensal/Acumulado (accumulatedRecords)
-Extraia tabelas de totais (Colaborador, Horas Previstas, Trabalhadas, Saldo).
-
-Regras:
-- DocumentType: "hybrid" se ambos, "daily" se apenas diário, "accumulated" se apenas resumo.
-- Remova marcações como "(E)", "(S)", "(C)", "(A)", "*" dos horários (ex: "08:00(E)" vira "08:00").
-- Horas devem ser sempre no formato HH:mm.
-
-Retorne obrigatoriamente neste formato JSON:
+### 📦 FORMATO JSON:
 {
-  "documentType": "daily" | "accumulated" | "hybrid",
+  "documentType": "daily",
   "records": [
     {
-      "externalEmployeeId": "ID/PIS/CPF",
-      "employeeName": "Nome",
+      "externalEmployeeId": "ID ou CPF (apenas números) ou 'N/A'",
+      "employeeName": "Nome Completo",
       "date": "YYYY-MM-DD",
-      "punches": ["08:00", "12:00", "13:00", "18:00"]
+      "punches": ["08:29", "12:03", "13:00", "18:03"]
     }
   ],
-  "accumulatedRecords": [
-    {
-      "employeeName": "Nome",
-      "predictedHours": "HH:mm",
-      "workedHours": "HH:mm",
-      "balance": "HH:mm"
-    }
-  ],
+  "accumulatedRecords": [],
   "errors": []
 }`;
 
 async function callGoogleGemini(apiKey: string, fileContent: string, fileName: string): Promise<string> {
-  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais E o resumo acumulado.
+  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais.
 ${fileContent.substring(0, 100000)}`;
 
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
@@ -228,7 +201,7 @@ ${fileContent.substring(0, 100000)}`;
 }
 
 async function callOpenAI(apiKey: string, fileContent: string, fileName: string): Promise<string> {
-  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais E o resumo acumulado.
+  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais.
 ${fileContent.substring(0, 100000)}`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -251,22 +224,31 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders, status: 204 });
 
   try {
-    // @ts-ignore: Deno is a global in Supabase Edge Functions
+    // @ts-ignore
     const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
-    // @ts-ignore: Deno is a global in Supabase Edge Functions
+    // @ts-ignore
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     const { fileContent, fileName } = await req.json();
 
     let content;
     let provider;
 
-    if (GOOGLE_AI_API_KEY) {
-      content = await callGoogleGemini(GOOGLE_AI_API_KEY, fileContent, fileName);
-      provider = 'Google Gemini';
-    } else if (OPENAI_API_KEY) {
-      content = await callOpenAI(OPENAI_API_KEY, fileContent, fileName);
-      provider = 'OpenAI';
-    } else throw new Error('No AI provider available');
+    try {
+      if (GOOGLE_AI_API_KEY) {
+        content = await callGoogleGemini(GOOGLE_AI_API_KEY, fileContent, fileName);
+        provider = 'Google Gemini';
+      } else if (OPENAI_API_KEY) {
+        content = await callOpenAI(OPENAI_API_KEY, fileContent, fileName);
+        provider = 'OpenAI';
+      } else throw new Error('No AI provider available');
+    } catch (e) {
+      if (OPENAI_API_KEY && GOOGLE_AI_API_KEY) {
+        content = await callOpenAI(OPENAI_API_KEY, fileContent, fileName);
+        provider = 'OpenAI (fallback)';
+      } else {
+        throw e;
+      }
+    }
 
     const parsedResult = extractJsonFromResponse(content);
 
