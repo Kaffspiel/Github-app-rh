@@ -17,40 +17,47 @@ const initWorker = () => {
 
 // Helper to extract text from PDF
 export async function extractPDFText(file: ArrayBuffer): Promise<string> {
-    initWorker();
-    const loadingTask = pdfjsLib.getDocument({ data: file });
-    const pdf = await loadingTask.promise;
+    try {
+        initWorker();
+        // Convert ArrayBuffer to Uint8Array as it's more robust for pdfjs
+        const data = new Uint8Array(file);
+        const loadingTask = pdfjsLib.getDocument({ data });
+        const pdf = await loadingTask.promise;
 
-    let fullText = "";
+        let fullText = "";
 
-    // Extract text from all pages
-    for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
+        // Extract text from all pages
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
 
-        // Group items by line (y-coordinate)
-        const items = content.items as any[];
-        const lines: { [key: number]: any[] } = {};
+            // Group items by line (y-coordinate)
+            const items = content.items as any[];
+            const lines: { [key: number]: any[] } = {};
 
-        items.forEach(item => {
-            const y = Math.round(item.transform[5]); // Y coordinate
-            if (!lines[y]) lines[y] = [];
-            lines[y].push(item);
-        });
+            items.forEach(item => {
+                const y = Math.round(item.transform[5]); // Y coordinate
+                if (!lines[y]) lines[y] = [];
+                lines[y].push(item);
+            });
 
-        // Sort lines by Y descending (top to bottom)
-        const sortedY = Object.keys(lines).map(Number).sort((a, b) => b - a);
-        const pageText = sortedY.map(y => {
-            // Sort items in the same line by X coordinate (left to right)
-            return lines[y]
-                .sort((a, b) => a.transform[4] - b.transform[4])
-                .map(item => item.str)
-                .join(" ");
-        }).join("\n");
+            // Sort lines by Y descending (top to bottom)
+            const sortedY = Object.keys(lines).map(Number).sort((a, b) => b - a);
+            const pageText = sortedY.map(y => {
+                // Sort items in the same line by X coordinate (left to right)
+                return lines[y]
+                    .sort((a, b) => a.transform[4] - b.transform[4])
+                    .map(item => item.str)
+                    .join(" ");
+            }).join("\n");
 
-        fullText += `--- PÁGINA ${i} ---\n${pageText}\n\n`;
+            fullText += `--- PÁGINA ${i} ---\n${pageText}\n\n`;
+        }
+        return fullText;
+    } catch (err) {
+        console.error("Error extracting PDF text:", err);
+        throw new Error(`Falha ao extrair texto do PDF: ${err instanceof Error ? err.message : String(err)}`);
     }
-    return fullText;
 }
 
 export async function parsePDF(
