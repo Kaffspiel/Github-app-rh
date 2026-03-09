@@ -33,9 +33,11 @@ import {
     Plus,
     Trash2,
     Clock,
-    ArrowLeft
+    ArrowLeft,
+    MessageSquare
 } from "lucide-react";
 import { useCollaboratorTasks } from "@/hooks/useCollaboratorTasks";
+import { TaskComments } from "@/components/tasks/TaskComments";
 import { useTaskNotifications } from "@/hooks/useTaskNotifications";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -74,6 +76,8 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
         updateTaskProgress,
         createTask,
         updateTask,
+        fetchComments,
+        addComment,
         refetch: refetchTasks
     } = useCollaboratorTasks();
 
@@ -83,6 +87,9 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
     const [extensionDate, setExtensionDate] = useState("");
     const [extensionReason, setExtensionReason] = useState("");
     const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+    const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+    const [selectedTaskForComments, setSelectedTaskForComments] = useState<any>(null);
+    const [selectedChecklistItemId, setSelectedChecklistItemId] = useState<string | undefined>(undefined);
 
     const handleRequestExtension = async () => {
         if (!selectedTaskForExtension || !extensionDate || !extensionReason) return;
@@ -126,6 +133,12 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
     const openExtensionDialog = (task: any) => {
         setSelectedTaskForExtension(task);
         setIsExtensionDialogOpen(true);
+    };
+
+    const openCommentsDialog = (task: any, itemId?: string) => {
+        setSelectedTaskForComments(task);
+        setSelectedChecklistItemId(itemId);
+        setIsCommentsOpen(true);
     };
 
     const handleCreateTask = async () => {
@@ -242,25 +255,41 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                     <Card key={routine.id} className="border-l-4 border-l-blue-500">
                                         <CardContent className="p-4">
                                             <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-semibold text-gray-900">{routine.title}</h4>
+                                                <h4 className="font-semibold text-gray-900">
+                                                    <span>{routine.title}</span>
+                                                </h4>
                                                 <Badge variant="outline" className="text-[10px] uppercase">
                                                     {routine.priority}
                                                 </Badge>
                                             </div>
                                             {routine.description && (
-                                                <p className="text-sm text-gray-500 mb-3">{routine.description}</p>
+                                                <p className="text-sm text-gray-500 mb-3">
+                                                    <span>{routine.description}</span>
+                                                </p>
                                             )}
                                             <div className="max-h-60 overflow-y-auto pr-1 space-y-2">
                                                     {routine.checklist.length > 0 ? (
                                                         routine.checklist.map(item => (
-                                                            <div key={item.id} className="flex items-center gap-2">
+                                                            <div key={item.id} className="flex items-center gap-2 group">
                                                                 <Checkbox
+                                                                    id={`routine-${routine.id}-item-${item.id}`}
                                                                     checked={item.completed}
                                                                     onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
                                                                 />
-                                                                <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                                                <label 
+                                                                    htmlFor={`routine-${routine.id}-item-${item.id}`}
+                                                                    className={`text-sm flex-1 ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
+                                                                >
                                                                     {item.text}
-                                                                </span>
+                                                                </label>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-6 w-6 text-gray-400"
+                                                                    onClick={() => openCommentsDialog(routine, item.id)}
+                                                                >
+                                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                                </Button>
                                                             </div>
                                                         ))
                                                     ) : (
@@ -314,7 +343,9 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                         <div className={`h-1 ${getPriorityColor(task.priority)}`} />
                                         <CardContent className="p-4">
                                             <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-semibold text-gray-900">{task.title}</h4>
+                                                <h4 className="font-semibold text-gray-900">
+                                                    <span>{task.title}</span>
+                                                </h4>
                                                 <div className="flex gap-1">
                                                     {task.status === 'atrasada' && (
                                                         <Badge variant="destructive" className="text-[10px] uppercase">
@@ -357,7 +388,7 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
 
                                                 <div className="flex gap-2">
                                                     {task.status === 'pendente' || task.status === 'atrasada' ? (
-                                                        <>
+                                                        <div key="action-start" className="flex gap-2 w-full">
                                                             <Button
                                                                 size="sm"
                                                                 className="w-full bg-blue-600 hover:bg-blue-700"
@@ -375,9 +406,10 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                                                 <Clock className="w-3 h-3 mr-1" />
                                                                 PRAZO
                                                             </Button>
-                                                        </>
+                                                        </div>
                                                     ) : (
                                                         <Button
+                                                            key="action-complete"
                                                             size="sm"
                                                             className="w-full bg-green-600 hover:bg-green-700"
                                                             onClick={() => updateTaskStatus(task.id, 'concluido')}
@@ -390,8 +422,31 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
 
                                                 {/* Show checklist progress if exists */}
                                                 {task.checklist && task.checklist.length > 0 && (
-                                                    <div className="mt-2 text-xs text-gray-500">
-                                                        Checklist: {task.checklist.filter(i => i.completed).length}/{task.checklist.length} concluídos
+                                                    <div className="mt-4 space-y-2 border-t pt-3">
+                                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Itens do Checklist</p>
+                                                        {task.checklist.map(item => (
+                                                            <div key={item.id} className="flex items-center gap-2 group">
+                                                                <Checkbox
+                                                                    id={`task-${task.id}-item-${item.id}`}
+                                                                    checked={item.completed}
+                                                                    onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
+                                                                />
+                                                                <label 
+                                                                    htmlFor={`task-${task.id}-item-${item.id}`}
+                                                                    className={`text-xs flex-1 ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
+                                                                >
+                                                                    {item.text}
+                                                                </label>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-6 w-6 text-gray-400"
+                                                                    onClick={() => openCommentsDialog(task, item.id)}
+                                                                >
+                                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 )}
                                             </div>
@@ -478,6 +533,39 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                             disabled={!extensionDate || !extensionReason || isSubmittingExtension}
                         >
                             {isSubmittingExtension ? "Enviando..." : "Enviar Solicitação"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCommentsOpen} onOpenChange={(open) => {
+                setIsCommentsOpen(open);
+                if (!open) setSelectedChecklistItemId(undefined);
+            }}>
+                <DialogContent className="max-w-[95vw] w-full p-4">
+                    <DialogHeader>
+                        <DialogTitle className="text-sm">
+                            {selectedChecklistItemId ? "Comentário no Item" : "Comentários da Tarefa"}
+                        </DialogTitle>
+                    </DialogHeader>
+                    {selectedTaskForComments && (
+                        <div className="mt-2">
+                            {selectedChecklistItemId && (
+                                <div className="mb-4 p-2 bg-blue-50 border border-blue-100 rounded text-xs text-blue-700 italic">
+                                    Item: {selectedTaskForComments.checklist.find((i: any) => i.id === selectedChecklistItemId)?.text}
+                                </div>
+                            )}
+                            <TaskComments 
+                                taskId={selectedTaskForComments.id}
+                                checklistItemId={selectedChecklistItemId}
+                                fetchComments={fetchComments}
+                                addComment={addComment}
+                            />
+                        </div>
+                    )}
+                    <DialogFooter className="mt-4">
+                        <Button variant="outline" onClick={() => setIsCommentsOpen(false)} className="w-full h-10">
+                            Fechar
                         </Button>
                     </DialogFooter>
                 </DialogContent>

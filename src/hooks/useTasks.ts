@@ -18,6 +18,7 @@ export interface TaskComment {
   employee_id: string;
   employee_name?: string;
   content: string;
+  checklist_item_id?: string;
   created_at: string;
 }
 
@@ -575,7 +576,7 @@ export function useTasks() {
     }
   }, []);
 
-  const addComment = useCallback(async (taskId: string, content: string): Promise<boolean> => {
+  const addComment = useCallback(async (taskId: string, content: string, checklistItemId?: string): Promise<boolean> => {
     try {
       const { data: employee } = await supabase
         .from('employees')
@@ -598,6 +599,7 @@ export function useTasks() {
           task_id: taskId,
           employee_id: employee.id,
           content,
+          checklist_item_id: checklistItemId,
         });
 
       if (error) throw error;

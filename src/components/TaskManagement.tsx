@@ -19,9 +19,10 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
 import { RoutineTemplatesTab } from "@/components/tasks/RoutineTemplatesTab";
+import { TaskComments } from "@/components/tasks/TaskComments";
 
 export function TaskManagement() {
-  const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem } = useTasks();
+  const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem, fetchComments, addComment } = useTasks();
   const { employees } = useEmployeesList();
   const { user, currentRole } = useAuth();
 
@@ -62,6 +63,8 @@ export function TaskManagement() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("minhas");
+  const [showComments, setShowComments] = useState(false);
+  const [selectedChecklistItemId, setSelectedChecklistItemId] = useState<string | undefined>(undefined);
 
   // Get current employee info
   const currentEmployee = employees.find(e => e.email === user?.email);
@@ -621,7 +624,13 @@ export function TaskManagement() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
+        <Dialog open={!!selectedTask} onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTask(null);
+            setShowComments(false);
+            setSelectedChecklistItemId(undefined);
+          }
+        }}>
           <DialogContent className="max-w-2xl">
             {selectedTask ? (
               <>
@@ -680,10 +689,21 @@ export function TaskManagement() {
                           />
                           <label
                             htmlFor={`todo-${item.id}`}
-                            className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
+                            className={`text-sm flex-1 ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
                           >
                             {item.text}
                           </label>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className={`h-7 w-7 ${selectedChecklistItemId === item.id ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}
+                            onClick={() => {
+                                setSelectedChecklistItemId(selectedChecklistItemId === item.id ? undefined : item.id);
+                                setShowComments(true);
+                            }}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       ))}
                       {selectedTask.checklist.length === 0 && (
@@ -748,7 +768,15 @@ export function TaskManagement() {
                       </Badge>
                     )}
 
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button 
+                      variant={showComments && !selectedChecklistItemId ? "default" : "outline"} 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => {
+                          setShowComments(!showComments || !!selectedChecklistItemId);
+                          setSelectedChecklistItemId(undefined);
+                      }}
+                    >
                       <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments_count})
                     </Button>
                     <Select
@@ -782,6 +810,17 @@ export function TaskManagement() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {showComments && (
+                    <div className="pt-4 border-t animate-in fade-in slide-in-from-top-2 duration-300">
+                      <TaskComments 
+                        taskId={selectedTask.id} 
+                        checklistItemId={selectedChecklistItemId}
+                        fetchComments={fetchComments} 
+                        addComment={addComment} 
+                      />
+                    </div>
+                  )}
                 </div>
               </>
             ) : (

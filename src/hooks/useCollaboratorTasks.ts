@@ -26,6 +26,16 @@ export interface CollaboratorTask {
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
 }
 
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  employee_id: string;
+  employee_name?: string;
+  content: string;
+  checklist_item_id?: string;
+  created_at: string;
+}
+
 export function useCollaboratorTasks() {
   const [tasks, setTasks] = useState<CollaboratorTask[]>([]);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
@@ -427,6 +437,69 @@ export function useCollaboratorTasks() {
     }
   }, [companyId, employeeId, fetchMyTasks, toast]);
 
+  // Comments operations
+  const fetchComments = useCallback(async (taskId: string): Promise<TaskComment[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('task_comments')
+        .select(`
+          *,
+          employee:employees(name)
+        `)
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      return (data || []).map(c => ({
+        id: c.id,
+        task_id: c.task_id,
+        employee_id: c.employee_id,
+        employee_name: c.employee?.name,
+        content: c.content,
+        created_at: c.created_at,
+      }));
+    } catch (err: any) {
+      console.error('Error fetching comments:', err);
+      return [];
+    }
+  }, []);
+
+  const addComment = useCallback(async (taskId: string, content: string, checklistItemId?: string): Promise<boolean> => {
+    try {
+      if (!employeeId) {
+        toast({
+          title: 'Erro',
+          description: 'Colaborador não encontrado',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      const { error } = await supabase
+        .from('task_comments')
+        .insert({
+          task_id: taskId,
+          employee_id: employeeId,
+          content,
+          checklist_item_id: checklistItemId,
+        });
+
+      if (error) throw error;
+
+      await fetchMyTasks();
+      return true;
+    } catch (err: any) {
+      console.error('Error adding comment:', err);
+      toast({
+        title: 'Erro ao adicionar comentário',
+        description: err.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [employeeId, fetchMyTasks, toast]);
+
   useEffect(() => {
     fetchMyTasks();
   }, [fetchMyTasks]);
@@ -441,6 +514,8 @@ export function useCollaboratorTasks() {
     updateTaskStatus,
     updateTaskProgress,
     createTask,
-    updateTask
+    updateTask,
+    fetchComments,
+    addComment
   };
 }
