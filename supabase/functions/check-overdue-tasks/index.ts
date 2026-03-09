@@ -1,6 +1,8 @@
+// @ts-ignore: Deno module
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
+// @ts-ignore: Deno global
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -56,7 +58,7 @@ Deno.serve(async (req: Request) => {
 
     if (timedOutTasks && timedOutTasks.length > 0) {
       console.log(`Auto-marking ${timedOutTasks.length} tasks as atrasada (no response in 15min)`);
-      const timedOutIds = timedOutTasks.map(t => t.id);
+      const timedOutIds = timedOutTasks.map((t: any) => t.id);
       await supabase
         .from("tasks")
         .update({ status: "atrasada" })
@@ -64,7 +66,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Mark as notified but DON'T change status yet — only changes to 'atrasada' if user replies 'Não' or timeout
-    const overdueIds = overdueTasks.map(t => t.id);
+    const overdueIds = overdueTasks.map((t: any) => t.id);
     const { error: updateError, data: updatedRows } = await supabase
       .from("tasks")
       .update({ overdue_notified_at: new Date().toISOString() })
@@ -77,8 +79,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // Only notify for tasks that were actually updated (prevents duplicate notifications)
-    const updatedIds = new Set((updatedRows || []).map(r => r.id));
-    const tasksToNotify = overdueTasks.filter(t => updatedIds.has(t.id));
+    const updatedIds = new Set((updatedRows || []).map((r: any) => r.id));
+    const tasksToNotify = overdueTasks.filter((t: any) => updatedIds.has(t.id));
     console.log(`Updated ${updatedIds.size} tasks, will notify for ${tasksToNotify.length}`);
 
     if (tasksToNotify.length === 0) {
@@ -204,7 +206,7 @@ Deno.serve(async (req: Request) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err) {
+  } catch (err: any) {
     console.error("check-overdue-tasks error:", err);
     return new Response(
       JSON.stringify({ success: false, error: err.message }),

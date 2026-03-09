@@ -258,7 +258,7 @@ Todas as Edge Functions estão em `supabase/functions/` e são deployadas automa
 
 **Endpoint:** `POST /functions/v1/check-overdue-tasks`
 
-**Descrição:** Verifica tarefas vencidas, atualiza status para `atrasada` e envia alertas via WhatsApp. Projetada para ser chamada via cron job ou webhook externo periodicamente.
+**Descrição:** Verifica tarefas vencidas, atualiza status para `atrasada` e envia alertas via WhatsApp. Executada via **Supabase Cron** a cada **10 minutos**. <!-- Intervalo atualizado de 30 para 10 min -->
 
 **Runtime:** `Deno.serve()` (nativo) + `_shared/cors.ts`
 
@@ -671,7 +671,7 @@ verify_jwt = false
 ┌──────────────────────────────────────────────────────────────────┐
 │                     CRON (Automático)                              │
 │                                                                   │
-│  check-overdue-tasks → Busca tarefas vencidas                   │
+│  check-overdue-tasks (A cada 10 min) → Busca tarefas vencidas      │
 │     → Atualiza status para 'atrasada'                            │
 │     → Notifica responsável + gestores via WhatsApp               │
 │                                                                   │

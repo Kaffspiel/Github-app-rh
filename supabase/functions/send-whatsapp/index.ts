@@ -1,6 +1,8 @@
+// @ts-ignore: Deno module
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
+// @ts-ignore: Deno global
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -137,7 +139,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ success: true, messageId: result?.key?.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err) {
+  } catch (err: any) {
     console.error("send-whatsapp error:", err);
     return new Response(
       JSON.stringify({ success: false, error: err.message }),

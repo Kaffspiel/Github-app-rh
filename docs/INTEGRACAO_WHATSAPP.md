@@ -141,6 +141,17 @@ Mensagens fora do horário são **bloqueadas** com `{ blocked: true }`.
 
 ---
 
+## Agendamentos (Supabase Cron)
+
+O sistema utiliza `pg_cron` para automações periódicas:
+
+| Job | Intervalo | Função |
+|-----|-----------|--------|
+| `check-overdue-tasks-job` | 10 minutos | Verifica e notifica tarefas atrasadas |
+| `task-progress-summary-job` | 4 horas | Envia resumo de progresso aos gestores |
+
+---
+
 ## Tabelas Envolvidas
 
 | Tabela | Uso |
