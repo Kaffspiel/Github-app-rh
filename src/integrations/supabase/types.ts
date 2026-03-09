@@ -745,6 +745,7 @@ export type Database = {
       }
       task_comments: {
         Row: {
+          checklist_item_id: string | null
           content: string
           created_at: string
           employee_id: string
@@ -752,6 +753,7 @@ export type Database = {
           task_id: string
         }
         Insert: {
+          checklist_item_id?: string | null
           content: string
           created_at?: string
           employee_id: string
@@ -759,6 +761,7 @@ export type Database = {
           task_id: string
         }
         Update: {
+          checklist_item_id?: string | null
           content?: string
           created_at?: string
           employee_id?: string
@@ -766,6 +769,13 @@ export type Database = {
           task_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_comments_checklist_item_id_fkey"
+            columns: ["checklist_item_id"]
+            isOneToOne: false
+            referencedRelation: "task_checklist_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "task_comments_employee_id_fkey"
             columns: ["employee_id"]
