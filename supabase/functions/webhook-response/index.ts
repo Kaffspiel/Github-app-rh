@@ -166,7 +166,7 @@ serve(async (req: Request) => {
         })
       });
 
-      console.log("OpenAI response status:", aiResponse.status);
+      console.log("AI response status:", aiResponse.status);
 
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
