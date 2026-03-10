@@ -32,6 +32,8 @@ serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     // @ts-ignore: Deno global not recognized in local IDE
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    // @ts-ignore: Deno global not recognized in local IDE
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -100,9 +102,14 @@ serve(async (req: Request) => {
     const isCommand = (payload.responseType === "text" || payload.responseType === "audio_transcription");
     const isManager = employee && ["admin", "gestor"].includes(employee.role);
 
-    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasOpenAI: ${!!openaiKey}`);
+    const aiKey = lovableKey || openaiKey;
+    const aiBaseUrl = lovableKey
+      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+      : "https://api.openai.com/v1/chat/completions";
 
-    if (isCommand && isManager && openaiKey) {
+    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${!!aiKey}, usingLovable: ${!!lovableKey}`);
+
+    if (isCommand && isManager && aiKey) {
       console.log(`Processing command from gestor ${employee.name}`);
 
       // Buscar funcionários da empresa para o contexto da IA
@@ -146,20 +153,20 @@ serve(async (req: Request) => {
       
       Retorne JSON: {"is_task": boolean, "title": string, "assignee_id": string | null, "due_date": "YYYY-MM-DD" | null, "due_time": "HH:MM" | null}`;
 
-      console.log("Calling OpenAI with message:", payload.responseValue);
+      console.log("Calling AI with message:", payload.responseValue);
 
-      const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      const aiResponse = await fetch(aiBaseUrl, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "google/gemini-2.5-flash",
           messages: [{ role: "system", content: prompt }],
           response_format: { type: "json_object" },
           temperature: 0
         })
       });
 
-      console.log("OpenAI response status:", aiResponse.status);
+      console.log("AI response status:", aiResponse.status);
 
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
@@ -291,7 +298,7 @@ serve(async (req: Request) => {
         }
       } else {
         const errText = await aiResponse.text();
-        console.error("OpenAI API error:", aiResponse.status, errText);
+        console.error("AI API error:", aiResponse.status, errText);
         actionTaken = "ai_error";
       }
     }
