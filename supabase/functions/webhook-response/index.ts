@@ -298,7 +298,7 @@ serve(async (req: Request) => {
         }
       } else {
         const errText = await aiResponse.text();
-        console.error("OpenAI API error:", aiResponse.status, errText);
+        console.error("AI API error:", aiResponse.status, errText);
         actionTaken = "ai_error";
       }
     }
