@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut, AlertTriangle, BookOpen, BarChart3, Brain } from "lucide-react";
+import { LayoutDashboard, ListChecks, Users, Clock, Trophy, FileText, Menu, UsersRound, LogOut, AlertTriangle, BookOpen, BarChart3, Brain, Settings } from "lucide-react";
 import { Occurrences } from "../components/Occurrences";
 import { RulesAndGuidelines } from "../components/RulesAndGuidelines";
 import { Dashboard } from "@/components/Dashboard";
@@ -12,6 +12,7 @@ import { Gamification } from "@/components/Gamification";
 import { Reports } from "@/components/Reports";
 import { EmployeeManagement } from "@/components/EmployeeManagement";
 import { StrategicRH } from "@/components/StrategicRH";
+import { Settings as SettingsView } from "@/components/Settings";
 import { useApp, View } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCompany } from "@/context/CompanyContext";
@@ -34,7 +35,10 @@ const Index = () => {
     { id: "occurrences" as View, name: "Ocorrências", icon: AlertTriangle },
     { id: "rules" as View, name: "Regras e Diretrizes", icon: BookOpen },
     { id: "reports" as View, name: "Relatórios", icon: FileText },
-    ...(currentRole === "admin" ? [{ id: "strategic_rh" as View, name: "RH Estratégico", icon: Brain }] : []),
+    ...(currentRole === "admin" ? [
+      { id: "strategic_rh" as View, name: "RH Estratégico", icon: Brain },
+      { id: "settings" as View, name: "Configurações", icon: Settings }
+    ] : []),
   ];
 
   const renderView = () => {
@@ -51,6 +55,8 @@ const Index = () => {
       case "reports": return <Reports />;
       case "strategic_rh":
         return currentRole === "admin" ? <StrategicRH /> : <Dashboard />;
+      case "settings":
+        return currentRole === "admin" ? <SettingsView /> : <Dashboard />;
       default: return <Dashboard />;
     }
   };
