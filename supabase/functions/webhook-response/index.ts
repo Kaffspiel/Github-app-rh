@@ -153,13 +153,13 @@ serve(async (req: Request) => {
       
       Retorne JSON: {"is_task": boolean, "title": string, "assignee_id": string | null, "due_date": "YYYY-MM-DD" | null, "due_time": "HH:MM" | null}`;
 
-      console.log("Calling OpenAI with message:", payload.responseValue);
+      console.log("Calling AI with message:", payload.responseValue);
 
-      const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      const aiResponse = await fetch(aiBaseUrl, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "google/gemini-2.5-flash",
           messages: [{ role: "system", content: prompt }],
           response_format: { type: "json_object" },
           temperature: 0
