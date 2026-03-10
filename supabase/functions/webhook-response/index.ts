@@ -32,6 +32,8 @@ serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     // @ts-ignore: Deno global not recognized in local IDE
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    // @ts-ignore: Deno global not recognized in local IDE
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
