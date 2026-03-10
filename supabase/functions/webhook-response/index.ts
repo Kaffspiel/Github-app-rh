@@ -102,9 +102,14 @@ serve(async (req: Request) => {
     const isCommand = (payload.responseType === "text" || payload.responseType === "audio_transcription");
     const isManager = employee && ["admin", "gestor"].includes(employee.role);
 
-    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasOpenAI: ${!!openaiKey}`);
+    const aiKey = lovableKey || openaiKey;
+    const aiBaseUrl = lovableKey
+      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+      : "https://api.openai.com/v1/chat/completions";
 
-    if (isCommand && isManager && openaiKey) {
+    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${!!aiKey}, usingLovable: ${!!lovableKey}`);
+
+    if (isCommand && isManager && aiKey) {
       console.log(`Processing command from gestor ${employee.name}`);
 
       // Buscar funcionários da empresa para o contexto da IA
