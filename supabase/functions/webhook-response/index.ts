@@ -102,15 +102,10 @@ serve(async (req: Request) => {
     const isCommand = (payload.responseType === "text" || payload.responseType === "audio_transcription");
     const isManager = employee && ["admin", "gestor"].includes(employee.role);
 
-    const aiKey = googleKey || openaiKey;
-    const aiBaseUrl = googleKey
-      ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${googleKey}`
-      : "https://api.openai.com/v1/chat/completions";
-    const useGoogle = !!googleKey;
+    const hasAnyAI = !!(googleKey || openaiKey);
+    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${hasAnyAI}`);
 
-    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${!!aiKey}, provider: ${useGoogle ? "Google" : "OpenAI"}`);
-
-    if (isCommand && isManager && aiKey) {
+    if (isCommand && isManager && hasAnyAI) {
       console.log(`Processing command from gestor ${employee.name}`);
 
       // Buscar funcionários da empresa para o contexto da IA
@@ -156,18 +151,11 @@ serve(async (req: Request) => {
 
       console.log("Calling AI with message:", payload.responseValue);
 
-      let aiResponse;
-      if (useGoogle) {
-        aiResponse = await fetch(aiBaseUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0, responseMimeType: "application/json" }
-          })
-        });
-      } else {
-        aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      // Helper to call OpenAI
+      const callOpenAI = async () => {
+        if (!openaiKey) return null;
+        console.log("Using OpenAI as provider");
+        return await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -177,11 +165,50 @@ serve(async (req: Request) => {
             temperature: 0
           })
         });
+      };
+
+      let aiResponse: Response | null = null;
+      let useGoogle = false;
+
+      // Try Google first if key exists
+      if (googleKey) {
+        console.log("Trying Google Gemini as primary provider");
+        const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${googleKey}`;
+        const googleResp = await fetch(googleUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0, responseMimeType: "application/json" }
+          })
+        });
+        console.log("Google Gemini response status:", googleResp.status);
+
+        if (googleResp.ok) {
+          aiResponse = googleResp;
+          useGoogle = true;
+        } else if (googleResp.status === 429 && openaiKey) {
+          console.log("Google quota exceeded (429), falling back to OpenAI");
+          aiResponse = await callOpenAI();
+          useGoogle = false;
+        } else {
+          const errText = await googleResp.text();
+          console.error("Google AI error:", googleResp.status, errText);
+          // Try OpenAI fallback for any Google error
+          if (openaiKey) {
+            console.log("Google failed, falling back to OpenAI");
+            aiResponse = await callOpenAI();
+            useGoogle = false;
+          }
+        }
+      } else if (openaiKey) {
+        aiResponse = await callOpenAI();
+        useGoogle = false;
       }
 
-      console.log("AI response status:", aiResponse.status);
+      console.log("Final AI response status:", aiResponse?.status);
 
-      if (aiResponse.ok) {
+      if (aiResponse && aiResponse.ok) {
         const aiData = await aiResponse.json();
         let rawContent: string;
         if (useGoogle) {
