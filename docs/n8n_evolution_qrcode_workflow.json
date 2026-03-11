@@ -1,0 +1,219 @@
+{
+  "name": "OpsControl - Connect WhatsApp (QR Code)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "opscontrol-connect",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "39b01840-2632-4d4a-83cb-887d6f0bc3d4",
+      "name": "Webhook Connect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-272, 1872],
+      "webhookId": "opscontrol-connect"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution.kaffspiel.cloud/instance/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"instanceName\": \"{{ $json.body.instance }}\",\n  \"integration\": \"WHATSAPP-BAILEYS\",\n  \"qrcode\": true,\n  \"rejectCall\": true,\n  \"alwaysOnline\": true,\n  \"readMessages\": false,\n  \"webhook\": {\n    \"url\": \"https://n8n.kaffspiel.cloud/webhook/opscontrol-send\",\n    \"byEvents\": false,\n    \"base64\": true,\n    \"events\": [\n      \"MESSAGES_UPSERT\",\n      \"CONNECTION_UPDATE\",\n      \"QRCODE_UPDATED\"\n    ]\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a19a6eed-8231-4237-82a0-7dc054149d29",
+      "name": "Criar Instancia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-16, 1872],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition-created",
+              "leftValue": "={{ $json.qrcode }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "18f0fea6-1594-48cc-a1a3-b6e95749d304",
+      "name": "Criou com sucesso?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [240, 1872]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"base64\": {{ JSON.stringify($json.qrcode?.base64 || $json.base64 || \"\") }}\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "8dd07386-e456-40f0-8c85-a1e8f15b0d3f",
+      "name": "Responder QR (Nova)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [512, 1760]
+    },
+    {
+      "parameters": {
+        "url": "=https://evolution.kaffspiel.cloud/instance/connect/{{ $('Webhook Connect').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "27e888fb-da03-4a62-b5fe-480ba6a184d3",
+      "name": "Conectar Instancia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [496, 1984]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"base64\": {{ JSON.stringify($json.base64 || \"\") }},\n  \"state\": {{ JSON.stringify(($json.instance && $json.instance.state) || \"\") }}\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b06f6837-aac4-4fa4-988c-95fac2dbe6d4",
+      "name": "Responder QR (Existente)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [752, 1984]
+    }
+  ],
+  "connections": {
+    "Webhook Connect": {
+      "main": [
+        [
+          {
+            "node": "Criar Instancia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Instancia": {
+      "main": [
+        [
+          {
+            "node": "Criou com sucesso?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criou com sucesso?": {
+      "main": [
+        [
+          {
+            "node": "Responder QR (Nova)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Conectar Instancia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conectar Instancia": {
+      "main": [
+        [
+          {
+            "node": "Responder QR (Existente)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "meta": {
+    "instanceId": "7caed1b99602a9339965e9b779169d710789abb0ebccde51ab7fc71dbe7bbf8c"
+  }
+}
