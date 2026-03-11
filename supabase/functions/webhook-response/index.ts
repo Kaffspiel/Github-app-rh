@@ -156,16 +156,28 @@ serve(async (req: Request) => {
 
       console.log("Calling AI with message:", payload.responseValue);
 
-      const aiResponse = await fetch(aiBaseUrl, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [{ role: "system", content: prompt }],
-          response_format: { type: "json_object" },
-          temperature: 0
-        })
-      });
+      let aiResponse;
+      if (useGoogle) {
+        aiResponse = await fetch(aiBaseUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0, responseMimeType: "application/json" }
+          })
+        });
+      } else {
+        aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{ role: "system", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0
+          })
+        });
+      }
 
       console.log("AI response status:", aiResponse.status);
 
