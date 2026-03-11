@@ -196,6 +196,26 @@ async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function callLovableGateway(apiKey: string, fileContent: string, fileName: string): Promise<string> {
+  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais.
+${fileContent.substring(0, 100000)}`;
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Lovable AI error: ${response.status}`);
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content;
+}
+
 async function callGoogleGemini(apiKey: string, fileContent: string, fileName: string, retries = 2): Promise<string> {
   const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais.
 ${fileContent.substring(0, 100000)}`;
@@ -212,8 +232,7 @@ ${fileContent.substring(0, 100000)}`;
       });
 
       if (response.status === 429 || response.status >= 500) {
-        const waitMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-        console.log(`Gemini attempt ${attempt + 1} failed with ${response.status}, retrying in ${waitMs}ms...`);
+        const waitMs = Math.pow(2, attempt) * 1000;
         if (attempt < retries) { await sleep(waitMs); continue; }
         throw new Error(`Google Gemini error: ${response.status}`);
       }
@@ -229,51 +248,33 @@ ${fileContent.substring(0, 100000)}`;
   throw new Error('Google Gemini: max retries exceeded');
 }
 
-async function callOpenAI(apiKey: string, fileContent: string, fileName: string): Promise<string> {
-  const userPrompt = `Analise o arquivo "${fileName}" e extraia registros de ponto individuais.
-${fileContent.substring(0, 100000)}`;
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-      response_format: { type: "json_object" },
-      temperature: 0.1,
-    }),
-  });
-
-  if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content;
-}
-
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders, status: 204 });
 
   try {
     // @ts-ignore
-    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     // @ts-ignore
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
     const { fileContent, fileName } = await req.json();
 
     let content;
     let provider;
 
+    // Priority: Lovable AI Gateway > Google Gemini direct
     try {
-      if (GOOGLE_AI_API_KEY) {
+      if (LOVABLE_API_KEY) {
+        content = await callLovableGateway(LOVABLE_API_KEY, fileContent, fileName);
+        provider = 'Lovable AI (Gemini)';
+      } else if (GOOGLE_AI_API_KEY) {
         content = await callGoogleGemini(GOOGLE_AI_API_KEY, fileContent, fileName);
         provider = 'Google Gemini';
-      } else if (OPENAI_API_KEY) {
-        content = await callOpenAI(OPENAI_API_KEY, fileContent, fileName);
-        provider = 'OpenAI';
-      } else throw new Error('No AI provider available');
+      } else throw new Error('Nenhum provedor de IA disponível');
     } catch (e) {
-      if (OPENAI_API_KEY && GOOGLE_AI_API_KEY) {
-        content = await callOpenAI(OPENAI_API_KEY, fileContent, fileName);
-        provider = 'OpenAI (fallback)';
+      // Fallback to Google direct if Lovable gateway fails
+      if (GOOGLE_AI_API_KEY && LOVABLE_API_KEY) {
+        content = await callGoogleGemini(GOOGLE_AI_API_KEY, fileContent, fileName);
+        provider = 'Google Gemini (fallback)';
       } else {
         throw e;
       }
