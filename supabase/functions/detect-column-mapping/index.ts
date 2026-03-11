@@ -11,10 +11,10 @@ serve(async (req) => {
   try {
     const { csvSample, fileName } = await req.json();
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
-    if (!OPENAI_API_KEY && !GOOGLE_AI_API_KEY) {
+    if (!GOOGLE_AI_API_KEY && !OPENAI_API_KEY) {
       throw new Error("Nenhuma chave de API de IA configurada");
     }
 
