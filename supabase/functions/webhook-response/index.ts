@@ -102,12 +102,13 @@ serve(async (req: Request) => {
     const isCommand = (payload.responseType === "text" || payload.responseType === "audio_transcription");
     const isManager = employee && ["admin", "gestor"].includes(employee.role);
 
-    const aiKey = lovableKey || openaiKey;
-    const aiBaseUrl = lovableKey
-      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+    const aiKey = googleKey || openaiKey;
+    const aiBaseUrl = googleKey
+      ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${googleKey}`
       : "https://api.openai.com/v1/chat/completions";
+    const useGoogle = !!googleKey;
 
-    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${!!aiKey}, usingLovable: ${!!lovableKey}`);
+    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${!!aiKey}, provider: ${useGoogle ? "Google" : "OpenAI"}`);
 
     if (isCommand && isManager && aiKey) {
       console.log(`Processing command from gestor ${employee.name}`);
