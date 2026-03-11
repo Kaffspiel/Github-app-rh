@@ -31,9 +31,9 @@ serve(async (req: Request) => {
     // @ts-ignore: Deno global not recognized in local IDE
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     // @ts-ignore: Deno global not recognized in local IDE
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    const googleKey = Deno.env.get("GOOGLE_AI_API_KEY");
     // @ts-ignore: Deno global not recognized in local IDE
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -102,12 +102,13 @@ serve(async (req: Request) => {
     const isCommand = (payload.responseType === "text" || payload.responseType === "audio_transcription");
     const isManager = employee && ["admin", "gestor"].includes(employee.role);
 
-    const aiKey = lovableKey || openaiKey;
-    const aiBaseUrl = lovableKey
-      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+    const aiKey = googleKey || openaiKey;
+    const aiBaseUrl = googleKey
+      ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${googleKey}`
       : "https://api.openai.com/v1/chat/completions";
+    const useGoogle = !!googleKey;
 
-    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${!!aiKey}, usingLovable: ${!!lovableKey}`);
+    console.log(`isCommand: ${isCommand}, isManager: ${isManager}, hasAI: ${!!aiKey}, provider: ${useGoogle ? "Google" : "OpenAI"}`);
 
     if (isCommand && isManager && aiKey) {
       console.log(`Processing command from gestor ${employee.name}`);
@@ -155,23 +156,40 @@ serve(async (req: Request) => {
 
       console.log("Calling AI with message:", payload.responseValue);
 
-      const aiResponse = await fetch(aiBaseUrl, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [{ role: "system", content: prompt }],
-          response_format: { type: "json_object" },
-          temperature: 0
-        })
-      });
+      let aiResponse;
+      if (useGoogle) {
+        aiResponse = await fetch(aiBaseUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0, responseMimeType: "application/json" }
+          })
+        });
+      } else {
+        aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{ role: "system", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0
+          })
+        });
+      }
 
       console.log("AI response status:", aiResponse.status);
 
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
-        const rawContent = aiData.choices[0].message.content;
-        console.log("OpenAI raw response:", rawContent);
+        let rawContent: string;
+        if (useGoogle) {
+          rawContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        } else {
+          rawContent = aiData.choices?.[0]?.message?.content;
+        }
+        console.log("AI raw response:", rawContent);
 
         const taskDetails = JSON.parse(rawContent);
         console.log("Task details extracted:", JSON.stringify(taskDetails));

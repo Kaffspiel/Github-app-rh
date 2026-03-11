@@ -11,10 +11,10 @@ serve(async (req) => {
   try {
     const { csvSample, fileName } = await req.json();
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
-    if (!OPENAI_API_KEY && !GOOGLE_AI_API_KEY) {
+    if (!GOOGLE_AI_API_KEY && !OPENAI_API_KEY) {
       throw new Error("Nenhuma chave de API de IA configurada");
     }
 
@@ -56,32 +56,11 @@ Retorne um JSON com esta estrutura:
 
 Retorne APENAS o JSON, sem markdown ou texto adicional.`;
 
-
     const userPrompt = `Arquivo: ${fileName}\n\nAmostra da planilha (CSV):\n${csvSample}`;
 
     let responseText: string;
 
-    if (OPENAI_API_KEY) {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.1,
-          max_tokens: 500,
-        }),
-      });
-      const data = await response.json();
-      responseText = data.choices?.[0]?.message?.content || "";
-    } else {
-      // Fallback to Google Gemini
+    if (GOOGLE_AI_API_KEY) {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
         {
@@ -93,8 +72,42 @@ Retorne APENAS o JSON, sem markdown ou texto adicional.`;
           }),
         }
       );
+      if (!response.ok) {
+        // Fallback to OpenAI if Google fails
+        if (OPENAI_API_KEY) {
+          const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+              temperature: 0.1,
+              max_tokens: 500,
+            }),
+          });
+          const data = await oaResp.json();
+          responseText = data.choices?.[0]?.message?.content || "";
+        } else {
+          throw new Error(`Google Gemini error: ${response.status}`);
+        }
+      } else {
+        const data = await response.json();
+        responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      }
+    } else {
+      // OpenAI only
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          temperature: 0.1,
+          max_tokens: 500,
+        }),
+      });
       const data = await response.json();
-      responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      responseText = data.choices?.[0]?.message?.content || "";
     }
 
     // Parse JSON from response
