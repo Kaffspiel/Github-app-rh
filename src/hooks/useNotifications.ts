@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { notificationService } from "@/services/notificationService";
+import { useEvolutionInstance } from "@/hooks/useEvolutionInstance";
 import type {
   NotificationType,
   NotificationChannel,
@@ -60,6 +61,7 @@ export const useNotifications = () => {
     notifications,
     employees,
   } = useNotificationContext();
+  const { instanceName: evolutionInstance } = useEvolutionInstance();
 
   // Notificação genérica
   const notify = useCallback(
@@ -143,7 +145,7 @@ export const useNotifications = () => {
       if (channels.includes("whatsapp") && employee.whatsapp.isVerified) {
         const payload = {
           ...notificationService.prepareEvolutionPayload({
-            instanceName: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste",
+            instanceName: evolutionInstance,
             recipientPhone: employee.whatsapp.number,
             type: params.type,
             message: processed.message,
@@ -151,7 +153,7 @@ export const useNotifications = () => {
             buttons: processed.buttons,
           }),
           number: employee.whatsapp.number,
-          instance: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste"
+          instance: evolutionInstance
         };
 
         addToQueue({

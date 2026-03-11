@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/context/CompanyContext";
+import { useEvolutionInstance } from "@/hooks/useEvolutionInstance";
 import {
   Users, Plus, Search, Phone, Mail, Building2, Shield,
   MessageSquare, Bell, Clock, CheckCircle2, XCircle,
@@ -42,6 +43,7 @@ export function EmployeeManagement() {
   const [resettingPassword, setResettingPassword] = useState(false);
   const { toast } = useToast();
   const { companyId, company } = useCompany();
+  const { instanceName: evolutionInstance } = useEvolutionInstance();
 
   // Form state for regular employee
   const [formData, setFormData] = useState({
@@ -311,7 +313,7 @@ export function EmployeeManagement() {
           title: "Teste de Conexão",
           message: `Olá ${employee.name}! Esta é uma mensagem de teste do OpsControl.`,
           priority: "normal",
-          instance: import.meta.env.VITE_EVOLUTION_INSTANCE || "teste",
+          instance: evolutionInstance,
         }),
       });
 
