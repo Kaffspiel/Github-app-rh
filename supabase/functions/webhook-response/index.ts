@@ -183,8 +183,13 @@ serve(async (req: Request) => {
 
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
-        const rawContent = aiData.choices[0].message.content;
-        console.log("OpenAI raw response:", rawContent);
+        let rawContent: string;
+        if (useGoogle) {
+          rawContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        } else {
+          rawContent = aiData.choices?.[0]?.message?.content;
+        }
+        console.log("AI raw response:", rawContent);
 
         const taskDetails = JSON.parse(rawContent);
         console.log("Task details extracted:", JSON.stringify(taskDetails));
