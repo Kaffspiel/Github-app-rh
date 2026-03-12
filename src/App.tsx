@@ -25,60 +25,60 @@ const App = () => (
       <AuthProvider>
         <AppProvider>
           <NotificationProvider>
-            <NotificationQueueProcessor />
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Routes>
-                  {/* Public route */}
-                  <Route path="/auth" element={<Auth />} />
+            <CompanyProvider>
+              <NotificationQueueProcessor />
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <Routes>
+                    {/* Public route */}
+                    <Route path="/auth" element={<Auth />} />
 
-                  {/* Admin Master route */}
-                  <Route
-                    path="/admin-master"
-                    element={
-                      <ProtectedRoute allowedRoles={["admin_master"]}>
-                        <AdminMaster />
-                      </ProtectedRoute>
-                    }
-                  />
+                    {/* Admin Master route */}
+                    <Route
+                      path="/admin-master"
+                      element={
+                        <ProtectedRoute allowedRoles={["admin_master"]}>
+                          <AdminMaster />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* Collaborator mobile app */}
-                  <Route
-                    path="/app"
-                    element={
-                      <ProtectedRoute allowedRoles={["colaborador"]}>
-                        <CollaboratorMobileApp />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/app/*"
-                    element={
-                      <ProtectedRoute allowedRoles={["colaborador"]}>
-                        <CollaboratorMobileApp />
-                      </ProtectedRoute>
-                    }
-                  />
+                    {/* Collaborator mobile app */}
+                    <Route
+                      path="/app"
+                      element={
+                        <ProtectedRoute allowedRoles={["colaborador"]}>
+                          <CollaboratorMobileApp />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/app/*"
+                      element={
+                        <ProtectedRoute allowedRoles={["colaborador"]}>
+                          <CollaboratorMobileApp />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* Company dashboard (admin/gestor) */}
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute allowedRoles={["admin", "gestor"]}>
-                        <CompanyProvider>
+                    {/* Company dashboard (admin/gestor) */}
+                    <Route
+                      path="/"
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "gestor"]}>
                           <Index />
-                        </CompanyProvider>
-                      </ProtectedRoute>
-                    }
-                  />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* 404 */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </BrowserRouter>
-            </TooltipProvider>
+                    {/* 404 */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </BrowserRouter>
+              </TooltipProvider>
+            </CompanyProvider>
           </NotificationProvider>
         </AppProvider>
       </AuthProvider>
