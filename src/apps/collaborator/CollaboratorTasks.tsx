@@ -501,6 +501,104 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                 </TabsContent>
             </Tabs>
 
+            <Dialog open={isNewTaskOpen} onOpenChange={setIsNewTaskOpen}>
+                <DialogContent className="max-w-md w-[95vw]">
+                    <DialogHeader>
+                        <DialogTitle>Nova Tarefa</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="task-title">Título</Label>
+                            <Input
+                                id="task-title"
+                                placeholder="O que precisa ser feito?"
+                                value={newTaskData.title}
+                                onChange={(e) => setNewTaskData(prev => ({ ...prev, title: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="task-desc">Descrição (Opcional)</Label>
+                            <Textarea
+                                id="task-desc"
+                                placeholder="Detalhes da tarefa..."
+                                value={newTaskData.description}
+                                onChange={(e) => setNewTaskData(prev => ({ ...prev, description: e.target.value }))}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="task-priority">Prioridade</Label>
+                                <Select
+                                    value={newTaskData.priority}
+                                    onValueChange={(value) => setNewTaskData(prev => ({ ...prev, priority: value }))}
+                                >
+                                    <SelectTrigger id="task-priority">
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="baixa">Baixa</SelectItem>
+                                        <SelectItem value="média">Média</SelectItem>
+                                        <SelectItem value="alta">Alta</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="task-date">Prazo (Opcional)</Label>
+                                <Input
+                                    id="task-date"
+                                    type="datetime-local"
+                                    value={newTaskData.dueDate}
+                                    onChange={(e) => setNewTaskData(prev => ({ ...prev, dueDate: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 pt-2">
+                            <Label>Checklist</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Adicionar item..."
+                                    value={currentChecklistItem}
+                                    onChange={(e) => setCurrentChecklistItem(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
+                                />
+                                <Button type="button" size="icon" onClick={handleAddChecklistItem}>
+                                    <Plus className="w-4 h-4" />
+                                </Button>
+                            </div>
+                            <div className="max-h-32 overflow-y-auto space-y-2">
+                                {newTaskData.checklist.map((item, index) => (
+                                    <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm">
+                                        <span className="truncate flex-1 mr-2">{item}</span>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                            onClick={() => handleRemoveChecklistItem(index)}
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-2 pt-2 pb-4">
+                            <Checkbox 
+                                id="is-daily" 
+                                checked={newTaskData.isDailyRoutine}
+                                onCheckedChange={(checked) => setNewTaskData(prev => ({ ...prev, isDailyRoutine: !!checked }))}
+                            />
+                            <Label htmlFor="is-daily" className="text-sm cursor-pointer">Definir como Rotina Diária</Label>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsNewTaskOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleCreateTask} disabled={!newTaskData.title}>Criar Tarefa</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={isExtensionDialogOpen} onOpenChange={setIsExtensionDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
