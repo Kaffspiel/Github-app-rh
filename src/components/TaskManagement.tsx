@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Pencil, Trash2, ClipboardList, ListTodo, Loader2, Copy } from "lucide-react";
+import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Pencil, Trash2, ClipboardList, ListTodo, Loader2, Copy, XCircle, MinusCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTasks, Task } from "@/hooks/useTasks";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
@@ -240,6 +240,8 @@ export function TaskManagement() {
       case "andamento": return <Clock className="w-4 h-4" />;
       case "atrasada": return <AlertCircle className="w-4 h-4" />;
       case "concluido": return <CheckCircle2 className="w-4 h-4" />;
+      case "cancelada": return <XCircle className="w-4 h-4" />;
+      case "não feito": return <MinusCircle className="w-4 h-4" />;
       default: return <Circle className="w-4 h-4" />;
     }
   };
@@ -250,6 +252,8 @@ export function TaskManagement() {
       case "andamento": return "bg-blue-100 text-blue-600 border-blue-200";
       case "atrasada": return "bg-red-100 text-red-600 border-red-200";
       case "concluido": return "bg-green-100 text-green-600 border-green-200";
+      case "cancelada": return "bg-gray-100 text-gray-600 border-gray-200";
+      case "não feito": return "bg-slate-100 text-slate-600 border-slate-200";
       default: return "bg-gray-100";
     }
   };

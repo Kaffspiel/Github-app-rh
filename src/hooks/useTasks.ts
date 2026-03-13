@@ -27,7 +27,7 @@ export interface Task {
   title: string;
   description: string | null;
   priority: 'alta' | 'média' | 'baixa';
-  status: 'pendente' | 'andamento' | 'concluido' | 'atrasada';
+  status: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada' | 'não feito';
   due_date: string | null;
   assignee_id: string | null;
   assignee_name?: string;
@@ -57,7 +57,7 @@ export interface UpdateTaskInput {
   title?: string;
   description?: string;
   priority?: 'alta' | 'média' | 'baixa';
-  status?: 'pendente' | 'andamento' | 'concluido' | 'atrasada';
+  status?: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada' | 'não feito';
   due_date?: string;
   assignee_id?: string;
   progress?: number;

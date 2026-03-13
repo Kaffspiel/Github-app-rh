@@ -12,7 +12,7 @@ import {
   subMonths 
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,12 +64,10 @@ export function TaskCalendar({ tasks, onTaskClick }: TaskCalendarProps) {
     return map;
   }, [tasks]);
 
-  const selectedDayTasks = useMemo(() => {
-    const key = format(selectedDate, 'yyyy-MM-dd');
-    return tasksByDay[key] || [];
-  }, [selectedDate, tasksByDay]);
-
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string, status?: string) => {
+    if (status === 'cancelada') return "bg-slate-200 text-slate-400 opacity-50";
+    if (status === 'não feito') return "bg-slate-400 text-white opacity-80";
+    
     switch (priority) {
       case "alta": return "bg-red-500 hover:bg-red-600";
       case "média": return "bg-orange-500 hover:bg-orange-600";
@@ -78,10 +76,19 @@ export function TaskCalendar({ tasks, onTaskClick }: TaskCalendarProps) {
     }
   };
 
+  const selectedDayTasks = useMemo(() => {
+    const key = format(selectedDate, 'yyyy-MM-dd');
+    return tasksByDay[key] || [];
+  }, [selectedDate, tasksByDay]);
+
+
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "concluída": return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case "concluída": 
+      case "concluido": return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       case "atrasada": return <AlertCircle className="w-4 h-4 text-red-500" />;
+      case "cancelada": return <Trash2 className="w-4 h-4 text-slate-400" />;
+      case "não feito": return <AlertCircle className="w-4 h-4 text-slate-500" />;
       default: return <Clock className="w-4 h-4 text-amber-500" />;
     }
   };
@@ -167,7 +174,7 @@ export function TaskCalendar({ tasks, onTaskClick }: TaskCalendarProps) {
               {selectedDayTasks.map(task => (
                 <Card key={task.id} className="border-none shadow-sm cursor-pointer" onClick={() => onTaskClick(task)}>
                   <CardContent className="p-4 flex gap-3 items-center">
-                    <div className={`w-1.5 h-10 rounded-full shrink-0 ${getPriorityColor(task.priority).split(' ')[0]}`} />
+                    <div className={`w-1.5 h-10 rounded-full shrink-0 ${getPriorityColor(task.priority, task.status).split(' ')[0]}`} />
                     <div className="flex-1 overflow-hidden">
                       <h4 className="text-sm font-bold text-slate-800 truncate">{task.title}</h4>
                       <p className="text-xs text-slate-400 font-medium">Prazo: {task.due_date ? format(new Date(task.due_date), "HH:mm") : '--:--'}</p>
@@ -216,7 +223,7 @@ export function TaskCalendar({ tasks, onTaskClick }: TaskCalendarProps) {
                     <div
                       key={task.id}
                       onClick={() => onTaskClick(task)}
-                      className={`px-2 py-1 rounded text-[10px] text-white font-bold cursor-pointer truncate transition-all hover:brightness-110 active:scale-95 ${getPriorityColor(task.priority)}`}
+                      className={`px-2 py-1 rounded text-[10px] text-white font-bold cursor-pointer truncate transition-all hover:brightness-110 active:scale-95 ${getPriorityColor(task.priority, task.status)} ${task.status === 'cancelada' ? 'line-through' : ''}`}
                       title={task.title}
                     >
                       {task.title}
