@@ -99,7 +99,7 @@ serve(async (req: Request) => {
     let confirmationMessage = null;
 
     // 4. Lógica de IA: Criação de Tarefas por Gestores
-    const isCommand = (payload.responseType === "text" || payload.responseType === "audio_transcription");
+    const isCommand = (payload.responseType === "text" || payload.responseType === "audio_transcription") && !!payload.responseValue?.trim();
     const isManager = employee && ["admin", "gestor"].includes(employee.role);
 
     const hasAnyAI = !!(googleKey || openaiKey);
