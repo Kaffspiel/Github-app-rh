@@ -20,6 +20,8 @@ import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
 import { RoutineTemplatesTab } from "@/components/tasks/RoutineTemplatesTab";
 import { TaskComments } from "@/components/tasks/TaskComments";
+import { GoogleCalendarButton } from "@/components/GoogleCalendarButton";
+import { TaskCalendar } from "@/components/tasks/TaskCalendar";
 
 export function TaskManagement() {
   const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem, fetchComments, addComment } = useTasks();
@@ -63,6 +65,7 @@ export function TaskManagement() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("minhas");
+  const [showCalendar, setShowCalendar] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [selectedChecklistItemId, setSelectedChecklistItemId] = useState<string | undefined>(undefined);
 
@@ -379,9 +382,19 @@ export function TaskManagement() {
               <span>{task.comments_count}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
             <Calendar className="w-4 h-4" />
             <span>{formatDueDate(task.due_date)}</span>
+            {task.due_date && (
+              <GoogleCalendarButton
+                title={task.title}
+                description={task.description || ""}
+                dueDate={task.due_date}
+                size="icon"
+                showText={false}
+                className="h-6 w-6 ml-1"
+              />
+            )}
           </div>
         </div>
 
@@ -713,6 +726,13 @@ export function TaskManagement() {
                   </div>
 
                   <div className="flex gap-2 justify-end pt-4 border-t items-center">
+                    {selectedTask.due_date && (
+                      <GoogleCalendarButton
+                        title={selectedTask.title}
+                        description={selectedTask.description || ""}
+                        dueDate={selectedTask.due_date}
+                      />
+                    )}
                     {/* Extension Request Button (Restricted to Assignee only) */}
                     {(selectedTask.status === 'atrasada' || selectedTask.status === 'pendente') &&
                       currentEmployee?.id === selectedTask.assignee_id && (
@@ -909,6 +929,9 @@ export function TaskManagement() {
               {filteredTeamTasks.length}
             </Badge>
           </TabsTrigger>
+          <TabsTrigger value="calendario">
+            Calendário
+          </TabsTrigger>
           <TabsTrigger value="concluidas">
             Concluídas
             <Badge variant="secondary" className="ml-2">
@@ -1044,6 +1067,10 @@ export function TaskManagement() {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="calendario" className="mt-6">
+          <TaskCalendar tasks={tasks} onTaskClick={setSelectedTask} />
         </TabsContent>
 
         <TabsContent value="equipe" className="space-y-4">

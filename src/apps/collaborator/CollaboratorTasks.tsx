@@ -41,6 +41,8 @@ import { TaskComments } from "@/components/tasks/TaskComments";
 import { useTaskNotifications } from "@/hooks/useTaskNotifications";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { GoogleCalendarButton } from "@/components/GoogleCalendarButton";
+import { TaskCalendar } from "@/components/tasks/TaskCalendar";
 
 interface NewTaskData {
     title: string;
@@ -89,6 +91,7 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
     const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [selectedTaskForComments, setSelectedTaskForComments] = useState<any>(null);
+    const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<any>(null);
     const [selectedChecklistItemId, setSelectedChecklistItemId] = useState<string | undefined>(undefined);
 
     const handleRequestExtension = async () => {
@@ -223,10 +226,11 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                 </div>
             )}
 
-            <Tabs defaultValue="tasks" className="w-full">
+            <Tabs defaultValue="tasks" className="w-full flex-1 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
-                    <TabsList className="grid w-[200px] grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="tasks">Tarefas</TabsTrigger>
+                        <TabsTrigger value="calendar">Calendário</TabsTrigger>
                         <TabsTrigger value="history">Histórico</TabsTrigger>
                     </TabsList>
                     <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading}>
@@ -258,9 +262,21 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                                 <h4 className="font-semibold text-gray-900">
                                                     <span>{routine.title}</span>
                                                 </h4>
-                                                <Badge variant="outline" className="text-[10px] uppercase">
-                                                    {routine.priority}
-                                                </Badge>
+                                                <div className="flex gap-1 items-center">
+                                                    {routine.due_date && (
+                                                        <GoogleCalendarButton
+                                                            title={routine.title}
+                                                            description={routine.description || ""}
+                                                            dueDate={routine.due_date}
+                                                            size="icon"
+                                                            showText={false}
+                                                            className="h-6 w-6"
+                                                        />
+                                                    )}
+                                                    <Badge variant="outline" className="text-[10px] uppercase">
+                                                        {routine.priority}
+                                                    </Badge>
+                                                </div>
                                             </div>
                                             {routine.description && (
                                                 <p className="text-sm text-gray-500 mb-3">
@@ -351,6 +367,16 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                                         <Badge variant="destructive" className="text-[10px] uppercase">
                                                             Atrasada
                                                         </Badge>
+                                                    )}
+                                                    {task.due_date && (
+                                                        <GoogleCalendarButton
+                                                            title={task.title}
+                                                            description={task.description || ""}
+                                                            dueDate={task.due_date}
+                                                            size="icon"
+                                                            showText={false}
+                                                            className="h-6 w-6"
+                                                        />
                                                     )}
                                                     <Badge variant="outline" className="text-[10px] uppercase">
                                                         {task.priority}
@@ -462,6 +488,13 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                             </Card>
                         )}
                     </section>
+                </TabsContent>
+
+                <TabsContent value="calendar" className="mt-4 px-0 flex-1 min-h-[60vh]">
+                    <TaskCalendar 
+                        tasks={tasks} 
+                        onTaskClick={(task) => setSelectedTaskForDetails(task)} 
+                    />
                 </TabsContent>
 
                 <TabsContent value="history">
@@ -666,6 +699,90 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                             Fechar
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Detalhes da Tarefa para o Calendário */}
+            <Dialog open={!!selectedTaskForDetails} onOpenChange={(open) => !open && setSelectedTaskForDetails(null)}>
+                <DialogContent className="max-w-md w-[95vw] p-0 overflow-hidden border-none">
+                    {selectedTaskForDetails && (
+                        <div className="flex flex-col">
+                            <div className={`h-2 ${getPriorityColor(selectedTaskForDetails.priority)}`} />
+                            <div className="p-5 space-y-4">
+                                <DialogHeader className="text-left">
+                                    <div className="flex justify-between items-start">
+                                        <DialogTitle className="text-xl font-bold">{selectedTaskForDetails.title}</DialogTitle>
+                                        <Badge variant="outline" className="capitalize">{selectedTaskForDetails.status}</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1 text-slate-500 text-sm">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        <span>Prazo: {selectedTaskForDetails.due_date ? format(new Date(selectedTaskForDetails.due_date), "dd/MM/yyyy HH:mm") : "Sem prazo"}</span>
+                                    </div>
+                                </DialogHeader>
+
+                                {selectedTaskForDetails.description && (
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 italic text-sm text-slate-600">
+                                        {selectedTaskForDetails.description}
+                                    </div>
+                                )}
+
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center px-1">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Checklist</span>
+                                        <span className="text-xs font-bold text-primary">{selectedTaskForDetails.progress}%</span>
+                                    </div>
+                                    <Progress value={selectedTaskForDetails.progress} className="h-2" />
+                                    
+                                    <ScrollArea className="max-h-[200px] pr-3">
+                                        <div className="space-y-2">
+                                            {selectedTaskForDetails.checklist.map((item: any) => (
+                                                <div key={item.id} className="flex items-center gap-3 p-2 bg-white border border-slate-100 rounded-md">
+                                                    <Checkbox
+                                                        id={`detail-item-${item.id}`}
+                                                        checked={item.completed}
+                                                        onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
+                                                    />
+                                                    <label 
+                                                        htmlFor={`detail-item-${item.id}`}
+                                                        className={`text-sm flex-1 ${item.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}
+                                                    >
+                                                        {item.text}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                            {selectedTaskForDetails.checklist.length === 0 && (
+                                                <p className="text-center py-4 text-xs text-slate-400 italic">Nenhum item adicionado</p>
+                                            )}
+                                        </div>
+                                    </ScrollArea>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <Button 
+                                        variant="outline" 
+                                        className="gap-2"
+                                        onClick={() => {
+                                            setSelectedTaskForComments(selectedTaskForDetails);
+                                            setIsCommentsOpen(true);
+                                        }}
+                                    >
+                                        <MessageSquare className="w-4 h-4" />
+                                        Comentários
+                                    </Button>
+                                    <GoogleCalendarButton
+                                        title={selectedTaskForDetails.title}
+                                        description={selectedTaskForDetails.description || ""}
+                                        dueDate={selectedTaskForDetails.due_date}
+                                        className="w-full"
+                                    />
+                                </div>
+                                
+                                <Button className="w-full bg-primary" onClick={() => setSelectedTaskForDetails(null)}>
+                                    Fechar
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div >
