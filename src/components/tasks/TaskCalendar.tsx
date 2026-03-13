@@ -71,10 +71,10 @@ export function TaskCalendar({ tasks, onTaskClick }: TaskCalendarProps) {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "alta": return "bg-red-500";
-      case "média": return "bg-orange-500";
-      case "baixa": return "bg-blue-500";
-      default: return "bg-slate-400";
+      case "alta": return "bg-red-500 hover:bg-red-600";
+      case "média": return "bg-orange-500 hover:bg-orange-600";
+      case "baixa": return "bg-blue-500 hover:bg-blue-600";
+      default: return "bg-slate-400 hover:bg-slate-500";
     }
   };
 
@@ -87,137 +87,146 @@ export function TaskCalendar({ tasks, onTaskClick }: TaskCalendarProps) {
   };
 
   return (
-    <div className="flex flex-col h-full gap-4 pb-20">
-      {/* HEADER CALENDÁRIO */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-slate-800 capitalize">
+    <div className="flex flex-col h-full gap-4 pb-20 md:pb-0">
+      {/* HEADER COMPARTILHADO */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 p-2 rounded-lg text-primary">
+            <CalendarIcon className="w-5 h-5" />
+          </div>
+          <h2 className="text-lg md:text-xl font-bold text-slate-800 capitalize">
             {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
           </h2>
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prevMonth}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={nextMonth}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={prevMonth} className="h-9 w-9">
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              setCurrentMonth(new Date());
+              setSelectedDate(new Date());
+            }}
+            className="hidden sm:inline-flex"
+          >
+            Hoje
+          </Button>
+          <Button variant="outline" size="icon" onClick={nextMonth} className="h-9 w-9">
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* VISUALIZAÇÃO MOBILE (AGENDA) */}
+      <div className="md:hidden flex flex-col flex-1 gap-4">
+        {/* Calendário Compacto */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+          <div className="grid grid-cols-7 mb-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            {["D", "S", "T", "Q", "Q", "S", "S"].map(d => <span key={d}>{d}</span>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map((day) => {
+              const dateKey = format(day, 'yyyy-MM-dd');
+              const hasTasks = !!tasksByDay[dateKey];
+              const isSelected = isSameDay(day, selectedDate);
+              const isToday = isSameDay(day, new Date());
+              const isCurrMonth = isSameMonth(day, monthStart);
+
+              return (
+                <button
+                  key={day.toISOString()}
+                  onClick={() => setSelectedDate(day)}
+                  className={`relative flex flex-col items-center justify-center p-2 rounded-xl transition-all aspect-square ${
+                    isSelected ? "bg-primary text-white shadow-md scale-105" : 
+                    isToday ? "bg-blue-50 text-primary border border-blue-100" :
+                    !isCurrMonth ? "text-slate-200" : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-sm font-bold">{format(day, "d")}</span>
+                  {hasTasks && (
+                    <div className={`mt-0.5 w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-primary"}`} />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="grid grid-cols-7 mb-2">
-          {["D", "S", "T", "Q", "Q", "S", "S"].map(d => (
-            <span key={d} className="text-center text-[10px] font-bold text-slate-400 uppercase">{d}</span>
+        {/* Lista do Dia */}
+        <div className="flex-1 bg-slate-50/50 rounded-2xl border border-slate-100 p-4 flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-bold text-slate-800">
+              {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
+            </span>
+            <Badge variant="secondary" className="bg-white">{selectedDayTasks.length}</Badge>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="space-y-3">
+              {selectedDayTasks.map(task => (
+                <Card key={task.id} className="border-none shadow-sm cursor-pointer" onClick={() => onTaskClick(task)}>
+                  <CardContent className="p-4 flex gap-3 items-center">
+                    <div className={`w-1.5 h-10 rounded-full shrink-0 ${getPriorityColor(task.priority).split(' ')[0]}`} />
+                    <div className="flex-1 overflow-hidden">
+                      <h4 className="text-sm font-bold text-slate-800 truncate">{task.title}</h4>
+                      <p className="text-xs text-slate-400 font-medium">Prazo: {task.due_date ? format(new Date(task.due_date), "HH:mm") : '--:--'}</p>
+                    </div>
+                    {getStatusIcon(task.status || "")}
+                  </CardContent>
+                </Card>
+              ))}
+              {selectedDayTasks.length === 0 && (
+                <div className="text-center py-10 text-slate-400 text-xs italic">Nenhuma tarefa para este dia</div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      </div>
+
+      {/* VISUALIZAÇÃO DESKTOP (GRADE COMPLETA) */}
+      <div className="hidden md:block flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="grid grid-cols-7 bg-slate-50/80 border-b">
+          {["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"].map(d => (
+            <div key={d} className="py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-widest">{d}</div>
           ))}
         </div>
-
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 flex-1 divide-x divide-y divide-slate-100 min-h-0">
           {calendarDays.map((day) => {
             const dateKey = format(day, 'yyyy-MM-dd');
-            const hasTasks = !!tasksByDay[dateKey];
-            const isSelected = isSameDay(day, selectedDate);
+            const dayTasks = tasksByDay[dateKey] || [];
             const isToday = isSameDay(day, new Date());
             const isCurrMonth = isSameMonth(day, monthStart);
 
             return (
-              <button
-                key={day.toISOString()}
-                onClick={() => setSelectedDate(day)}
-                className={`relative flex flex-col items-center justify-center p-2 rounded-xl transition-all aspect-square ${
-                  isSelected ? "bg-primary text-white shadow-md scale-105" : 
-                  isToday ? "bg-blue-50 text-primary border border-blue-100" :
-                  !isCurrMonth ? "text-slate-300" : "text-slate-600 hover:bg-slate-50"
-                }`}
+              <div 
+                key={day.toISOString()} 
+                className={`min-h-[140px] flex flex-col p-2 transition-colors ${!isCurrMonth ? "bg-slate-50/30" : "bg-white"} ${isToday ? "bg-blue-50/20" : ""}`}
               >
-                <span className="text-sm font-semibold">{format(day, "d")}</span>
-                {hasTasks && (
-                  <div className={`mt-0.5 w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-primary"}`} />
-                )}
-              </button>
+                <div className="flex justify-between items-center mb-2">
+                  <span className={`text-sm font-bold h-7 w-7 flex items-center justify-center rounded-full ${
+                    isToday ? "bg-primary text-white" : !isCurrMonth ? "text-slate-300" : "text-slate-600"
+                  }`}>
+                    {format(day, "d")}
+                  </span>
+                  {dayTasks.length > 0 && <span className="text-[10px] font-bold text-slate-400">{dayTasks.length} {dayTasks.length === 1 ? 'Job' : 'Jobs'}</span>}
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-1 scrollbar-hide">
+                  {dayTasks.map(task => (
+                    <div
+                      key={task.id}
+                      onClick={() => onTaskClick(task)}
+                      className={`px-2 py-1 rounded text-[10px] text-white font-bold cursor-pointer truncate transition-all hover:brightness-110 active:scale-95 ${getPriorityColor(task.priority)}`}
+                      title={task.title}
+                    >
+                      {task.title}
+                    </div>
+                  ))}
+                </div>
+              </div>
             );
           })}
         </div>
-      </div>
-
-      {/* LISTA DE TAREFAS DO DIA */}
-      <div className="flex flex-col flex-1 min-h-0 bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
-        <div className="flex items-center justify-between mb-4 px-1">
-          <div className="flex flex-col">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-              Agenda do dia
-            </span>
-            <span className="text-lg font-bold text-slate-800">
-              {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
-            </span>
-          </div>
-          <Badge variant="secondary" className="h-6 px-2 font-bold bg-white shadow-sm border-slate-100">
-            {selectedDayTasks.length} {selectedDayTasks.length === 1 ? 'tarefa' : 'tarefas'}
-          </Badge>
-        </div>
-
-        <ScrollArea className="flex-1">
-          <div className="space-y-3 pb-4">
-            {selectedDayTasks.length > 0 ? (
-              selectedDayTasks.map((task) => (
-                <Card 
-                  key={task.id} 
-                  className="overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-                  onClick={() => onTaskClick(task)}
-                >
-                  <CardContent className="p-0 flex items-stretch">
-                    <div className={`w-1.5 shrink-0 ${getPriorityColor(task.priority)}`} />
-                    <div className="p-4 flex-1 flex flex-col gap-2">
-                      <div className="flex justify-between items-start gap-2">
-                        <h3 className="font-bold text-slate-800 leading-tight group-hover:text-primary transition-colors">
-                          {task.title}
-                        </h3>
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          {getStatusIcon(task.status || "")}
-                        </div>
-                      </div>
-                      
-                      {task.description && (
-                        <p className="text-xs text-slate-500 line-clamp-2 italic">
-                          {task.description}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between mt-1">
-                        <div className="flex items-center gap-3">
-                           <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase">
-                             <Clock className="w-3 h-3" />
-                             {task.due_date ? format(new Date(task.due_date), "HH:mm") : '--:--'}
-                           </div>
-                           <Badge variant="outline" className="text-[9px] h-4 px-1.5 uppercase tracking-tighter opacity-70">
-                             {task.priority}
-                           </Badge>
-                        </div>
-                        <GoogleCalendarButton
-                          title={task.title}
-                          description={task.description}
-                          dueDate={task.due_date}
-                          size="icon"
-                          variant="ghost"
-                          showText={false}
-                          className="h-8 w-8 text-slate-400 hover:text-primary"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center space-y-3 px-4">
-                <div className="bg-white p-4 rounded-full shadow-sm border border-slate-100">
-                  <CalendarIcon className="w-8 h-8 text-slate-200" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="font-bold text-slate-600">Nada agendado</span>
-                  <p className="text-xs text-slate-400">Não há tarefas com prazo para este dia.</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
       </div>
     </div>
   );
