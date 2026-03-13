@@ -652,7 +652,7 @@ export function TaskManagement() {
             {selectedTask ? (
               <>
                 <DialogHeader>
-                  <div className="flex justify-between items-start pr-8">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pr-10 gap-2">
                     <div>
                       <DialogTitle className="text-xl flex items-center gap-2">
                         {selectedTask.title}
@@ -661,7 +661,7 @@ export function TaskManagement() {
                         Criado em {format(new Date(selectedTask.created_at), "dd/MM/yyyy")} por {selectedTask.created_by_name || "Sistema"}
                       </DialogDescription>
                     </div>
-                    <Badge variant="outline" className={`${getStatusColor(selectedTask.status)}`}>
+                    <Badge variant="outline" className={`${getStatusColor(selectedTask.status)} shrink-0 self-start sm:self-center`}>
                       {getStatusIcon(selectedTask.status)}
                       <span className="ml-1 capitalize">{selectedTask.status}</span>
                     </Badge>
@@ -669,7 +669,7 @@ export function TaskManagement() {
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
-                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 rounded-lg border gap-3">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-gray-500" />
                       <span className="text-sm font-medium text-gray-700">Responsável: {selectedTask.assignee_name || "Não atribuído"}</span>
@@ -683,20 +683,28 @@ export function TaskManagement() {
                     </Badge>
                   </div>
 
-                  <div>
-                    <h4 className="text-sm font-semibold mb-2">Descrição</h4>
-                    <p className="text-sm text-gray-600 leading-relaxed bg-white p-3 border rounded-md">
-                      {selectedTask.description || "Sem descrição"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-semibold">Checklist de Execução</h4>
-                      <span className="text-xs text-gray-500">{selectedTask.progress}% Concluído</span>
+                  {selectedTask.description && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <FileText className="w-4 h-4" /> Descrição
+                      </h4>
+                      <div className="p-3 bg-white rounded border text-sm text-gray-600 min-h-[60px]">
+                        {selectedTask.description}
+                      </div>
                     </div>
-                    <Progress value={selectedTask.progress} className="h-2 mb-3" />
-                    <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <ListTodo className="w-4 h-4" /> Checklist de Execução
+                      </h4>
+                      <Badge variant="secondary" className="text-xs">
+                        {selectedTask.progress}% Concluído
+                      </Badge>
+                    </div>
+                    <Progress value={selectedTask.progress} className="h-2" />
+                    <div className="space-y-1 mt-2 max-h-[200px] overflow-y-auto pr-2">
                       {selectedTask.checklist.map((item) => (
                         <div key={item.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100 transition-colors">
                           <Checkbox
@@ -729,119 +737,134 @@ export function TaskManagement() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 justify-end pt-4 border-t items-center">
-                    {selectedTask.due_date && (
-                      <GoogleCalendarButton
-                        title={selectedTask.title}
-                        description={selectedTask.description || ""}
-                        dueDate={selectedTask.due_date}
-                      />
-                    )}
-                    {/* Extension Request Button (Restricted to Assignee only) */}
-                    {(selectedTask.status === 'atrasada' || selectedTask.status === 'pendente') &&
-                      currentEmployee?.id === selectedTask.assignee_id && (
-                        <Dialog open={isExtensionDialogOpen} onOpenChange={setIsExtensionDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button variant="secondary" size="sm" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200">
-                              <Clock className="w-4 h-4 mr-2" />
-                              Pedir Mais Prazo
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Solicitar Prorrogação de Prazo</DialogTitle>
-                              <DialogDescription>
-                                O gestor receberá uma notificação com o seu pedido.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="ext-date">Nova Data Sugerida</Label>
-                                <Input
-                                  id="ext-date"
-                                  type="datetime-local"
-                                  value={extensionDate}
-                                  onChange={(e) => setExtensionDate(e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="ext-reason">Motivo do Atraso</Label>
-                                <Textarea
-                                  id="ext-reason"
-                                  placeholder="Explique por que precisa de mais tempo..."
-                                  value={extensionReason}
-                                  onChange={(e) => setExtensionReason(e.target.value)}
-                                />
-                              </div>
-                            </div>
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => setIsExtensionDialogOpen(false)}>Cancelar</Button>
-                              <Button onClick={handleRequestExtension} disabled={!extensionDate || !extensionReason || isSubmittingExtension}>
-                                {isSubmittingExtension ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                                Enviar Pedido
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                  <div className="flex flex-wrap gap-3 justify-between pt-4 border-t items-center mt-2">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      {selectedTask.due_date && (
+                        <GoogleCalendarButton
+                          title={selectedTask.title}
+                          description={selectedTask.description || ""}
+                          dueDate={selectedTask.due_date}
+                        />
                       )}
 
-                    {selectedTask.extension_status === 'pending' && (
-                      <Badge variant="outline" className="bg-yellow-50 text-yellow-600 border-yellow-200 gap-1 py-1 px-2 h-9">
-                        <Clock className="w-3 h-3" />
-                        Solicitação de Prazo Pendente
-                      </Badge>
-                    )}
+                      {/* Pedido de Prazo */}
+                      {(selectedTask.status === 'atrasada' || selectedTask.status === 'pendente') &&
+                        currentEmployee?.id === selectedTask.assignee_id && (
+                          <Dialog open={isExtensionDialogOpen} onOpenChange={setIsExtensionDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button variant="secondary" size="sm" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200 h-9">
+                                <Clock className="w-4 h-4 mr-2" />
+                                <span className="hidden xs:inline">Pedir Prazo</span>
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Solicitar Prorrogação de Prazo</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="ext-date">Nova Data Sugerida</Label>
+                                  <Input
+                                    id="ext-date"
+                                    type="datetime-local"
+                                    value={extensionDate}
+                                    onChange={(e) => setExtensionDate(e.target.value)}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="ext-reason">Motivo</Label>
+                                  <Textarea
+                                    id="ext-reason"
+                                    value={extensionReason}
+                                    onChange={(e) => setExtensionReason(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button onClick={handleRequestExtension} disabled={!extensionDate || !extensionReason}>
+                                  Enviar Pedido
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        )}
 
-                    <Button 
-                      variant={showComments && !selectedChecklistItemId ? "default" : "outline"} 
-                      size="sm" 
-                      className="gap-2"
-                      onClick={() => {
-                          setShowComments(!showComments || !!selectedChecklistItemId);
-                          setSelectedChecklistItemId(undefined);
-                      }}
-                    >
-                      <MessageSquare className="w-4 h-4" /> Comentários ({selectedTask.comments_count})
-                    </Button>
-                    <Select
-                      value={selectedTask.status}
-                      onValueChange={async (value) => {
-                        try {
-                          await updateTask(selectedTask.id, { status: value as Task['status'] });
-                          setSelectedTask({ ...selectedTask, status: value as Task['status'] });
-                        } catch (error: any) {
-                          console.error("Erro ao atualizar status:", error);
-                          // We need to import 'toast' or use 'useToast' hook here if not already available in the component scope?
-                          // Checking imports... 'use-toast' is not imported in the original file view I saw.
-                          // Wait, I should confirm imports first. 
-                          // Assuming I can't see the top, I'll alert for now or assumed it's passed or available.
-                          // Actually, useTasks probably handles the optimistic update or toast? No, useTasks throws.
-                          // Let's use simple alert for now if toast isn't available, OR just console.error heavily.
-                          // Actually, looking at imports in previous turn (Step 1344 view), 'use-toast' was NOT imported in TaskManagement.tsx
-                          // I should probably add the import too, but for a quick fix let's use alert() or console.
-                          alert(`Erro ao atualizar: ${error.message || 'Erro desconhecido'}`);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pendente">Pendente</SelectItem>
-                        <SelectItem value="andamento">Em Andamento</SelectItem>
-                        <SelectItem value="concluido">Concluída</SelectItem>
-                        <SelectItem value="atrasada">Atrasada</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      {/* Ações de Gestor/Admin */}
+                      {(currentRole === 'gestor' || currentRole === 'admin') &&
+                       selectedTask.status !== 'concluido' &&
+                       selectedTask.status !== 'cancelada' &&
+                       selectedTask.status !== 'não feito' && (
+                        <div className="flex gap-1 border-l pl-2 border-slate-200">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-slate-500 hover:text-slate-700 h-9 px-2"
+                            onClick={() => updateTask(selectedTask.id, { status: 'não feito' })}
+                            title="Não Feito"
+                          >
+                            <MinusCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 h-9 px-2"
+                            onClick={() => updateTask(selectedTask.id, { status: 'cancelada' })}
+                            title="Cancelar"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        variant={showComments && !selectedChecklistItemId ? "default" : "outline"}
+                        size="sm"
+                        className="gap-2 h-9"
+                        onClick={() => {
+                            setShowComments(!showComments || !!selectedChecklistItemId);
+                            setSelectedChecklistItemId(undefined);
+                        }}
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span className="hidden sm:inline">Comentários</span> ({selectedTask.comments_count})
+                      </Button>
+
+                      <Select
+                        value={selectedTask.status}
+                        onValueChange={async (value) => {
+                          try {
+                            await updateTask(selectedTask.id, { status: value as Task['status'] });
+                            setSelectedTask({ ...selectedTask, status: value as Task['status'] });
+                          } catch (error: any) {
+                            console.error("Erro ao atualizar status:", error);
+                            alert(`Erro ao atualizar: ${error.message || 'Erro desconhecido'}`);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[140px] h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pendente">Pendente</SelectItem>
+                          <SelectItem value="andamento">Andamento</SelectItem>
+                          <SelectItem value="concluido">Concluída</SelectItem>
+                          <SelectItem value="atrasada">Atrasada</SelectItem>
+                          <SelectItem value="cancelada">Cancelada</SelectItem>
+                          <SelectItem value="não feito">Não Feito</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {showComments && (
                     <div className="pt-4 border-t animate-in fade-in slide-in-from-top-2 duration-300">
-                      <TaskComments 
-                        taskId={selectedTask.id} 
+                      <TaskComments
+                        taskId={selectedTask.id}
                         checklistItemId={selectedChecklistItemId}
-                        fetchComments={fetchComments} 
-                        addComment={addComment} 
+                        fetchComments={fetchComments}
+                        addComment={addComment}
                       />
                     </div>
                   )}
@@ -901,6 +924,8 @@ export function TaskManagement() {
                 <SelectItem value="andamento">Em Andamento</SelectItem>
                 <SelectItem value="atrasada">Atrasada</SelectItem>
                 <SelectItem value="concluido">Concluída</SelectItem>
+                <SelectItem value="cancelada">Cancelada</SelectItem>
+                <SelectItem value="não feito">Não Feito</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
