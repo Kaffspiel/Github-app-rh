@@ -12,7 +12,7 @@ interface ResponsePayload {
   messageId: string;
   phone: string;
   pushName?: string;
-  responseType: "text" | "button" | "list" | "audio_transcription";
+  responseType: "text" | "button" | "list" | "audio_transcription" | "audio_pending";
   responseValue: string;
   timestamp: string;
   instance: string;
