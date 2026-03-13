@@ -341,10 +341,14 @@ serve(async (req: Request) => {
           console.log("Message not identified as task creation (is_task=false)");
           actionTaken = "not_a_task";
         }
-      } else {
-        const errText = await aiResponse.text();
+      } else if (aiResponse) {
+        let errText = "";
+        try { errText = await aiResponse.text(); } catch (_) { /* ignore */ }
         console.error("AI API error:", aiResponse.status, errText);
         actionTaken = "ai_error";
+      } else {
+        console.error("No AI provider responded (both Google and OpenAI unavailable or not configured)");
+        actionTaken = "ai_unavailable";
       }
     }
 
