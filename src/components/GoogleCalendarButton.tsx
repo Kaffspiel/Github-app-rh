@@ -40,9 +40,12 @@ export function GoogleCalendarButton({
         
         const endDate = addHours(startDate, 1);
 
-        // Formato: YYYYMMDDTHHMMSSZ
-        const startStr = format(startDate, "yyyyMMdd'T'HHmmss'Z'");
-        const endStr = format(endDate, "yyyyMMdd'T'HHmmss'Z'");
+        // Converte para ISO string (UTC) e remove caracteres especiais: - : .000
+        const formatUTC = (date: Date) => 
+          date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+
+        const startStr = formatUTC(startDate);
+        const endStr = formatUTC(endDate);
         dates = `${startStr}/${endStr}`;
       } catch (e) {
         console.error("Error formatting date for Google Calendar", e);
