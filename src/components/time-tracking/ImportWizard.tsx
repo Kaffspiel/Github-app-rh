@@ -355,23 +355,25 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
     if (importError) throw importError;
 
     let imported = 0;
-    let skipped = 0;
+    let updated = 0;
     const records = parseResult.records;
     const distinctDates = [...new Set(records.map(r => r.date).filter(Boolean))];
 
     const { data: existingRecords } = await supabase
       .from("time_tracking_records")
-      .select("employee_id, external_employee_id, record_date")
+      .select("id, employee_id, external_employee_id, record_date")
       .eq("company_id", companyId)
       .in("record_date", distinctDates);
 
-    const existingEmpSet = new Set(existingRecords?.filter(r => r.employee_id).map(r => `${r.employee_id}_${r.record_date}`));
-    const existingExtSet = new Set(existingRecords?.filter(r => r.external_employee_id).map(r => `${r.external_employee_id}_${r.record_date}`));
+    // Maps for quick lookup: key -> existing record id
+    const existingEmpMap = new Map(existingRecords?.filter(r => r.employee_id).map(r => [`${r.employee_id}_${r.record_date}`, r.id]) || []);
+    const existingExtMap = new Map(existingRecords?.filter(r => r.external_employee_id).map(r => [`${r.external_employee_id}_${r.record_date}`, r.id]) || []);
 
     const batchSize = 50;
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-      const insertData = batch.map((record) => {
+
+      for (const record of batch) {
         let matchedEmployeeId = null;
         const byId = employees.find(e => {
           if (!e.external_id) return false;
@@ -389,25 +391,11 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
           }
         }
 
-        const isDuplicate = matchedEmployeeId
-          ? existingEmpSet.has(`${matchedEmployeeId}_${record.date}`)
-          : existingExtSet.has(`${record.externalEmployeeId}_${record.date}`);
+        const existingId = matchedEmployeeId
+          ? existingEmpMap.get(`${matchedEmployeeId}_${record.date}`)
+          : existingExtMap.get(`${record.externalEmployeeId}_${record.date}`);
 
-        if (isDuplicate) {
-          skipped++;
-          return null;
-        }
-
-        // --- NOTIFICAÇÃO DE BATIDA AUSENTE ---
-        if (matchedEmployeeId && (!record.punches[0] || record.punches[0].trim() === "")) {
-          notifyClock({
-            recipientId: matchedEmployeeId,
-            type: "justification_required",
-            data: { data: record.date, descricao: "Ponto de entrada não registrado no arquivo importado." }
-          });
-        }
-
-        return {
+        const recordData = {
           company_id: companyId,
           import_id: importRecord.id,
           external_employee_id: record.externalEmployeeId,
@@ -424,12 +412,29 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
           raw_data: record.rawData as Json,
           status: matchedEmployeeId ? "imported" : "pending_link",
         };
-      }).filter(Boolean);
 
-      if (insertData.length > 0) {
-        const { error: batchError } = await supabase.from("time_tracking_records").insert(insertData as any);
-        if (!batchError) imported += insertData.length;
+        if (existingId) {
+          // Update existing record
+          const { error } = await supabase
+            .from("time_tracking_records")
+            .update(recordData)
+            .eq("id", existingId);
+          if (!error) updated++;
+        } else {
+          // Insert new record
+          // --- NOTIFICAÇÃO DE BATIDA AUSENTE ---
+          if (matchedEmployeeId && (!record.punches[0] || record.punches[0].trim() === "")) {
+            notifyClock({
+              recipientId: matchedEmployeeId,
+              type: "justification_required",
+              data: { data: record.date, descricao: "Ponto de entrada não registrado no arquivo importado." }
+            });
+          }
+          const { error } = await supabase.from("time_tracking_records").insert(recordData as any);
+          if (!error) imported++;
+        }
       }
+
       setImportProgress(Math.round(((i + batch.length) / records.length) * 50));
     }
 
