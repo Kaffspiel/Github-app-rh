@@ -483,8 +483,8 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
       completed_at: new Date().toISOString(),
     }).eq("id", importRecord.id);
 
-    if (skipped > 0) {
-      toast.info(`${skipped} registros já existiam e foram pulados.`);
+    if (updated > 0) {
+      toast.info(`${updated} registros existentes foram atualizados.`);
     }
 
     return { imported, failed: 0 };
