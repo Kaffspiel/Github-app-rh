@@ -37,6 +37,8 @@ BEGIN
   FROM employees e
   LEFT JOIN occurrences o ON e.id = o.employee_id
   WHERE e.company_id = v_company_id
+    AND (e.exclude_from_ranking IS FALSE OR e.exclude_from_ranking IS NULL)
+    AND e.is_active IS TRUE
   GROUP BY e.id, e.name
   ORDER BY total_score DESC;
 END;

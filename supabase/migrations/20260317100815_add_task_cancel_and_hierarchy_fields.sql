@@ -29,3 +29,9 @@ BEGIN
         ALTER TYPE public.notification_type ADD VALUE 'task_cancelled';
     END IF;
 END $$;
+
+-- 6. Atualizar a restrição de status na tabela public.tasks
+-- Removemos a antiga e adicionamos a nova com 'waiting_approval'
+ALTER TABLE public.tasks DROP CONSTRAINT IF EXISTS tasks_status_check;
+ALTER TABLE public.tasks ADD CONSTRAINT tasks_status_check 
+CHECK (status IN ('pendente', 'andamento', 'concluido', 'atrasada', 'cancelada', 'não feito', 'waiting_approval'));

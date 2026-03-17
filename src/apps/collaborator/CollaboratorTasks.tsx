@@ -208,8 +208,9 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
 
 
     // Filter tasks for Tabs
-    const activeTasksList = tasks.filter(t => t.status !== 'concluido');
+    const activeTasksList = tasks.filter(t => t.status !== 'concluido' && t.status !== 'cancelada');
     const completedTasks = tasks.filter(t => t.status === 'concluido');
+    const cancelledTasks = tasks.filter(t => t.status === 'cancelada');
 
     const dailyRoutines = activeTasksList.filter(t => t.is_daily_routine);
     const extraTasks = activeTasksList.filter(t => !t.is_daily_routine);
@@ -228,10 +229,11 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
 
             <Tabs defaultValue="tasks" className="w-full flex-1 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="tasks">Tarefas</TabsTrigger>
                         <TabsTrigger value="calendar">Calendário</TabsTrigger>
-                        <TabsTrigger value="history">Histórico</TabsTrigger>
+                        <TabsTrigger value="history">Concluídas</TabsTrigger>
+                        <TabsTrigger value="cancelled">Canceladas</TabsTrigger>
                     </TabsList>
                     <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading}>
                         <RefreshCw className={`w-4 h-4 ${tasksLoading ? 'animate-spin' : ''}`} />
@@ -510,13 +512,16 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                     <Card key={task.id} className="opacity-75 bg-gray-50">
                                         <CardContent className="p-4">
                                             <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-semibold text-gray-700 line-through">{task.title}</h4>
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-700 line-through">{task.title}</h4>
+                                                    <p className="text-[10px] text-gray-400 font-mono mt-1">ID: #{task.id.substring(0, 8)}</p>
+                                                </div>
                                                 <Badge variant="secondary" className="text-[10px] uppercase bg-green-100 text-green-800">
                                                     Concluída
                                                 </Badge>
                                             </div>
                                             <p className="text-xs text-gray-500">
-                                                Finalizada em: {new Date().toLocaleDateString()}
+                                                Finalizada em: {task.updated_at ? format(new Date(task.updated_at), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy")}
                                             </p>
                                         </CardContent>
                                     </Card>
@@ -527,6 +532,45 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                                 <CardContent className="py-8 text-center">
                                     <CheckCircle2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                                     <p className="text-gray-400 text-sm">Nenhuma tarefa concluída no histórico</p>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="cancelled">
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-600" />
+                            Tarefas Canceladas
+                        </h3>
+
+                        {cancelledTasks.length > 0 ? (
+                            <div className="space-y-3">
+                                {cancelledTasks.map(task => (
+                                    <Card key={task.id} className="opacity-75 bg-red-50/30 border-red-100">
+                                        <CardContent className="p-4">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-700">{task.title}</h4>
+                                                    <p className="text-[10px] text-gray-400 font-mono mt-1">ID: #{task.id.substring(0, 8)}</p>
+                                                </div>
+                                                <Badge variant="secondary" className="text-[10px] uppercase bg-red-100 text-red-800">
+                                                    Cancelada
+                                                </Badge>
+                                            </div>
+                                            <p className="text-xs text-red-600 font-medium">
+                                                Esta tarefa foi removida pelo gestor.
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <Card>
+                                <CardContent className="py-8 text-center">
+                                    <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                    <p className="text-gray-400 text-sm">Nenhuma tarefa cancelada</p>
                                 </CardContent>
                             </Card>
                         )}
@@ -711,7 +755,10 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                             <div className="p-5 space-y-4">
                                 <DialogHeader className="text-left">
                                     <div className="flex justify-between items-start">
-                                        <DialogTitle className="text-xl font-bold">{selectedTaskForDetails.title}</DialogTitle>
+                                        <div>
+                                            <DialogTitle className="text-xl font-bold">{selectedTaskForDetails.title}</DialogTitle>
+                                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">ID: #{selectedTaskForDetails.id}</p>
+                                        </div>
                                         <Badge variant="outline" className="capitalize">{selectedTaskForDetails.status}</Badge>
                                     </div>
                                     <div className="flex items-center gap-2 mt-1 text-slate-500 text-sm">

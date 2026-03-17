@@ -16,7 +16,7 @@ export interface CollaboratorTask {
   title: string;
   description: string | null;
   priority: 'alta' | 'média' | 'baixa';
-  status: 'pendente' | 'andamento' | 'concluido' | 'atrasada';
+  status: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada';
   due_date: string | null;
   progress: number;
   is_daily_routine: boolean;
@@ -24,6 +24,7 @@ export interface CollaboratorTask {
   checklist: ChecklistItem[];
   company_id?: string;
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
+  updated_at?: string;
 }
 
 export interface TaskComment {
@@ -171,7 +172,8 @@ export function useCollaboratorTasks() {
             completed: c.completed,
             sort_order: c.sort_order,
           })),
-          extension_status: task.extension_status
+          extension_status: task.extension_status,
+          updated_at: task.updated_at
         };
       });
 

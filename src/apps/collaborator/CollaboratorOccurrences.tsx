@@ -1,20 +1,34 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter,
+    DialogDescription
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { AlertTriangle, Trophy, Calendar, CheckCircle, XCircle, Medal } from "lucide-react";
+import { AlertTriangle, Trophy, Calendar, CheckCircle, XCircle, Medal, FileUp, Upload, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { toast } from "sonner";
 
 interface Occurrence {
     id: string;
     type: string;
     points: number;
     description: string;
+    file_url?: string;
     created_at: string;
 }
 
@@ -32,6 +46,13 @@ export default function CollaboratorOccurrences() {
     const [totalPoints, setTotalPoints] = useState(0);
     const { user } = useAuth();
     const [employeeId, setEmployeeId] = useState<string | null>(null);
+    const [companyId, setCompanyId] = useState<string | null>(null);
+
+    // Form state for medical certificate
+    const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [certificateDescription, setCertificateDescription] = useState("");
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -41,15 +62,16 @@ export default function CollaboratorOccurrences() {
 
     const fetchData = async () => {
         try {
-            // 1. Get Employee ID
+            // 1. Get Employee info
             const { data: employee } = await supabase
                 .from("employees")
-                .select("id")
+                .select("id, company_id")
                 .eq("user_id", user?.id)
                 .single();
 
             if (!employee) return;
             setEmployeeId(employee.id);
+            setCompanyId(employee.company_id);
 
             // 2. Fetch Occurrences for this employee
             const { data, error } = await supabase
@@ -80,6 +102,69 @@ export default function CollaboratorOccurrences() {
             console.error("Error fetching data:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setSelectedFile(e.target.files[0]);
+        }
+    };
+
+    const handleSubmitCertificate = async () => {
+        if (!selectedFile || !employeeId || !companyId) {
+            toast.error("Por favor, selecione uma foto do atestado.");
+            return;
+        }
+
+        setUploading(true);
+        try {
+            const fileExt = selectedFile.name.split('.').pop();
+            const fileName = `${employeeId}/${Date.now()}.${fileExt}`;
+            const filePath = `certificates/${fileName}`;
+
+            // 1. Upload to Storage
+            const { error: uploadError } = await supabase.storage
+                .from('atestos' as any) // Assuming 'atestos' bucket exists, or will use public if needed
+                .upload(filePath, selectedFile);
+
+            if (uploadError) {
+                // Fallback attempt with 'documents' bucket if 'atestos' fails
+                const { error: fallbackError } = await supabase.storage
+                    .from('documents' as any)
+                    .upload(filePath, selectedFile);
+                
+                if (fallbackError) throw fallbackError;
+            }
+
+            const { data: urlData } = supabase.storage
+                .from('atestos' as any)
+                .getPublicUrl(filePath);
+
+            // 2. Create Occurrence Record
+            const { error: occError } = await supabase
+                .from("occurrences")
+                .insert({
+                    employee_id: employeeId,
+                    company_id: companyId,
+                    type: "atestado",
+                    points: 0, // Atestado usually doesn't give or take points directly, it justifies a "falta"
+                    description: certificateDescription || "Atestado médico enviado via mobile",
+                    file_url: urlData.publicUrl
+                });
+
+            if (occError) throw occError;
+
+            toast.success("Atestado enviado com sucesso! Nosso RH irá analisar.");
+            setIsUploadOpen(false);
+            setCertificateDescription("");
+            setSelectedFile(null);
+            fetchData();
+        } catch (error: any) {
+            console.error("Erro ao enviar atestado:", error);
+            toast.error(`Erro ao enviar: ${error.message}`);
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -141,6 +226,77 @@ export default function CollaboratorOccurrences() {
                             <h2 className="text-lg font-medium text-indigo-100">Sua Pontuação Total</h2>
                             <div className="text-5xl font-bold mt-2">{totalPoints}</div>
                             <p className="text-sm text-indigo-200 mt-2">pontos acumulados</p>
+                            
+                            <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+                                <DialogTrigger asChild>
+                                    <Button className="mt-4 bg-white text-indigo-600 hover:bg-white/90 gap-2 w-full rounded-xl">
+                                        <FileUp className="w-4 h-4" />
+                                        ENVIAR ATESTADO
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-[calc(100%-32px)] rounded-2xl">
+                                    <DialogHeader>
+                                        <DialogTitle>Enviar Atestado Médico</DialogTitle>
+                                        <DialogDescription>
+                                            Tire uma foto nítida do seu atestado para justificar sua falta ou atraso.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4 mt-2">
+                                        <div className="space-y-2">
+                                            <Label>Descrição (opcional)</Label>
+                                            <Input 
+                                                placeholder="Ex: Consulta odontológica..." 
+                                                value={certificateDescription}
+                                                onChange={(e) => setCertificateDescription(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Selecionar Foto *</Label>
+                                            <div className={`border-2 border-dashed rounded-xl p-6 text-center ${selectedFile ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                                                <input
+                                                    type="file"
+                                                    id="atestado-input"
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    onChange={handleFileUpload}
+                                                />
+                                                <label htmlFor="atestado-input" className="cursor-pointer flex flex-col items-center">
+                                                    {selectedFile ? (
+                                                        <>
+                                                            <CheckCircle className="w-10 h-10 text-green-500 mb-2" />
+                                                            <p className="text-sm font-medium text-green-700">{selectedFile.name}</p>
+                                                            <p className="text-xs text-green-600 mt-1">Toque para trocar</p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="w-10 h-10 text-gray-400 mb-2" />
+                                                            <p className="text-sm font-medium text-gray-700">Tirar Foto ou Escolher</p>
+                                                            <p className="text-xs text-gray-500 mt-1">JPG, PNG até 5MB</p>
+                                                        </>
+                                                    )}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <DialogFooter className="mt-4">
+                                        <Button 
+                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-12"
+                                            onClick={handleSubmitCertificate}
+                                            disabled={uploading || !selectedFile}
+                                        >
+                                            {uploading ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    ENVIANDO...
+                                                </>
+                                            ) : (
+                                                "ENVIAR AGORA"
+                                            )}
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
                         </CardContent>
                     </Card>
 
@@ -156,7 +312,7 @@ export default function CollaboratorOccurrences() {
                             </div>
                         ) : (
                             occurrences.map((occ) => (
-                                <Card key={occ.id} className="overflow-hidden">
+                                <Card key={occ.id} className="overflow-hidden border-none shadow-sm">
                                     <div className={`h-1 w-full ${occ.points >= 0 ? 'bg-green-500' : 'bg-red-500'}`} />
                                     <CardContent className="p-4 flex items-start justify-between">
                                         <div className="flex gap-3">
@@ -164,11 +320,23 @@ export default function CollaboratorOccurrences() {
                                                 {getIcon(occ.type)}
                                             </div>
                                             <div>
-                                                <h4 className="font-medium text-gray-900 capitalize">{getTypeLabel(occ.type)}</h4>
-                                                <p className="text-sm text-gray-500 mt-1">{occ.description}</p>
-                                                <p className="text-xs text-gray-400 mt-2">
-                                                    {format(new Date(occ.created_at), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                                                </p>
+                                                <h4 className="font-semibold text-gray-900 capitalize">{getTypeLabel(occ.type)}</h4>
+                                                <p className="text-sm text-gray-600 mt-0.5">{occ.description}</p>
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <p className="text-xs text-gray-400">
+                                                        {format(new Date(occ.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                                    </p>
+                                                    {occ.file_url && (
+                                                        <a 
+                                                            href={occ.file_url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium"
+                                                        >
+                                                            Ver Anexo
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className={`font-bold text-lg ${getPointsColor(occ.points)} whitespace-nowrap`}>

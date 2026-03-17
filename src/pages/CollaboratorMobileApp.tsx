@@ -50,6 +50,10 @@ interface TimeRecord {
   exit_1: string | null;
   entry_2: string | null;
   exit_2: string | null;
+  entry_3: string | null;
+  exit_3: string | null;
+  entry_4: string | null;
+  exit_4: string | null;
   status: string | null;
   anomalies: string[] | null;
 }
@@ -61,6 +65,9 @@ interface EmployeeProfile {
   department: string;
   role: string;
   whatsapp_number: string | null;
+  company_id: string;
+  skip_time_tracking: boolean;
+  exclude_from_ranking: boolean;
 }
 
 interface Notification {
@@ -447,6 +454,9 @@ export default function CollaboratorMobileApp() {
       timeRecords={timeRecords}
       isLoading={isLoading}
       onRefresh={loadData}
+      employeeId={profile?.id || ""}
+      companyId={profile?.company_id || ""}
+      skipTimeTracking={profile?.skip_time_tracking || false}
     />
   );
 

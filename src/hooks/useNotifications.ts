@@ -153,7 +153,9 @@ export const useNotifications = () => {
             buttons: processed.buttons,
           }),
           number: employee.whatsapp.number,
-          instance: evolutionInstance
+          instance: evolutionInstance,
+          type: params.type,
+          message: processed.message
         };
 
         addToQueue({
@@ -183,6 +185,7 @@ export const useNotifications = () => {
       };
 
       const variables: Record<string, string> = {
+        id: task.id.substring(0, 8),
         tarefa: task.title,
         prazo: task.dueDate,
         prioridade: priorityMap[task.priority] || task.priority,

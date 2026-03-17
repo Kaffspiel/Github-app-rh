@@ -87,6 +87,9 @@ export function useTaskNotifications() {
 
       if (managers) {
         managers.forEach(manager => {
+          // Don't notify self
+          if (manager.id === params.employeeId) return;
+
           notifyTask({
             task: { id: params.taskId, title: params.taskTitle } as any,
             recipientId: manager.id,
@@ -118,6 +121,9 @@ export function useTaskNotifications() {
 
       if (managers) {
         managers.forEach(manager => {
+          // Don't notify self
+          if (manager.id === params.employeeId) return;
+
           // Use generic notify for routine_item_completed
           notify({
             type: 'routine_item_completed',
@@ -206,7 +212,17 @@ export function useTaskNotifications() {
         .in('role', ['admin', 'gestor']);
 
       if (managers) {
+        // Get current employee to avoid notifying self
+        const { data: currentEmployee } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('user_id', user?.id)
+          .maybeSingle();
+
         managers.forEach(manager => {
+          // Don't notify self
+          if (manager.id === currentEmployee?.id) return;
+
           notifyTask({
             task: { id: params.taskId, title: params.taskTitle } as any,
             recipientId: manager.id,
@@ -254,6 +270,13 @@ export function useTaskNotifications() {
     senderName?: string;
   }) => {
     try {
+      // Get current employee to avoid notifying self
+      const { data: currentEmployee } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
       const { data: managers } = await supabase
         .from('employees')
         .select('id')
@@ -262,11 +285,13 @@ export function useTaskNotifications() {
 
       if (managers) {
         managers.forEach(manager => {
-          // We can use task_assigned as a proxy or just task_comment
+          // Don't notify the person who created it
+          if (manager.id === currentEmployee?.id) return;
+
           notifyTask({
             task: { id: params.taskId, title: params.taskTitle } as any,
             recipientId: manager.id,
-            type: "task_comment", // "Nova tarefa criada no sistema"
+            type: "task_comment",
             comment: `📢 Nova tarefa criada: ${params.taskTitle}`,
             senderName: params.senderName || 'Sistema'
           });
@@ -275,7 +300,7 @@ export function useTaskNotifications() {
     } catch (err) {
       console.error('Error notifying managers about new task:', err);
     }
-  }, [notifyTask]);
+  }, [notifyTask, user?.id]);
 
   // Notify employee when task is cancelled
   const notifyTaskCancelled = useCallback(async (params: {

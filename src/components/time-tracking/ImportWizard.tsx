@@ -58,6 +58,10 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
     punch2: "",
     punch3: "",
     punch4: "",
+    punch5: "",
+    punch6: "",
+    punch7: "",
+    punch8: "",
   });
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [importProgress, setImportProgress] = useState(0);
@@ -818,7 +822,7 @@ export function ImportWizard({ onComplete, onCancel, mode = 'time-tracking' }: I
                 <div className="space-y-2">
                   <Label>Batidas (Entrada/Saída)</Label>
                   <div className="grid grid-cols-4 gap-2">
-                    {[1, 2, 3, 4].map((n) => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                       <Select
                         key={n}
                         value={(mapping as any)[`punch${n}`] || "ignore"}
