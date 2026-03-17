@@ -43,9 +43,11 @@ export function useTaskNotifications() {
   const logTaskProgress = useCallback(async (params: {
     taskId: string;
     employeeId: string;
-    actionType: 'checklist_completed' | 'task_started' | 'task_completed' | 'progress_updated';
+    actionType: 'checklist_completed' | 'task_started' | 'task_completed' | 'progress_updated' | 'task_cancelled' | 'task_updated';
     checklistItemId?: string;
     checklistItemText?: string;
+    oldValue?: any;
+    newValue?: any;
   }) => {
     try {
       // Insert progress log
@@ -57,6 +59,8 @@ export function useTaskNotifications() {
           action_type: params.actionType,
           checklist_item_id: params.checklistItemId,
           checklist_item_text: params.checklistItemText,
+          old_value: params.oldValue,
+          new_value: params.newValue,
         });
 
       if (error) throw error;
@@ -273,6 +277,28 @@ export function useTaskNotifications() {
     }
   }, [notifyTask]);
 
+  // Notify employee when task is cancelled
+  const notifyTaskCancelled = useCallback(async (params: {
+    taskId: string;
+    taskTitle: string;
+    assigneeId: string;
+    senderName?: string;
+  }) => {
+    try {
+      notifyTask({
+        task: { 
+          id: params.taskId, 
+          title: params.taskTitle 
+        } as any,
+        recipientId: params.assigneeId,
+        type: "task_cancelled",
+        senderName: params.senderName || 'Sistema'
+      });
+    } catch (err) {
+      console.error('Error sending task cancelled notification:', err);
+    }
+  }, [notifyTask]);
+
   return {
     notifyTaskAssigned,
     notifyTaskCreated,
@@ -281,6 +307,7 @@ export function useTaskNotifications() {
     notifyChecklistItemCompleted,
     notifyTaskOverdue,
     notifyExtensionRequest,
-    notifyTaskUpdated
+    notifyTaskUpdated,
+    notifyTaskCancelled
   };
 }

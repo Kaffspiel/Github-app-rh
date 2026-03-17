@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useCompany } from "@/context/CompanyContext";
-import { Plus, Search, Trophy, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Search, Trophy, AlertTriangle, CheckCircle, XCircle, Upload, Eye, FileImage, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -30,8 +30,13 @@ export function Occurrences() {
         employee_id: "",
         type: "aprovacao_tarefa",
         points: "10",
-        description: ""
+        description: "",
+        file_url: "" as string | null
     });
+    
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [viewingImage, setViewingImage] = useState<string | null>(null);
 
     useEffect(() => {
         if (companyId) {
@@ -107,6 +112,27 @@ export function Occurrences() {
 
         setSubmitting(true);
         try {
+            let fileUrl = formData.file_url;
+            
+            if (selectedFile) {
+                setUploading(true);
+                const fileExt = selectedFile.name.split('.').pop();
+                const fileName = `${companyId}/${Math.random()}.${fileExt}`;
+                const filePath = `occurrences/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('attachments')
+                    .upload(filePath, selectedFile);
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('attachments')
+                    .getPublicUrl(filePath);
+                
+                fileUrl = publicUrl;
+            }
+
             const { error } = await supabase
                 .from("occurrences")
                 .insert({
@@ -115,6 +141,7 @@ export function Occurrences() {
                     type: formData.type,
                     points: parseInt(formData.points),
                     description: formData.description,
+                    file_url: fileUrl,
                     created_by: user?.id
                 });
 
@@ -130,8 +157,10 @@ export function Occurrences() {
                 employee_id: "",
                 type: "aprovacao_tarefa",
                 points: "10",
-                description: ""
+                description: "",
+                file_url: null
             });
+            setSelectedFile(null);
             fetchData();
         } catch (error: any) {
             toast({
@@ -141,6 +170,7 @@ export function Occurrences() {
             });
         } finally {
             setSubmitting(false);
+            setUploading(false);
         }
     };
 
@@ -245,8 +275,37 @@ export function Occurrences() {
                                 />
                             </div>
 
-                            <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
-                                {submitting ? "Salvando..." : "Registrar Ocorrência"}
+                            {formData.type === 'atestado' && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Foto do Atestado</label>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                                            className="cursor-pointer"
+                                        />
+                                        {selectedFile && (
+                                            <Badge variant="outline" className="text-blue-600 bg-blue-50">
+                                                PRONTO
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 italic">
+                                        Anexe uma foto legível do documento.
+                                    </p>
+                                </div>
+                            )}
+
+                            <Button className="w-full" onClick={handleSubmit} disabled={submitting || uploading}>
+                                {submitting || uploading ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        {uploading ? "Enviando arquivo..." : "Salvando..."}
+                                    </>
+                                ) : (
+                                    "Registrar Ocorrência"
+                                )}
                             </Button>
                         </div>
                     </DialogContent>
@@ -276,6 +335,17 @@ export function Occurrences() {
                                     {format(new Date(occ.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                                 </span>
                                 <p className="mt-2 text-gray-700">{occ.description}</p>
+                                {occ.file_url && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-3 gap-2 w-fit"
+                                        onClick={() => setViewingImage(occ.file_url)}
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                        Ver Comprovante
+                                    </Button>
+                                )}
                             </div>
                             <div className={`text-2xl font-bold ${getPointsColor(occ.points)}`}>
                                 {occ.points > 0 ? "+" : ""}{occ.points} pts
@@ -283,6 +353,19 @@ export function Occurrences() {
                         </CardContent>
                     </Card>
                 ))}
+
+                {/* Image Modal Preview */}
+                <Dialog open={!!viewingImage} onOpenChange={(open) => !open && setViewingImage(null)}>
+                    <DialogContent className="max-w-3xl border-none bg-transparent shadow-none p-0 flex items-center justify-center">
+                        {viewingImage && (
+                            <img 
+                                src={viewingImage} 
+                                alt="Comprovante" 
+                                className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain bg-white p-2" 
+                            />
+                        )}
+                    </DialogContent>
+                </Dialog>
                 {filteredOccurrences.length === 0 && (
                     <div className="text-center py-10 text-gray-500">
                         Nenhuma ocorrência encontrada.

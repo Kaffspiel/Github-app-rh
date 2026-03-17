@@ -29,7 +29,7 @@ interface NotifyParams {
 interface NotifyTaskParams {
   task: Task;
   recipientId: string;
-  type: Extract<NotificationType, "task_assigned" | "task_due_reminder" | "task_overdue" | "task_completed" | "task_comment">;
+  type: Extract<NotificationType, "task_assigned" | "task_due_reminder" | "task_overdue" | "task_completed" | "task_comment" | "task_cancelled">;
   comment?: string;
   senderId?: string;
   senderName?: string;

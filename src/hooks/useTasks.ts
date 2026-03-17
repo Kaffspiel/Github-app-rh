@@ -27,7 +27,7 @@ export interface Task {
   title: string;
   description: string | null;
   priority: 'alta' | 'média' | 'baixa';
-  status: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada' | 'não feito';
+  status: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada' | 'não feito' | 'waiting_approval';
   due_date: string | null;
   assignee_id: string | null;
   assignee_name?: string;

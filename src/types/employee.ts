@@ -35,6 +35,11 @@ export interface Employee {
   
   // Preferências de notificação
   notificationPreferences: NotificationPreferences;
+
+  // Hierarquia e Regras
+  managerId?: string;
+  skipTimeTracking?: boolean;
+  excludeFromRanking?: boolean;
 }
 
 // Dados mockados dos colaboradores

@@ -13,7 +13,8 @@ export type NotificationType =
   | "announcement"
   | "gamification_badge"
   | "manager_missing_punch"
-  | "routine_item_completed";
+  | "routine_item_completed"
+  | "task_cancelled";
 
 export type NotificationChannel = "whatsapp" | "in_app";
 export type NotificationPriority = "low" | "normal" | "high" | "urgent";
@@ -116,7 +117,7 @@ export const defaultTemplates: MessageTemplate[] = [
     id: "task_assigned",
     type: "task_assigned",
     name: "Nova Tarefa Atribuída",
-    textTemplate: "Olá {{nome}}! Você recebeu uma nova tarefa:\n\n*{{tarefa}}*\n\nPrazo: {{prazo}}\nPrioridade: {{prioridade}}",
+    textTemplate: "Olá {{nome}}! Você recebeu uma nova tarefa (ID: {{id}}):\n\n*{{tarefa}}*\n\nPrazo: {{prazo}}\nPrioridade: {{prioridade}}",
     buttonsTemplate: {
       title: "O que deseja fazer?",
       buttons: [
@@ -131,7 +132,7 @@ export const defaultTemplates: MessageTemplate[] = [
     id: "task_due_reminder",
     type: "task_due_reminder",
     name: "Lembrete de Prazo",
-    textTemplate: "Olá {{nome}}! Lembrete: a tarefa *{{tarefa}}* vence em {{tempo}}.\n\nPrazo: {{prazo}}",
+    textTemplate: "Olá {{nome}}! Lembrete: a tarefa *{{tarefa}}* (ID: {{id}}) vence em {{tempo}}.\n\nPrazo: {{prazo}}",
     buttonsTemplate: {
       title: "Ações:",
       buttons: [
@@ -146,7 +147,7 @@ export const defaultTemplates: MessageTemplate[] = [
     id: "task_overdue",
     type: "task_overdue",
     name: "Tarefa Vencida",
-    textTemplate: "⚠️ *Tarefa Vencida*\n\n📋 *Tarefa:* {{tarefa}}\n👤 *Responsável:* {{responsavel}}\n📅 *Prazo:* {{prazo}}\n\nVocê concluiu esta tarefa? (Responda com *Sim* ou *Não*)",
+    textTemplate: "⚠️ *Tarefa Vencida* (ID: {{id}})\n\n📋 *Tarefa:* {{tarefa}}\n👤 *Responsável:* {{responsavel}}\n📅 *Prazo:* {{prazo}}\n\nVocê concluiu esta tarefa? (Responda com *Sim* ou *Não*)",
     buttonsTemplate: {
       title: "Confirmar conclusão:",
       buttons: [
@@ -161,7 +162,7 @@ export const defaultTemplates: MessageTemplate[] = [
     id: "task_completed",
     type: "task_completed",
     name: "Tarefa Concluída",
-    textTemplate: "✅ {{nome}}, a tarefa *{{tarefa}}* foi concluída por {{responsavel}}.",
+    textTemplate: "✅ {{nome}}, a tarefa *{{tarefa}}* (ID: {{id}}) foi concluída por {{responsavel}}.",
     defaultPriority: "low",
     isActive: true,
   },
@@ -259,6 +260,14 @@ export const defaultTemplates: MessageTemplate[] = [
     name: "Item de Rotina Concluído",
     textTemplate: "✅ {{colaborador}} cumpriu *{{item}}* da rotina *{{rotina}}*.",
     defaultPriority: "low",
+    isActive: true,
+  },
+  {
+    id: "task_cancelled",
+    type: "task_cancelled",
+    name: "Tarefa Cancelada",
+    textTemplate: "❌ Olá {{nome}}, a tarefa *{{tarefa}}* (ID: {{id}}) foi cancelada.",
+    defaultPriority: "normal",
     isActive: true,
   },
 ];

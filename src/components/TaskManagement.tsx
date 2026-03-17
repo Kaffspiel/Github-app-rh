@@ -26,6 +26,7 @@ import { TaskCalendar } from "@/components/tasks/TaskCalendar";
 export function TaskManagement() {
   const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem, fetchComments, addComment } = useTasks();
   const { employees } = useEmployeesList();
+  const { notifyExtensionRequest, notifyTaskCancelled, logTaskProgress } = useTaskNotifications();
   const { user, currentRole } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,7 +72,6 @@ export function TaskManagement() {
 
   // Get current employee info
   const currentEmployee = employees.find(e => e.email === user?.email);
-  const { notifyExtensionRequest } = useTaskNotifications();
 
   // Extension Request State
   const [isExtensionDialogOpen, setIsExtensionDialogOpen] = useState(false);
@@ -130,6 +130,40 @@ export function TaskManagement() {
       alert("Prorrogação negada.");
     } catch (error) {
       console.error("Erro ao rejeitar:", error);
+    }
+  };
+  
+  const handleCancelTask = async (task: Task) => {
+    const reason = prompt("Motivo do cancelamento:");
+    if (reason === null) return; // Cancelado pelo usuário no prompt
+    
+    try {
+      await updateTask(task.id, { 
+        status: 'cancelada',
+      });
+      
+      // Registrar no histórico
+      await logTaskProgress({
+        taskId: task.id,
+        employeeId: currentEmployee?.id || '',
+        actionType: 'task_cancelled',
+        newValue: { reason }
+      });
+
+      // Notificar o responsável
+      if (task.assignee_id) {
+        await notifyTaskCancelled({
+          taskId: task.id,
+          taskTitle: task.title,
+          assigneeId: task.assignee_id,
+          senderName: currentEmployee?.name
+        });
+      }
+      
+      alert("Tarefa cancelada e colaborador notificado.");
+    } catch (error) {
+      console.error("Erro ao cancelar tarefa:", error);
+      alert("Erro ao cancelar tarefa.");
     }
   };
 
@@ -242,6 +276,7 @@ export function TaskManagement() {
       case "concluido": return <CheckCircle2 className="w-4 h-4" />;
       case "cancelada": return <XCircle className="w-4 h-4" />;
       case "não feito": return <MinusCircle className="w-4 h-4" />;
+      case "waiting_approval": return <Clock className="w-4 h-4 text-orange-500" />;
       default: return <Circle className="w-4 h-4" />;
     }
   };
@@ -254,6 +289,7 @@ export function TaskManagement() {
       case "concluido": return "bg-green-100 text-green-600 border-green-200";
       case "cancelada": return "bg-gray-100 text-gray-600 border-gray-200";
       case "não feito": return "bg-slate-100 text-slate-600 border-slate-200";
+      case "waiting_approval": return "bg-orange-100 text-orange-600 border-orange-200";
       default: return "bg-gray-100";
     }
   };
@@ -808,11 +844,41 @@ export function TaskManagement() {
                             variant="ghost"
                             size="sm"
                             className="text-red-500 hover:text-red-700 h-9 px-2"
-                            onClick={() => updateTask(selectedTask.id, { status: 'cancelada' })}
+                            onClick={() => handleCancelTask(selectedTask)}
                             title="Cancelar"
                           >
                             <XCircle className="w-4 h-4" />
                           </Button>
+                          
+                          {selectedTask.status === 'waiting_approval' && (
+                            <div className="flex gap-1 ml-2 border-l pl-2 border-orange-200">
+                               <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200 h-9"
+                                onClick={async () => {
+                                    await updateTask(selectedTask.id, { status: 'concluido' });
+                                    setSelectedTask({ ...selectedTask, status: 'concluido' });
+                                }}
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-1 text-green-500" />
+                                Aprovar
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-red-50 text-red-700 hover:bg-red-100 border-red-200 h-9"
+                                onClick={async () => {
+                                    await updateTask(selectedTask.id, { status: 'andamento' });
+                                    setSelectedTask({ ...selectedTask, status: 'andamento' });
+                                    alert("Tarefa retornada para andamento.");
+                                }}
+                              >
+                                <XCircle className="w-4 h-4 mr-1 text-red-500" />
+                                Corrigir
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -850,6 +916,7 @@ export function TaskManagement() {
                           <SelectItem value="pendente">Pendente</SelectItem>
                           <SelectItem value="andamento">Andamento</SelectItem>
                           <SelectItem value="concluido">Concluída</SelectItem>
+                          <SelectItem value="waiting_approval">Em Revisão</SelectItem>
                           <SelectItem value="atrasada">Atrasada</SelectItem>
                           <SelectItem value="cancelada">Cancelada</SelectItem>
                           <SelectItem value="não feito">Não Feito</SelectItem>
@@ -924,6 +991,7 @@ export function TaskManagement() {
                 <SelectItem value="andamento">Em Andamento</SelectItem>
                 <SelectItem value="atrasada">Atrasada</SelectItem>
                 <SelectItem value="concluido">Concluída</SelectItem>
+                <SelectItem value="waiting_approval">Em Revisão</SelectItem>
                 <SelectItem value="cancelada">Cancelada</SelectItem>
                 <SelectItem value="não feito">Não Feito</SelectItem>
               </SelectContent>

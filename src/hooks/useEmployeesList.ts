@@ -9,6 +9,9 @@ export interface EmployeeBasic {
   department: string;
   role: 'colaborador' | 'gestor' | 'admin' | 'admin_master';
   external_id?: string | null;
+  manager_id?: string | null;
+  skip_time_tracking?: boolean;
+  exclude_from_ranking?: boolean;
 }
 
 export function useEmployeesList() {
@@ -27,7 +30,7 @@ export function useEmployeesList() {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('employees')
-        .select('id, name, email, department, role, external_id')
+        .select('id, name, email, department, role, external_id, manager_id, skip_time_tracking, exclude_from_ranking')
         .eq('company_id', companyId)
         .eq('is_active', true)
         .order('name');
@@ -40,7 +43,10 @@ export function useEmployeesList() {
         email: e.email,
         department: e.department,
         role: e.role as EmployeeBasic['role'],
-        external_id: e.external_id
+        external_id: e.external_id,
+        manager_id: e.manager_id,
+        skip_time_tracking: e.skip_time_tracking,
+        exclude_from_ranking: e.exclude_from_ranking
       })));
     } catch (err) {
       console.error('Error fetching employees:', err);

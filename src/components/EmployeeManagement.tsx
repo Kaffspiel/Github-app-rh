@@ -64,6 +64,9 @@ export function EmployeeManagement() {
     work_schedule_start: "09:00",
     daily_work_hours: 8,
     is_active: true,
+    manager_id: "" as string,
+    skip_time_tracking: false,
+    exclude_from_ranking: false,
   });
 
   // Form state for user with system access
@@ -137,6 +140,9 @@ export function EmployeeManagement() {
       work_schedule_start: formData.work_schedule_start || "09:00",
       daily_work_hours: formData.daily_work_hours || 8,
       is_active: formData.is_active,
+      manager_id: formData.manager_id || null,
+      skip_time_tracking: formData.skip_time_tracking,
+      exclude_from_ranking: formData.exclude_from_ranking,
     };
 
     if (editingEmployee) {
@@ -273,6 +279,9 @@ export function EmployeeManagement() {
       work_schedule_start: employee.work_schedule_start || "09:00",
       daily_work_hours: (employee as any).daily_work_hours || 8,
       is_active: employee.is_active,
+      manager_id: employee.manager_id || "",
+      skip_time_tracking: employee.skip_time_tracking || false,
+      exclude_from_ranking: employee.exclude_from_ranking || false,
     });
     setIsDialogOpen(true);
   };
@@ -354,6 +363,9 @@ export function EmployeeManagement() {
       work_schedule_start: "09:00",
       daily_work_hours: 8,
       is_active: true,
+      manager_id: "",
+      skip_time_tracking: false,
+      exclude_from_ranking: false,
     });
   };
 
@@ -793,6 +805,53 @@ export function EmployeeManagement() {
                           <SelectItem value="admin">Administrador</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label>Gestor Responsável</Label>
+                      <Select
+                        value={formData.manager_id}
+                        onValueChange={(value) => setFormData({ ...formData, manager_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um gestor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sem gestor</SelectItem>
+                          {employees
+                            .filter(e => (e.role === 'gestor' || e.role === 'admin') && e.id !== editingEmployee?.id)
+                            .map(manager => (
+                              <SelectItem key={manager.id} value={manager.id}>
+                                {manager.name} ({manager.department})
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="flex items-center gap-3 border p-3 rounded-lg bg-white">
+                      <Switch
+                        checked={formData.skip_time_tracking}
+                        onCheckedChange={(checked) => setFormData({ ...formData, skip_time_tracking: checked })}
+                      />
+                      <div className="space-y-0.5">
+                        <Label>Isento de Ponto</Label>
+                        <p className="text-xs text-gray-500 text-pretty">Não precisa bater ponto</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 border p-3 rounded-lg bg-white">
+                      <Switch
+                        checked={formData.exclude_from_ranking}
+                        onCheckedChange={(checked) => setFormData({ ...formData, exclude_from_ranking: checked })}
+                      />
+                      <div className="space-y-0.5">
+                        <Label>Fora do Ranking</Label>
+                        <p className="text-xs text-gray-500 text-pretty">Não aparece no gamification</p>
+                      </div>
                     </div>
                   </div>
 
