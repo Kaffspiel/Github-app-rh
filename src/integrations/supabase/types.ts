@@ -302,9 +302,11 @@ export type Database = {
           daily_work_hours: number | null
           department: string
           email: string
+          exclude_from_ranking: boolean | null
           external_id: string | null
           id: string
           is_active: boolean
+          manager_id: string | null
           name: string
           notify_announcements: boolean | null
           notify_in_app: boolean | null
@@ -316,6 +318,7 @@ export type Database = {
           quiet_hours_end: string | null
           quiet_hours_start: string | null
           role: Database["public"]["Enums"]["employee_role"]
+          skip_time_tracking: boolean | null
           updated_at: string
           user_id: string | null
           whatsapp_last_seen: string | null
@@ -330,9 +333,11 @@ export type Database = {
           daily_work_hours?: number | null
           department?: string
           email: string
+          exclude_from_ranking?: boolean | null
           external_id?: string | null
           id?: string
           is_active?: boolean
+          manager_id?: string | null
           name: string
           notify_announcements?: boolean | null
           notify_in_app?: boolean | null
@@ -344,6 +349,7 @@ export type Database = {
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           role?: Database["public"]["Enums"]["employee_role"]
+          skip_time_tracking?: boolean | null
           updated_at?: string
           user_id?: string | null
           whatsapp_last_seen?: string | null
@@ -358,9 +364,11 @@ export type Database = {
           daily_work_hours?: number | null
           department?: string
           email?: string
+          exclude_from_ranking?: boolean | null
           external_id?: string | null
           id?: string
           is_active?: boolean
+          manager_id?: string | null
           name?: string
           notify_announcements?: boolean | null
           notify_in_app?: boolean | null
@@ -372,6 +380,7 @@ export type Database = {
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           role?: Database["public"]["Enums"]["employee_role"]
+          skip_time_tracking?: boolean | null
           updated_at?: string
           user_id?: string | null
           whatsapp_last_seen?: string | null

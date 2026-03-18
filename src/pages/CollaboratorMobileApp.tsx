@@ -155,7 +155,17 @@ export default function CollaboratorMobileApp() {
 
     if (data) {
       console.log("Profile loaded:", data);
-      setProfile(data as EmployeeProfile);
+      setProfile({
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        department: data.department,
+        role: data.role,
+        whatsapp_number: data.whatsapp_number ?? null,
+        company_id: data.company_id ?? '',
+        skip_time_tracking: data.skip_time_tracking ?? false,
+        exclude_from_ranking: data.exclude_from_ranking ?? false,
+      });
     }
   };
 

@@ -57,7 +57,7 @@ export interface UpdateTaskInput {
   title?: string;
   description?: string;
   priority?: 'alta' | 'média' | 'baixa';
-  status?: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada' | 'não feito';
+  status?: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada' | 'não feito' | 'waiting_approval';
   due_date?: string;
   assignee_id?: string;
   progress?: number;
