@@ -102,6 +102,15 @@ export const notificationService = {
       };
     }
 
+    // Isenção automática de notificações de ponto para isentos de ponto
+    if (category === "timeTracking" && employee.skipTimeTracking) {
+      return {
+        canSend: false,
+        reason: "Colaborador isento de controle de ponto",
+        allowedChannels: [],
+      };
+    }
+
     // Verifica horário silencioso (apenas para WhatsApp)
     const inQuietHours = isInQuietHours(prefs.quietHoursStart, prefs.quietHoursEnd);
 

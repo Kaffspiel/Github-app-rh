@@ -8,14 +8,15 @@ import { useState, useEffect } from "react";
 import { useCollaboratorTasks, CollaboratorTask } from "@/hooks/useCollaboratorTasks";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 export function CollaboratorApp() {
-  const { tasks, employeeName, isLoading, toggleChecklistItem, updateTaskStatus } = useCollaboratorTasks();
+  const { tasks, employeeName, isLoading, toggleChecklistItem, updateTaskStatus, skipTimeTracking, projects } = useCollaboratorTasks();
   const [workStatus, setWorkStatus] = useState<"working" | "break" | "off">("off");
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  const dailyRoutines = tasks.filter(t => t.is_daily_routine);
-  const assignedTasks = tasks.filter(t => !t.is_daily_routine);
+  const routineProjects = projects.filter(p => p.is_daily_routine);
+  const assignedTasks = tasks.filter(t => !t.is_daily_routine && (!t.project_id || !projects.find(p => p.id === t.project_id)?.is_daily_routine));
 
   const getPriorityWeight = (p: string) => {
     switch (p) { case 'alta': return 3; case 'média': return 2; case 'baixa': return 1; default: return 0; }
@@ -58,12 +59,12 @@ export function CollaboratorApp() {
 
   const SmallTaskCard = ({ task }: { task: CollaboratorTask }) => (
     <Card className={`relative overflow-hidden border-0 shadow-md transition-all active:scale-95 group hover:shadow-lg ${task.priority === 'alta' ? 'bg-orange-50/50' : 'bg-white'}`}>
-      <div className={`absolute top-0 left-0 w-1 h-full ${task.priority === 'alta' ? 'bg-red-500' : task.priority === 'média' ? 'bg-orange-400' : 'bg-blue-400'
+      <div className={`absolute top-0 left-0 w-1.5 h-full ${task.priority === 'alta' ? 'bg-red-500' : task.priority === 'média' ? 'bg-orange-400' : 'bg-blue-400'
         }`} />
 
       <CardContent className="p-4 flex flex-col h-full justify-between">
         <div>
-          <div className="flex justify-between items-start mb-2">
+          <div className="flex justify-between items-start mb-1">
             <h4 className="font-bold text-gray-900 line-clamp-2 text-sm leading-tight pr-2 group-hover:text-blue-700 transition-colors">
               {task.title}
             </h4>
@@ -71,6 +72,15 @@ export function CollaboratorApp() {
               {task.priority}
             </Badge>
           </div>
+          
+          {task.project_name && (
+            <div className="flex items-center gap-1 mb-2">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: task.project_color || '#3b82f6' }} />
+              <span className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">
+                {task.project_name}
+              </span>
+            </div>
+          )}
 
           <p className="text-gray-500 text-[11px] line-clamp-2 mb-3 leading-snug">
             {task.description || 'Sem descrição'}
@@ -80,7 +90,7 @@ export function CollaboratorApp() {
         <div className="space-y-3 mt-auto">
           <div className="space-y-1">
             <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-tighter">
-              <span>Progresso</span>
+              <span>Conclusão</span>
               <span>{task.progress}%</span>
             </div>
             <Progress value={task.progress} className="h-1.5 rounded-full bg-gray-100" />
@@ -88,19 +98,46 @@ export function CollaboratorApp() {
 
           <Button 
             size="sm" 
-            className={`w-full text-[11px] font-bold h-8 rounded-lg ${task.status === 'pendente'
+            className={`w-full text-[11px] font-black h-9 rounded-xl shadow-sm ${task.status === 'pendente'
               ? "bg-blue-600 hover:bg-blue-700 text-white"
               : "bg-orange-500 hover:bg-orange-600 text-white"
               }`}
             onClick={() => task.status === 'pendente' && handleStartTask(task.id)}
           >
-            {task.status === 'pendente' ? "INICIAR" : "CONTINUAR"}
+            {task.status === 'pendente' ? "INICIAR AGORA" : "CONTINUAR"}
             <ChevronRight className="w-3 h-3 ml-1" />
           </Button>
         </div>
       </CardContent>
     </Card>
   );
+
+  const ProjectBriefCard = ({ project, role }: { project: any, role: string }) => {
+    // Calculate progress for this project based on all tasks in the system (or just owned ones?)
+    // In CollaboratorApp we only have tasks assigned to the user.
+    // Let's show progress based on the user's tasks in that project.
+    const projectTasks = tasks.filter(t => t.project_id === project.id);
+    const completedTasks = projectTasks.filter(t => t.status === 'concluido').length;
+    const progress = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
+
+    return (
+      <Card className="min-w-[200px] bg-white border-blue-50 shadow-sm border-l-4 overflow-hidden" style={{ borderLeftColor: project.color || '#3b82f6' }}>
+        <CardContent className="p-3 space-y-2">
+          <div className="flex justify-between items-start">
+            <h5 className="font-bold text-xs text-gray-800 line-clamp-1">{project.name}</h5>
+            <Badge variant="secondary" className="text-[9px] h-4">{role === 'manager' ? 'Gestor' : 'Membro'}</Badge>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between text-[9px] text-gray-400 font-bold uppercase">
+              <span>Suas Tarefas</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-1" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const today = new Date();
   const formattedDate = format(today, "EEEE, dd 'de' MMMM", { locale: ptBR });
@@ -141,31 +178,64 @@ export function CollaboratorApp() {
         </div>
 
         <div className="bg-white/10 backdrop-blur border border-white/20 p-4 rounded-xl flex items-center justify-between relative z-10">
-          <div>
-            <p className="text-blue-100 text-xs uppercase tracking-wider mb-1">
-              {workStatus === "working" ? "Jornada em andamento" : "Você está offline"}
-            </p>
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-300" />
-              <span className="text-3xl font-mono font-semibold tracking-tight">
-                {workStatus === "working" ? formatTime(elapsedTime) : "--:--:--"}
-              </span>
+          {!skipTimeTracking ? (
+            <>
+              <div>
+                <p className="text-blue-100 text-xs uppercase tracking-wider mb-1">
+                  {workStatus === "working" ? "Jornada em andamento" : "Você está offline"}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-300" />
+                  <span className="text-3xl font-mono font-semibold tracking-tight">
+                    {workStatus === "working" ? formatTime(elapsedTime) : "--:--:--"}
+                  </span>
+                </div>
+              </div>
+              <Button
+                size="icon"
+                className={`h-12 w-12 rounded-full shadow-lg border-2 border-white/20 transition-all ${workStatus === "working"
+                  ? "bg-red-500 hover:bg-red-600 animate-pulse"
+                  : "bg-green-500 hover:bg-green-600"
+                  }`}
+                onClick={handleClockAction}
+              >
+                {workStatus === "working" ? <Pause className="fill-white" /> : <Play className="fill-white ml-1" />}
+              </Button>
+            </>
+          ) : (
+            <div className="w-full flex items-center justify-between">
+              <div>
+                <p className="text-blue-100 text-[10px] uppercase font-bold tracking-widest mb-1">
+                  Destaque Estratégico
+                </p>
+                <h4 className="text-lg font-bold line-clamp-1">
+                  {sortedAssignedTasks[0]?.title || "Nenhuma tarefa urgente"}
+                </h4>
+                <p className="text-blue-200 text-xs">Foco no resultado!</p>
+              </div>
+              <div className="h-10 w-10 bg-green-400 rounded-full flex items-center justify-center shadow-lg border-2 border-white/30">
+                <ClipboardList className="w-5 h-5 text-green-900" />
+              </div>
             </div>
-          </div>
-          <Button
-            size="icon"
-            className={`h-12 w-12 rounded-full shadow-lg border-2 border-white/20 transition-all ${workStatus === "working"
-              ? "bg-red-500 hover:bg-red-600 animate-pulse"
-              : "bg-green-500 hover:bg-green-600"
-              }`}
-            onClick={handleClockAction}
-          >
-            {workStatus === "working" ? <Pause className="fill-white" /> : <Play className="fill-white ml-1" />}
-          </Button>
+          )}
         </div>
       </div>
 
       <div className="p-5 space-y-8">
+        {/* Projects Horizontal View */}
+        {projects.length > 0 && (
+          <section>
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2 mb-4">
+              <ClipboardList className="w-5 h-5 text-purple-600" />
+              Meus Projetos
+            </h3>
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
+              {projects.map(p => (
+                <ProjectBriefCard key={p.id} project={p} role={p.role} />
+              ))}
+            </div>
+          </section>
+        )}
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-100">
@@ -174,8 +244,8 @@ export function CollaboratorApp() {
                 <ClipboardList className="w-4 h-4" />
                 <span className="text-xs font-medium">Rotinas</span>
               </div>
-              <p className="text-2xl font-bold text-green-700">{dailyRoutines.length}</p>
-              <p className="text-xs text-green-600">pendentes hoje</p>
+              <p className="text-2xl font-bold text-green-700">{routineProjects.length}</p>
+              <p className="text-xs text-green-600">projetos diários</p>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-100">
@@ -195,61 +265,69 @@ export function CollaboratorApp() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-blue-600" />
-              Rotinas Diárias
+              Projetos Diários (Rotinas)
             </h3>
-            {dailyRoutines.length > 0 && (
+            {routineProjects.length > 0 && (
               <Badge variant="secondary" className="rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
-                {dailyRoutines.length}
+                {routineProjects.length}
               </Badge>
             )}
           </div>
 
-          <div className="space-y-3">
-            {dailyRoutines.length > 0 ? (
-              dailyRoutines.map(routine => (
-                <div key={routine.id} className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm group active:bg-blue-50 transition-colors">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-sm leading-tight">{routine.title}</h4>
-                      <p className="text-gray-500 text-[11px] mt-1">{routine.description || 'Sem descrição'}</p>
-                    </div>
-                    <Badge variant="outline" className="text-[9px] uppercase font-bold shrink-0">{routine.priority}</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {routine.checklist.length > 0 ? (
-                      routine.checklist.map(item => (
-                        <div key={item.id} className="flex items-center gap-2 group/item">
-                          <Checkbox 
-                            id={`r-${item.id}`} 
-                            checked={item.completed} 
-                            onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
-                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
-                          />
-                          <label htmlFor={`r-${item.id}`} className={`text-xs ${item.completed ? 'text-gray-400 line-through' : 'text-gray-700'} font-medium cursor-pointer`}>
-                            {item.text}
-                          </label>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
-                        <div className="flex-1 mr-4">
-                          <div className="flex justify-between text-[9px] font-bold text-gray-500 uppercase mb-1">
-                            <span>Conclusão</span>
-                            <span>{routine.progress}%</span>
-                          </div>
-                          <Progress value={routine.progress} className="h-1 bg-gray-100" />
-                        </div>
-                        <Button size="sm" variant="ghost" className="h-7 text-[10px] font-bold text-blue-600 hover:bg-blue-50">
-                          DETALHES
-                        </Button>
+          <div className="space-y-4">
+            {routineProjects.length > 0 ? (
+              routineProjects.map(project => {
+                const projectTasks = tasks.filter(t => t.project_id === project.id);
+                const completedCount = projectTasks.filter(t => t.status === 'concluido').length;
+                const progress = projectTasks.length > 0 ? Math.round((completedCount / projectTasks.length) * 100) : 0;
+
+                return (
+                  <div key={project.id} className="bg-white border-2 border-blue-50 rounded-2xl p-4 shadow-sm group transition-all">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h4 className="font-black text-gray-900 text-sm uppercase tracking-tight">{project.name}</h4>
+                        <p className="text-gray-500 text-[11px] mt-0.5">{project.description || 'Rotina operacional'}</p>
                       </div>
-                    )}
+                      <Badge className="bg-blue-600 text-[10px]">{progress}%</Badge>
+                    </div>
+
+                    <div className="space-y-3">
+                      {projectTasks.length > 0 ? (
+                        projectTasks.map(task => (
+                          <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                            <Checkbox 
+                              id={`task-${task.id}`} 
+                              checked={task.status === 'concluido'} 
+                              onCheckedChange={() => updateTaskStatus(task.id, task.status === 'concluido' ? 'pendente' : 'concluido')}
+                              className="h-5 w-5 rounded-md border-gray-300 text-blue-600" 
+                            />
+                            <div className="flex-1 min-w-0">
+                                <label htmlFor={`task-${task.id}`} className={cn(
+                                  "text-sm font-bold block truncate cursor-pointer",
+                                  task.status === 'concluido' ? 'text-gray-400 line-through' : 'text-gray-700'
+                                )}>
+                                  {task.title}
+                                </label>
+                                {task.description && !task.description.startsWith("Destaque") && (
+                                  <p className="text-[10px] text-gray-400 truncate">{task.description}</p>
+                                )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center py-4 text-xs text-gray-400 italic">Nenhuma tarefa vinculada a esta rotina.</p>
+                      )}
+                    </div>
+                    
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                       <Progress value={progress} className="h-1.5 bg-gray-50" />
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="p-8 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 text-sm font-medium">
-                Nenhuma rotina pendente.
+                Nenhum projeto de rotina pendente.
               </div>
             )}
           </div>

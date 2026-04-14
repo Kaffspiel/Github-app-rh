@@ -25,6 +25,9 @@ export interface CollaboratorTask {
   company_id?: string;
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
   updated_at?: string;
+  project_id?: string | null;
+  project_name?: string | null;
+  project_color?: string | null;
 }
 
 export interface TaskComment {
@@ -43,6 +46,8 @@ export function useCollaboratorTasks() {
   const [employeeName, setEmployeeName] = useState<string>('');
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [skipTimeTracking, setSkipTimeTracking] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
   const { logTaskProgress, notifyTaskCompleted, notifyChecklistItemCompleted, notifyTaskOverdue } = useTaskNotifications();
@@ -60,7 +65,7 @@ export function useCollaboratorTasks() {
       // First get the employee record for this user
       const { data: employee, error: employeeError } = await supabase
         .from('employees')
-        .select('id, name, company_id')
+        .select('id, name, company_id, skip_time_tracking')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -75,11 +80,27 @@ export function useCollaboratorTasks() {
       setEmployeeId(employee.id);
       setEmployeeName(employee.name);
       setCompanyId(employee.company_id);
+      setSkipTimeTracking(employee.skip_time_tracking || false);
+
+      // Fetch projects assigned to this employee
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('project_members')
+        .select(`
+          role,
+          project:projects (*)
+        `)
+        .eq('employee_id', employee.id);
+
+      if (projectsError) throw projectsError;
+      setProjects(projectsData?.map(pm => ({ ...pm.project, role: pm.role })) || []);
 
       // Fetch tasks assigned to this employee
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*')
+        .select(`
+          *,
+          project:projects (name, color)
+        `)
         .eq('assignee_id', employee.id)
         .order('created_at', { ascending: false });
 
@@ -173,7 +194,10 @@ export function useCollaboratorTasks() {
             sort_order: c.sort_order,
           })),
           extension_status: task.extension_status,
-          updated_at: task.updated_at
+          updated_at: task.updated_at,
+          project_id: task.project_id,
+          project_name: task.project?.name,
+          project_color: task.project?.color
         };
       });
 
@@ -511,6 +535,8 @@ export function useCollaboratorTasks() {
     employeeId,
     employeeName,
     isLoading,
+    skipTimeTracking,
+    projects,
     refetch: fetchMyTasks,
     toggleChecklistItem,
     updateTaskStatus,

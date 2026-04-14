@@ -15,7 +15,7 @@ import { useEvolutionInstance } from "@/hooks/useEvolutionInstance";
 import {
   Users, Plus, Search, Phone, Mail, Building2, Shield,
   MessageSquare, Bell, Clock, CheckCircle2, XCircle,
-  Pencil, Trash2, MoreVertical, Send, UserPlus, Key, Loader2, KeyRound
+  Pencil, Trash2, MoreVertical, Send, UserPlus, Key, Loader2, KeyRound, AlertCircle
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Tables } from "@/integrations/supabase/types";
+import { cn } from "@/lib/utils";
 
 type Employee = Tables<"employees">;
 
@@ -833,17 +834,25 @@ export function EmployeeManagement() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div className="flex items-center gap-3 border p-3 rounded-lg bg-white">
-                      <Switch
-                        checked={formData.skip_time_tracking}
-                        onCheckedChange={(checked) => setFormData({ ...formData, skip_time_tracking: checked })}
-                      />
-                      <div className="space-y-0.5">
-                        <Label>Isento de Ponto</Label>
-                        <p className="text-xs text-gray-500 text-pretty">Não precisa bater ponto</p>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3 border p-3 rounded-lg bg-white">
+                        <Switch
+                          checked={formData.skip_time_tracking}
+                          onCheckedChange={(checked) => setFormData({ ...formData, skip_time_tracking: checked })}
+                        />
+                        <div className="space-y-0.5">
+                          <Label>Isento de Ponto</Label>
+                          <p className="text-xs text-gray-500 text-pretty">Não precisa bater ponto</p>
+                        </div>
                       </div>
+                      {formData.skip_time_tracking && (
+                        <div className="bg-orange-50 border border-orange-200 p-2 rounded text-[10px] text-orange-700 flex gap-2">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>Notificações de ponto serão bloqueadas automaticamente para este colaborador.</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 border p-3 rounded-lg bg-white">
+                    <div className="flex items-center gap-3 border p-3 rounded-lg bg-white h-fit">
                       <Switch
                         checked={formData.exclude_from_ranking}
                         onCheckedChange={(checked) => setFormData({ ...formData, exclude_from_ranking: checked })}
@@ -940,11 +949,15 @@ export function EmployeeManagement() {
                       ].map(({ key, label }) => (
                         <div
                           key={key}
-                          className="flex items-center justify-between p-2 bg-white rounded border"
+                          className={cn(
+                            "flex items-center justify-between p-2 bg-white rounded border",
+                            key === "notify_time_tracking" && formData.skip_time_tracking && "opacity-50"
+                          )}
                         >
                           <span className="text-sm">{label}</span>
                           <Switch
-                            checked={formData[key as keyof typeof formData] as boolean}
+                            checked={key === "notify_time_tracking" && formData.skip_time_tracking ? false : formData[key as keyof typeof formData] as boolean}
+                            disabled={key === "notify_time_tracking" && formData.skip_time_tracking}
                             onCheckedChange={(checked) =>
                               setFormData({ ...formData, [key]: checked })
                             }

@@ -40,6 +40,9 @@ export interface Task {
   company_id: string;
   checklist: ChecklistItem[];
   comments_count: number;
+  project_id: string | null;
+  project_name?: string;
+  project_color?: string;
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
   _isNew?: boolean; // transient flag for animation
 }
@@ -50,6 +53,7 @@ export interface CreateTaskInput {
   priority?: 'alta' | 'média' | 'baixa';
   due_date?: string;
   assignee_id?: string;
+  project_id?: string;
   is_daily_routine?: boolean;
 }
 
@@ -60,6 +64,7 @@ export interface UpdateTaskInput {
   status?: 'pendente' | 'andamento' | 'concluido' | 'atrasada' | 'cancelada' | 'não feito' | 'waiting_approval';
   due_date?: string;
   assignee_id?: string;
+  project_id?: string;
   progress?: number;
   is_daily_routine?: boolean;
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
@@ -96,7 +101,8 @@ export function useTasks() {
         .select(`
           *,
           assignee:employees!tasks_assignee_id_fkey(id, name),
-          creator:employees!tasks_created_by_fkey(id, name)
+          creator:employees!tasks_created_by_fkey(id, name),
+          project:projects(id, name, color)
         `)
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
@@ -193,6 +199,9 @@ export function useTasks() {
           created_at: task.created_at,
           updated_at: task.updated_at,
           company_id: task.company_id,
+          project_id: task.project_id,
+          project_name: task.project?.name,
+          project_color: task.project?.color,
           checklist: taskChecklists.map(c => ({
             id: c.id,
             text: c.text,
@@ -246,6 +255,7 @@ export function useTasks() {
           priority: input.priority || 'média',
           due_date: input.due_date ? new Date(input.due_date).toISOString() : null,
           assignee_id: input.assignee_id || null,
+          project_id: input.project_id || null,
           is_daily_routine: input.is_daily_routine || false,
           created_by: employee?.id || null,
         })
@@ -311,6 +321,47 @@ export function useTasks() {
       return null;
     }
   }, [companyId, user?.id, fetchTasks, toast, notifyTaskAssigned]);
+
+  const createTasksBatch = useCallback(async (inputs: CreateTaskInput[]): Promise<boolean> => {
+    if (!companyId || inputs.length === 0) return false;
+
+    try {
+      const { data: employee } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      const tasksToInsert = inputs.map(input => ({
+        company_id: companyId,
+        title: input.title,
+        description: input.description || null,
+        priority: input.priority || 'média',
+        due_date: input.due_date ? new Date(input.due_date).toISOString() : null,
+        assignee_id: input.assignee_id || null,
+        project_id: input.project_id || null,
+        is_daily_routine: input.is_daily_routine || false,
+        created_by: employee?.id || null,
+      }));
+
+      const { error } = await supabase
+        .from('tasks')
+        .insert(tasksToInsert);
+
+      if (error) throw error;
+
+      await fetchTasks();
+      return true;
+    } catch (err: any) {
+      console.error('Error creating tasks batch:', err);
+      toast({
+        title: 'Erro ao criar tarefas em lote',
+        description: err.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [companyId, user?.id, fetchTasks, toast]);
 
 
 
@@ -690,5 +741,6 @@ export function useTasks() {
     deleteChecklistItem,
     fetchComments,
     addComment,
+    createTasksBatch
   };
 }

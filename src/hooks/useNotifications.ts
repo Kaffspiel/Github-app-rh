@@ -101,7 +101,8 @@ export const useNotifications = () => {
                 reminders: data.notify_reminders || true,
                 announcements: data.notify_announcements || true
               }
-            }
+            },
+            skipTimeTracking: data.skip_time_tracking || false
           } as any;
         }
       }
