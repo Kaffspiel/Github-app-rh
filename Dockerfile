@@ -13,19 +13,10 @@ COPY package.json package-lock.json ./
 # Instalar dependências
 RUN npm ci --ignore-scripts
 
-# Copiar código-fonte
+# Copiar código-fonte (inclui .env.production para o Vite)
 COPY . .
 
-# Variáveis de ambiente são injetadas em build-time pelo Vite (VITE_*)
-# Elas serão passadas como Build Args no EasyPanel
-ARG VITE_SUPABASE_PROJECT_ID
-ARG VITE_SUPABASE_PUBLISHABLE_KEY
-ARG VITE_SUPABASE_URL
-ARG VITE_N8N_WEBHOOK_SEND
-ARG VITE_N8N_WEBHOOK_STATUS
-ARG VITE_EVOLUTION_INSTANCE
-
-# Build de produção
+# Build de produção — Vite lê .env.production automaticamente
 RUN npm run build
 
 # ---------- Stage 2: Serve com Nginx ----------
