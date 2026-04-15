@@ -1,0 +1,617 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "opscontrol-send",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        512,
+        96
+      ],
+      "id": "e1d650f8-28da-493f-ba54-095e3c7cfafc",
+      "name": "Webhook",
+      "webhookId": "bd62a246-2ebc-4190-a12e-d367a8e0adde"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.responseType }}",
+                    "rightValue": "audio_pending",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "77b3c63f-6a06-4784-8ff3-c3249a415837"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "0"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "68170c12-9a9a-4235-9982-e3d55329c574",
+                    "leftValue": "={{ $json.responseType }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "58009974-1c63-4d11-9390-823726b466f3",
+                    "leftValue": "={{ $json.responseType }}",
+                    "rightValue": "button",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1136,
+        96
+      ],
+      "id": "c178879c-caf4-4625-90d2-142988e348a3",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution.kaffspiel.cloud/chat/getBase64FromMediaMessage/{{ $json.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.rawMessage }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1312,
+        -64
+      ],
+      "id": "e5d8aa2b-8f5a-4fe3-9368-be3b63653443",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "options": {
+          "fileName": "audio.ogg"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1536,
+        -64
+      ],
+      "id": "c5fa9414-7d2c-4a99-a0b6-32c86d24f62a",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        1744,
+        -64
+      ],
+      "id": "570b04f2-055a-44f3-839f-4d12035f5ac4",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "ruZztICKyLrn18pZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://nnmrlucwrzoqkwzytbbl.supabase.co/functions/v1/webhook-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubXJsdWN3cnpvcWt3enl0YmJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTA4MzIsImV4cCI6MjA4NTI4NjgzMn0.I4dLM5R-_qQe8xy1VYevXLd6BvkAcam5CYZ9jQvOxRA"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messageId",
+              "value": "={{ $('Code in JavaScript').first().json.messageId }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $('Code in JavaScript').first().json.phone }}"
+            },
+            {
+              "name": "pushName",
+              "value": "={{ $('Code in JavaScript').first().json.pushName }}"
+            },
+            {
+              "name": "responseType",
+              "value": "={{ $json.text ? 'audio_transcription' : $('Code in JavaScript').first().json.responseType }}"
+            },
+            {
+              "name": "responseValue",
+              "value": "={{ $json.text || $('Code in JavaScript').first().json.responseValue }}"
+            },
+            {
+              "name": "instance",
+              "value": "={{ $('Code in JavaScript').first().json.instance }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1968,
+        112
+      ],
+      "id": "fa1ab68f-be83-469b-bece-4da0f3619c36",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.metadata ? $json.body.metadata.notificationType : $json.body.type }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "announcement"
+            },
+            {
+              "value2": "task_assigned"
+            },
+            {
+              "value2": "task_cancelled"
+            },
+            {
+              "value2": "task_completed"
+            },
+            {
+              "value2": "task_overdue"
+            },
+            {
+              "value2": "clock_reminder"
+            },
+            {
+              "value2": "clock_anomaly"
+            },
+            {
+              "value2": "task_comment"
+            },
+            {
+              "value2": "task_due_reminder"
+            },
+            {
+              "value2": "justification_required"
+            },
+            {
+              "value2": "justification_response"
+            }
+          ]
+        },
+        "fallbackOutput": 11
+      },
+      "id": "d11c943b-0b4b-46b3-8465-210eb290d357",
+      "name": "Tipo de Mensagem1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        880,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendText/' + $json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.body.number }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "delay",
+              "value": 1200
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "506bc82e-8cb5-47b9-bec0-a3c2ab6b55e0",
+      "name": "Enviar WhatsApp (Texto)1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://evolution.kaffspiel.cloud/message/sendButtons/' + $json.body.instanceName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "Ay0HGfU1AWcZsB5qjVEzW8PpsSFWlfJv5VL3LhJNZBEjHGEmM24N19hMm63jqiZpqnwvNRuiVdQbpslOOoUXQQPA0SdMzxkGY6ZAnQkRXPy6jLOi7nPkgs18pmyItF6Q"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.body.number }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.body.buttons.title }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.body.buttons.description }}"
+            },
+            {
+              "name": "footer",
+              "value": "={{ $json.body.buttons.footer }}"
+            },
+            {
+              "name": "buttons",
+              "value": "={{ $json.body.buttons.buttons }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f919ad54-43c0-400c-bb9c-418015d4c323",
+      "name": "Enviar WhatsApp (Botões)1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"messageId\": $json.key?.id || 'sent', \"timestamp\": new Date().toISOString() } }}",
+        "options": {}
+      },
+      "id": "f47a87c4-2e15-4965-ab92-3a58ee6663c3",
+      "name": "Responder Sucesso1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1552,
+        496
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    },
+                    "id": "d0d6fe9c-dc6f-44c3-b68a-17691ac13f38"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "7f9997cd-ff3b-480f-bc66-4b1c3bdab457",
+                    "leftValue": "={{ $json.body.metadata ? $json.body.metadata.notificationType : $json.body.type }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        96
+      ],
+      "id": "60647095-e721-4932-bacb-30bc0673c1b1",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst data = body.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\nlet responseType = 'text';\nlet responseValue = '';\n\nif (message.buttonsResponseMessage) {\n  responseType = 'button';\n  responseValue = message.buttonsResponseMessage.selectedButtonId;\n} else if (message.audioMessage) {\n  responseType = 'audio_pending';\n} else if (message.conversation) {\n  responseValue = message.conversation;\n} else if (message.extendedTextMessage) {\n  responseValue = message.extendedTextMessage.text;\n}\n\nreturn {\n  messageId: key.id,\n  phone: key.remoteJid?.replace('@s.whatsapp.net', '').replace('@c.us', ''),\n  pushName: data.pushName,\n  responseType,\n  responseValue,\n  instance: body.instance,\n  // ENVIAMOS O DATA INTEIRO PARA EVITAR ERROS DE PROPRIEDADES FALTANTES\n  rawMessage: data \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -80
+      ],
+      "id": "4609f844-453b-4987-beeb-4ffb0a99e6f6",
+      "name": "Funcionou para audio"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst data = body.data || {};\n\n// --- ESTRATÉGIA DE BUSCA DO TELEFONE ---\n// Procura o remoteJid em vários lugares comuns\nlet remoteJid = data.key?.remoteJid || \n                data.message?.key?.remoteJid || \n                body.data?.key?.remoteJid || \n                '';\n\n// Limpeza do número\nconst phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');\n\n// --- ESTRATÉGIA DE TIPO DE MENSAGEM ---\nconst message = data.message || {};\nlet responseType = 'text';\nlet responseValue = '';\n\nif (message.buttonsResponseMessage) {\n  responseType = 'button';\n  responseValue = message.buttonsResponseMessage.selectedButtonId || '';\n} else if (message.audioMessage) {\n  responseType = 'audio_pending';\n} else if (message.conversation) {\n  responseValue = message.conversation || '';\n} else if (message.extendedTextMessage) {\n  responseValue = message.extendedTextMessage.text || '';\n}\n\n// Retorno Final\nreturn {\n  messageId: data.key?.id || 'ID_NAO_ENCONTRADO',\n  phone: phone || 'TELEFONE_NAO_ENCONTRADO', // Se falhar, avisa aqui\n  pushName: data.pushName || 'Desconhecido',\n  responseType,\n  responseValue,\n  instance: body.instance || 'default',\n  rawMessage: data \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        80
+      ],
+      "id": "54be3ddd-667a-4773-87bf-282b34a7a7e5",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de Mensagem1": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp (Texto)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar WhatsApp (Texto)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar WhatsApp (Texto)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar WhatsApp (Texto)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tipo de Mensagem1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7caed1b99602a9339965e9b779169d710789abb0ebccde51ab7fc71dbe7bbf8c"
+  }
+}

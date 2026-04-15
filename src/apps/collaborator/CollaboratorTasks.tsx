@@ -80,7 +80,10 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
         updateTask,
         fetchComments,
         addComment,
-        refetch: refetchTasks
+        addChecklistItem,
+        refetch: refetchTasks,
+        projects,
+        isUpdatingStatus
     } = useCollaboratorTasks();
 
     const { notifyExtensionRequest } = useTaskNotifications();
@@ -93,6 +96,10 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
     const [selectedTaskForComments, setSelectedTaskForComments] = useState<any>(null);
     const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<any>(null);
     const [selectedChecklistItemId, setSelectedChecklistItemId] = useState<string | undefined>(undefined);
+    const [filterProject, setFilterProject] = useState<string>("all");
+    const [viewMode, setViewMode] = useState<"status" | "project">("status");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isRequestingExtensionInComments, setIsRequestingExtensionInComments] = useState(false);
 
     const handleRequestExtension = async () => {
         if (!selectedTaskForExtension || !extensionDate || !extensionReason) return;
@@ -108,20 +115,24 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
             await notifyExtensionRequest({
                 taskId: selectedTaskForExtension.id,
                 taskTitle: selectedTaskForExtension.title,
-                employeeName: "Colaborador", // Fallback or need to get it from hook
+                employeeName: employeeName || "Colaborador",
                 companyId: selectedTaskForExtension.company_id,
                 newDate: format(new Date(extensionDate), "dd/MM/yyyy HH:mm"),
                 reason: extensionReason
             });
 
-            // Update local task status to pending
-            // We need updateTask from hook
+            // Update local task status to pending AND save suggested data
             if (updateTask) {
-                await updateTask(selectedTaskForExtension.id, { extension_status: 'pending' });
+                await updateTask(selectedTaskForExtension.id, { 
+                    extension_status: 'pending',
+                    suggested_due_date: new Date(extensionDate).toISOString(),
+                    extension_reason: extensionReason
+                });
             }
 
             toast.success("Solicitação enviada ao gestor!");
             setIsExtensionDialogOpen(false);
+            setIsRequestingExtensionInComments(false);
             setExtensionDate("");
             setExtensionReason("");
             setSelectedTaskForExtension(null);
@@ -199,111 +210,222 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
 
     const getPriorityColor = (priority: string) => {
         switch (priority) {
-            case 'alta': return 'bg-red-500';
-            case 'média': return 'bg-orange-400';
-            default: return 'bg-blue-400';
+            case 'alta': return 'bg-rose-500';
+            case 'média': return 'bg-amber-400';
+            default: return 'bg-sky-400';
         }
     };
 
+    // --- Filter and Group Logic ---
+    // Only active tasks for the main dashboard tabs(excluding history)
+    const activeTasks = tasks.filter(t => t.status !== 'concluido' && t.status !== 'cancelada');
+    
+    // Process search and project filtering on active tasks
+    const filteredActiveTasks = activeTasks.filter(t => {
+        const matchesProject = filterProject === "all" || t.project_id === filterProject;
+        const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesProject && matchesSearch;
+    });
 
-
-    const dailyRoutines = tasks.filter(t => t.is_daily_routine);
-    const extraTasks = tasks.filter(t => !t.is_daily_routine);
+    // Separated categories for display in active view
+    const dailyRoutines = filteredActiveTasks.filter(t => t.is_daily_routine);
+    const extraTasks = filteredActiveTasks.filter(t => !t.is_daily_routine);
+    
+    // Global lists for history tabs
     const completedTasks = tasks.filter(t => t.status === 'concluido');
     const cancelledTasks = tasks.filter(t => t.status === 'cancelada');
 
-    // Get unique projects from tasks
-    const projectNames = Array.from(new Set(tasks.map(t => t.project_name || 'Geral')));
-
-    const TaskCardV2 = ({ task, isRoutine = false }: { task: any, isRoutine?: boolean }) => (
-        <Card className={`overflow-hidden border-2 border-slate-50 rounded-[2rem] shadow-sm hover:shadow-md transition-all`}>
-            {/* Priority Strip */}
-            {!isRoutine && <div className={`h-1.5 ${getPriorityColor(task.priority)}`} />}
+    // Project progress calculation
+    const projectStats = projects.map(proj => {
+        const projTasks = tasks.filter(t => t.project_id === proj.id);
+        const activeProjTasks = projTasks.filter(t => t.status !== 'concluido' && t.status !== 'cancelada');
+        const avgProgress = projTasks.length > 0 
+            ? Math.round(projTasks.reduce((acc, t) => acc + (t.progress || 0), 0) / projTasks.length)
+            : 0;
             
-            <CardContent className="p-5">
-                <div className="flex items-center gap-4 mb-4">
-                    {/* Quick Check Action */}
-                    <div 
-                        onClick={() => updateTaskStatus(task.id, task.status === 'concluido' ? 'pendente' : 'concluido')}
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer transition-all ${
-                            task.status === 'concluido' 
-                            ? 'bg-emerald-500 shadow-lg shadow-emerald-100 border-none' 
-                            : 'bg-slate-50 border-2 border-slate-100'
-                        }`}
-                    >
-                        {task.status === 'concluido' ? (
-                            <CheckCircle2 className="w-6 h-6 text-white" />
-                        ) : (
-                            <div className="w-6 h-6 rounded-md border-2 border-slate-200" />
-                        )}
-                    </div>
+        return {
+            ...proj,
+            avgProgress,
+            activeCount: activeProjTasks.length
+        };
+    }).sort((a, b) => b.activeCount - a.activeCount); // Projects with more tasks first
 
-                    <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start mb-1">
-                            <h4 className={`text-[13px] font-black text-gray-800 leading-tight line-clamp-2 ${task.status === 'concluido' ? 'line-through opacity-50' : ''}`}>
-                                {task.title}
-                            </h4>
-                        </div>
-                        <div className="flex items-center gap-2">
-                             <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider">
-                                {task.project_name || (isRoutine ? 'ROTINA' : 'TAREFA')}
-                             </span>
-                             {task.status === 'atrasada' && (
-                                <Badge variant="destructive" className="text-[8px] h-4 py-0 font-black">ATRASADA</Badge>
-                             )}
-                        </div>
-                    </div>
-                </div>
+    const unassignedTasks = activeTasks.filter(t => !t.project_id);
+    const unassignedProgress = unassignedTasks.length > 0
+        ? Math.round(unassignedTasks.reduce((acc, t) => acc + (t.progress || 0), 0) / unassignedTasks.length)
+        : 0;
 
-                {/* Progress / Checklist Summary */}
-                <div className="space-y-2 mb-5 px-1">
-                    <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                        <span>Progresso</span>
-                        <span>{task.progress}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
+    const TaskCardV2 = ({ task, isRoutine = false }: { task: any, isRoutine?: boolean }) => {
+        const [newItemText, setNewItemText] = useState("");
+        const [isAddingItem, setIsAddingItem] = useState(false);
+
+        const handleAddItem = async () => {
+            if (!newItemText.trim()) return;
+            setIsAddingItem(true);
+            const success = await addChecklistItem(task.id, newItemText.trim());
+            if (success) setNewItemText("");
+            setIsAddingItem(false);
+        };
+
+        return (
+            <Card className={`overflow-hidden border-2 border-slate-50 rounded-[2rem] shadow-sm hover:shadow-md transition-all`}>
+                {/* Priority Strip */}
+                {!isRoutine && <div className={`h-1.5 ${getPriorityColor(task.priority)}`} />}
+                
+                <CardContent className="p-5">
+                    <div className="flex items-center gap-4 mb-4">
+                        {/* Quick Check Action */}
                         <div 
-                            className={`h-full rounded-full transition-all duration-500 ${task.status === 'concluido' ? 'bg-emerald-500' : 'bg-blue-600'}`} 
-                            style={{ width: `${task.progress}%` }} 
-                        />
-                    </div>
-                </div>
+                            onClick={() => {
+                                if (isUpdatingStatus) return;
+                                if (task.status === 'atrasada') {
+                                    toast.error("Tarefa atrasada! Peça uma prorrogação em 'TRATAR' antes de concluir.");
+                                    return;
+                                }
+                                updateTaskStatus(task.id, task.status === 'concluido' ? 'pendente' : 'concluido');
+                            }}
+                            className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer transition-all ${
+                                isUpdatingStatus || task.status === 'atrasada' ? 'opacity-50' : ''
+                            } ${
+                                task.status === 'concluido' 
+                                ? 'bg-emerald-500 shadow-lg shadow-emerald-100 border-none' 
+                                : task.status === 'atrasada'
+                                ? 'bg-red-50 border-2 border-red-100'
+                                : 'bg-slate-50 border-2 border-slate-100'
+                            }`}
+                        >
+                            {isUpdatingStatus ? (
+                                <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
+                            ) : task.status === 'concluido' ? (
+                                <CheckCircle2 className="w-6 h-6 text-white" />
+                            ) : task.status === 'atrasada' ? (
+                                <AlertCircle className="w-6 h-6 text-red-400" />
+                            ) : (
+                                <div className="w-6 h-6 rounded-md border-2 border-slate-200" />
+                            )}
+                        </div>
 
-                {/* Mobile Action Bar */}
-                <div className="flex gap-2">
-                    <Button 
-                        variant="secondary" 
-                        size="sm"
-                        className="flex-1 bg-slate-50 hover:bg-slate-100 text-[10px] font-black py-5 rounded-2xl border-none uppercase tracking-tighter"
-                        onClick={() => openCommentsDialog(task)}
-                    >
-                        📂 TRATAR
-                    </Button>
-                    <div className="flex-1">
-                        {task.due_date ? (
-                            <GoogleCalendarButton
-                                title={task.title}
-                                description={task.description || ""}
-                                dueDate={task.due_date}
-                                size="sm"
-                                showText={true}
-                                className="w-full h-11 bg-slate-50 hover:bg-slate-100 text-[10px] font-black rounded-2xl border-none text-slate-800"
-                            />
-                        ) : (
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                className="w-full h-11 bg-slate-50 opacity-40 text-[10px] font-black rounded-2xl border-none text-slate-400"
-                                disabled
-                            >
-                                📅 AGENDA
-                            </Button>
-                        )}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start mb-1">
+                                <h4 className={`text-[13px] font-black text-gray-800 leading-tight line-clamp-2 ${task.status === 'concluido' ? 'line-through opacity-50' : ''}`}>
+                                    {task.title}
+                                </h4>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider">
+                                    {task.project_name || (isRoutine ? 'ROTINA' : 'TAREFA')}
+                                </span>
+                                {task.status === 'atrasada' && (
+                                    <Badge variant="destructive" className="text-[8px] h-4 py-0 font-black">ATRASADA</Badge>
+                                )}
+                                {task.extension_status === 'pending' && (
+                                    <Badge variant="secondary" className="text-[8px] h-4 py-0 font-black bg-orange-100 text-orange-600 border-none">AGUARDANDO REAGENDAMENTO</Badge>
+                                )}
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
+
+                    {/* Progress Bar */}
+                    <div className="space-y-2 mb-4 px-1">
+                        <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            <span>Progresso</span>
+                            <span>{task.progress}%</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
+                            <div 
+                                className={`h-full rounded-full transition-all duration-500 ${task.status === 'concluido' ? 'bg-emerald-500' : 'bg-blue-600'}`} 
+                                style={{ width: `${task.progress}%` }} 
+                            />
+                        </div>
+                    </div>
+
+                    {/* CHECKLIST SECTION */}
+                    <div className="space-y-3 mb-5 px-1 bg-slate-50/50 p-4 rounded-3xl border border-slate-50">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Checklist</span>
+                            <Badge variant="secondary" className="text-[8px] bg-white text-slate-400 border-none">
+                                {task.checklist.filter((i: any) => i.completed).length}/{task.checklist.length}
+                            </Badge>
+                        </div>
+
+                        <div className="space-y-2">
+                            {task.checklist.map((item: any) => (
+                                <div key={item.id} className="flex items-center gap-3 group">
+                                    <Checkbox 
+                                        id={`item-${item.id}`} 
+                                        checked={item.completed}
+                                        onCheckedChange={(checked) => toggleChecklistItem(item.id, !!checked)}
+                                        className="rounded-lg w-5 h-5 border-2 border-slate-200 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                                    />
+                                    <label 
+                                        htmlFor={`item-${item.id}`}
+                                        className={`text-[11px] font-semibold flex-1 cursor-pointer transition-colors ${
+                                            item.completed ? 'text-slate-300 line-through' : 'text-slate-600'
+                                        }`}
+                                    >
+                                        {item.text}
+                                    </label>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Quick Add Checklist Item */}
+                        <div className="pt-2 flex gap-2">
+                            <Input 
+                                placeholder="Novo item..." 
+                                value={newItemText}
+                                onChange={(e) => setNewItemText(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
+                                className="h-9 rounded-xl bg-white border-slate-100 text-[11px] font-bold focus-visible:ring-blue-100"
+                            />
+                            <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-9 w-9 rounded-xl border-slate-100 text-blue-600 hover:bg-blue-50"
+                                onClick={handleAddItem}
+                                disabled={isAddingItem || !newItemText.trim()}
+                            >
+                                <Plus className={`w-4 h-4 ${isAddingItem ? 'animate-spin' : ''}`} />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Mobile Action Bar */}
+                    <div className="flex gap-2">
+                        <Button 
+                            variant="secondary" 
+                            size="sm"
+                            className="flex-1 bg-slate-50 hover:bg-slate-100 text-[10px] font-black py-5 rounded-2xl border-none uppercase tracking-tighter text-slate-700"
+                            onClick={() => openCommentsDialog(task)}
+                        >
+                            📂 TRATAR
+                        </Button>
+                        <div className="flex-1">
+                            {task.due_date ? (
+                                <GoogleCalendarButton
+                                    title={task.title}
+                                    description={task.description || ""}
+                                    dueDate={task.due_date}
+                                    size="sm"
+                                    showText={true}
+                                    className="w-full h-11 bg-slate-100 hover:bg-slate-200 text-[10px] font-black rounded-2xl border-none text-slate-800"
+                                />
+                            ) : (
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="w-full h-11 bg-slate-50 opacity-40 text-[10px] font-black rounded-2xl border-none text-slate-400"
+                                    disabled
+                                >
+                                    📅 AGENDA
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
 
     return (
         <div className="p-4 space-y-6">
@@ -336,7 +458,13 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                             value="history"
                             className="bg-transparent border-none p-0 text-[10px] uppercase font-bold tracking-widest text-gray-400 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none pb-2"
                         >
-                            Concluídas
+                            Histórico
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="cancelled"
+                            className="bg-transparent border-none p-0 text-[10px] uppercase font-bold tracking-widest text-gray-400 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none pb-2"
+                        >
+                            Canceladas
                         </TabsTrigger>
                     </TabsList>
                     <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading} className="rounded-xl border border-gray-100 h-8">
@@ -344,71 +472,144 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                     </Button>
                 </div>
 
-                <TabsContent value="tasks" className="space-y-6">
-                    {/* Daily Routines Section */}
-                    <section>
-                        <div className="flex items-center justify-between mb-5">
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
-                                    Rotinas Diárias
-                                </h3>
-                            </div>
-                            {dailyRoutines.length > 0 && (
-                                <Badge className="bg-blue-50 text-blue-700 text-[10px] font-black border-none px-2.5">
-                                    {dailyRoutines.length} ATIVAS
-                                </Badge>
-                            )}
+                <TabsContent value="tasks" className="mt-0 border-none p-0 outline-none flex-1 flex flex-col">
+                    {/* --- SEARCH AREA --- */}
+                    <div className="px-1 mb-6">
+                        <div className="relative group">
+                            <Input 
+                                placeholder="Buscar tarefa específica..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="h-12 rounded-[1.5rem] bg-white border-slate-100 text-[13px] font-medium pl-11 shadow-sm group-focus-within:shadow-md transition-all"
+                            />
+                            <ClipboardList className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         </div>
+                    </div>
 
-                        {dailyRoutines.length > 0 ? (
-                            <div className="space-y-4">
-                                {dailyRoutines.map(routine => (
-                                    <TaskCardV2 key={routine.id} task={routine} isRoutine={true} />
-                                ))}
-                            </div>
-                        ) : (
-                            <Card className="border-dashed border-2 border-slate-100 bg-slate-50/50 rounded-[2rem]">
-                                <CardContent className="py-10 text-center">
-                                    <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">Tudo limpo por aqui!</p>
-                                </CardContent>
-                            </Card>
-                        )}
-                                {/* Extra Tasks Section */}
-                    <section>
-                         <div className="flex items-center justify-between mb-5">
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
-                                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
-                                    Tarefas Extras
-                                </h3>
-                            </div>
-                             <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-[10px] font-black uppercase tracking-widest bg-orange-50 text-orange-600 border-orange-100 rounded-xl px-3"
-                                onClick={() => setIsNewTaskOpen(true)}
-                            >
-                                <Plus className="w-3 h-3 mr-1" />
-                                NOVA TAREFA
-                            </Button>
+                    <ScrollArea className="flex-1 -mx-1 px-1">
+                        <div className="space-y-8 pb-10">
+                            {/* --- PROJECTS SECTION --- */}
+                            <section>
+                                <div className="flex items-center justify-between mb-4 px-1">
+                                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Meus Projetos</h3>
+                                    {filterProject !== "all" && (
+                                        <button 
+                                            onClick={() => setFilterProject("all")}
+                                            className="text-[10px] font-black text-blue-600 uppercase tracking-widest"
+                                        >
+                                            Ver Todos
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    {/* All Projects Card */}
+                                    <div 
+                                        onClick={() => setFilterProject("all")}
+                                        className={`p-4 rounded-[2rem] border-2 transition-all cursor-pointer ${
+                                            filterProject === "all" 
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100' 
+                                            : 'bg-white border-slate-50 text-slate-600'
+                                        }`}
+                                    >
+                                        <div className={`w-8 h-8 rounded-xl mb-3 flex items-center justify-center ${filterProject === "all" ? 'bg-white/20' : 'bg-blue-50'}`}>
+                                            <ClipboardList className={`w-4 h-4 ${filterProject === "all" ? 'text-white' : 'text-blue-600'}`} />
+                                        </div>
+                                        <p className="text-[11px] font-black uppercase leading-tight">Painel Geral</p>
+                                        <p className={`text-[9px] mt-1 font-bold ${filterProject === "all" ? 'text-blue-100' : 'text-slate-400'}`}>
+                                            {activeTasks.length} Ativas
+                                        </p>
+                                    </div>
+
+                                    {/* Dynamic Project Cards */}
+                                    {projectStats.map((proj) => (
+                                        <div 
+                                            key={proj.id}
+                                            onClick={() => setFilterProject(proj.id)}
+                                            className={`p-4 rounded-[2rem] border-2 transition-all cursor-pointer relative overflow-hidden ${
+                                                filterProject === proj.id 
+                                                ? 'bg-slate-900 border-slate-900 text-white shadow-xl' 
+                                                : 'bg-white border-slate-50 text-slate-600'
+                                            }`}
+                                        >
+                                            {/* Progress background line */}
+                                            <div 
+                                                className={`absolute bottom-0 left-0 h-1 transition-all duration-700 ${filterProject === proj.id ? 'bg-blue-400' : 'bg-blue-600'}`} 
+                                                style={{ width: `${proj.avgProgress}%` }}
+                                            />
+                                            
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${filterProject === proj.id ? 'bg-white/10' : 'bg-slate-50'}`}>
+                                                    <span className="text-[10px] font-black">{proj.avgProgress}%</span>
+                                                </div>
+                                                {proj.activeCount > 0 && (
+                                                    <Badge className={`px-1.5 h-4 text-[8px] border-none ${filterProject === proj.id ? 'bg-blue-500 text-white' : 'bg-orange-50 text-orange-600'}`}>
+                                                        {proj.activeCount}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <p className="text-[11px] font-black uppercase leading-tight line-clamp-2">{proj.name}</p>
+                                        </div>
+                                    ))}
+
+                                    {/* Unassigned Tasks pseudo-project */}
+                                    {unassignedTasks.length > 0 && (
+                                        <div 
+                                            onClick={() => setFilterProject("unassigned")}
+                                            className={`p-4 rounded-[2rem] border-2 transition-all cursor-pointer ${
+                                                filterProject === "unassigned" 
+                                                ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-100' 
+                                                : 'bg-white border-slate-50 text-slate-600'
+                                            }`}
+                                        >
+                                            <div className={`w-8 h-8 rounded-xl mb-3 flex items-center justify-center ${filterProject === "unassigned" ? 'bg-white/20' : 'bg-amber-50'}`}>
+                                                <AlertCircle className={`w-4 h-4 ${filterProject === "unassigned" ? 'text-white' : 'text-amber-600'}`} />
+                                            </div>
+                                            <p className="text-[11px] font-black uppercase leading-tight">Extras / Sem Projeto</p>
+                                            <p className={`text-[9px] mt-1 font-bold ${filterProject === "unassigned" ? 'text-amber-100' : 'text-slate-400'}`}>
+                                                {unassignedTasks.length} Ativas
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+
+                            <section>
+                                <div className="flex items-center justify-between mb-5 px-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
+                                        <h3 className="text-[13px] font-black text-gray-900 uppercase tracking-widest">
+                                            {filterProject === "all" ? "Fluxo Ativo" : "Detalhamento"}
+                                        </h3>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-9 text-[10px] font-black uppercase tracking-widest bg-white text-blue-600 border-slate-100 rounded-xl"
+                                        onClick={() => setIsNewTaskOpen(true)}
+                                    >
+                                        <Plus className="w-3.5 h-3.5 mr-1" />
+                                        ADICIONAR
+                                    </Button>
+                                </div>
+
+                                {filteredActiveTasks.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {filteredActiveTasks.map(task => (
+                                            <TaskCardV2 key={task.id} task={task} isRoutine={task.is_daily_routine} />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <Card className="border-dashed border-2 border-slate-100 bg-slate-50/50 rounded-[2rem]">
+                                        <CardContent className="py-20 text-center">
+                                            <ClipboardList className="w-10 h-10 text-slate-200 mx-auto mb-4" />
+                                            <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">Nenhuma tarefa ativa</p>
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </section>
                         </div>
-
-                        {extraTasks.length > 0 ? (
-                            <div className="space-y-4">
-                                {extraTasks.map(task => (
-                                    <TaskCardV2 key={task.id} task={task} />
-                                ))}
-                            </div>
-                        ) : (
-                             <Card className="border-dashed border-2 border-slate-100 bg-slate-50/50 rounded-[2rem]">
-                                <CardContent className="py-10 text-center">
-                                    <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest italic">Sem tarefas extras atribuídas</p>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </section>
-             </section>
+                    </ScrollArea>
                 </TabsContent>
 
                 <TabsContent value="calendar" className="mt-4 px-0 flex-1 min-h-[60vh]">
@@ -419,81 +620,79 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
                 </TabsContent>
 
                 <TabsContent value="history">
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            Tarefas Concluídas
-                        </h3>
+                    <ScrollArea className="h-[70vh]">
+                        <div className="space-y-4 pb-10">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                Histórico Concluído
+                            </h3>
 
-                        {completedTasks.length > 0 ? (
-                            <div className="space-y-3">
-                                {completedTasks.map(task => (
-                                    <Card key={task.id} className="opacity-75 bg-gray-50">
-                                        <CardContent className="p-4">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <h4 className="font-semibold text-gray-700 line-through">{task.title}</h4>
-                                                    <p className="text-[10px] text-gray-400 font-mono mt-1">ID: #{task.id.substring(0, 8)}</p>
+                            {completedTasks.length > 0 ? (
+                                <div className="space-y-3">
+                                    {completedTasks.map(task => (
+                                        <Card key={task.id} className="opacity-75 bg-gray-50 border-none rounded-[1.5rem]">
+                                            <CardContent className="p-4">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <h4 className="font-semibold text-gray-700 line-through text-sm">{task.title}</h4>
+                                                        <p className="text-[10px] text-gray-400 font-mono mt-0.5">#{task.id.substring(0, 8)}</p>
+                                                    </div>
+                                                    <Badge variant="secondary" className="text-[9px] uppercase bg-green-100 text-green-800 border-none">
+                                                        OK
+                                                    </Badge>
                                                 </div>
-                                                <Badge variant="secondary" className="text-[10px] uppercase bg-green-100 text-green-800">
-                                                    Concluída
-                                                </Badge>
-                                            </div>
-                                            <p className="text-xs text-gray-500">
-                                                Finalizada em: {task.updated_at ? format(new Date(task.updated_at), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy")}
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        ) : (
-                            <Card>
-                                <CardContent className="py-8 text-center">
-                                    <CheckCircle2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                    <p className="text-gray-400 text-sm">Nenhuma tarefa concluída no histórico</p>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : (
+                                <Card className="border-none bg-slate-50/50 rounded-[1.5rem]">
+                                    <CardContent className="py-8 text-center">
+                                        <CheckCircle2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                        <p className="text-gray-400 text-xs uppercase font-black tracking-widest">Histórico Vazio</p>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </ScrollArea>
                 </TabsContent>
 
                 <TabsContent value="cancelled">
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-red-600" />
-                            Tarefas Canceladas
-                        </h3>
+                    <ScrollArea className="h-[70vh]">
+                        <div className="space-y-4 pb-10">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-red-600" />
+                                Tarefas Canceladas
+                            </h3>
 
-                        {cancelledTasks.length > 0 ? (
-                            <div className="space-y-3">
-                                {cancelledTasks.map(task => (
-                                    <Card key={task.id} className="opacity-75 bg-red-50/30 border-red-100">
-                                        <CardContent className="p-4">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <h4 className="font-semibold text-gray-700">{task.title}</h4>
-                                                    <p className="text-[10px] text-gray-400 font-mono mt-1">ID: #{task.id.substring(0, 8)}</p>
+                            {cancelledTasks.length > 0 ? (
+                                <div className="space-y-3">
+                                    {cancelledTasks.map(task => (
+                                        <Card key={task.id} className="opacity-75 bg-red-50/30 border-red-100 rounded-[1.5rem]">
+                                            <CardContent className="p-4">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <h4 className="font-semibold text-gray-600 text-sm">{task.title}</h4>
+                                                        <p className="text-[10px] text-gray-400 font-mono mt-0.5">#{task.id.substring(0, 8)}</p>
+                                                    </div>
+                                                    <Badge variant="secondary" className="text-[9px] uppercase bg-red-100 text-red-800 border-none">
+                                                        X
+                                                    </Badge>
                                                 </div>
-                                                <Badge variant="secondary" className="text-[10px] uppercase bg-red-100 text-red-800">
-                                                    Cancelada
-                                                </Badge>
-                                            </div>
-                                            <p className="text-xs text-red-600 font-medium">
-                                                Esta tarefa foi removida pelo gestor.
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        ) : (
-                            <Card>
-                                <CardContent className="py-8 text-center">
-                                    <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                    <p className="text-gray-400 text-sm">Nenhuma tarefa cancelada</p>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : (
+                                <Card className="border-none bg-slate-50/50 rounded-[1.5rem]">
+                                    <CardContent className="py-8 text-center">
+                                        <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                        <p className="text-gray-400 text-xs uppercase font-black tracking-widest">Nenhum Cancelamento</p>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </ScrollArea>
                 </TabsContent>
             </Tabs>
 
@@ -634,34 +833,100 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
 
             <Dialog open={isCommentsOpen} onOpenChange={(open) => {
                 setIsCommentsOpen(open);
-                if (!open) setSelectedChecklistItemId(undefined);
+                if (!open) {
+                    setSelectedChecklistItemId(undefined);
+                    setIsRequestingExtensionInComments(false);
+                }
             }}>
-                <DialogContent className="max-w-[95vw] w-full p-4">
+                <DialogContent className="max-w-[95vw] w-full p-4 rounded-[2rem]">
                     <DialogHeader>
-                        <DialogTitle className="text-sm">
-                            {selectedChecklistItemId ? "Comentário no Item" : "Comentários da Tarefa"}
+                        <DialogTitle className="text-sm flex items-center justify-between">
+                            <span>{isRequestingExtensionInComments ? "Solicitar Novo Prazo" : (selectedChecklistItemId ? "Comentário no Item" : "Comentários da Tarefa")}</span>
+                            {isRequestingExtensionInComments && (
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-7 text-[10px] font-bold uppercase text-slate-400"
+                                    onClick={() => setIsRequestingExtensionInComments(false)}
+                                >
+                                    Voltar
+                                </Button>
+                            )}
                         </DialogTitle>
                     </DialogHeader>
+                    
                     {selectedTaskForComments && (
                         <div className="mt-2">
-                            {selectedChecklistItemId && (
-                                <div className="mb-4 p-2 bg-blue-50 border border-blue-100 rounded text-xs text-blue-700 italic">
-                                    Item: {selectedTaskForComments.checklist.find((i: any) => i.id === selectedChecklistItemId)?.text}
+                            {isRequestingExtensionInComments ? (
+                                <div className="space-y-4 py-2">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Nova Data Sugerida</Label>
+                                        <Input
+                                            type="datetime-local"
+                                            value={extensionDate}
+                                            onChange={(e) => setExtensionDate(e.target.value)}
+                                            className="h-12 rounded-2xl border-slate-100 bg-slate-50 font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Motivo da Prorrogação</Label>
+                                        <Textarea
+                                            placeholder="Explique ao gestor o motivo do novo prazo..."
+                                            value={extensionReason}
+                                            onChange={(e) => setExtensionReason(e.target.value)}
+                                            className="min-h-[120px] rounded-2xl border-slate-100 bg-slate-50 font-bold resize-none p-4"
+                                        />
+                                    </div>
+                                    <Button 
+                                        className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-100 uppercase tracking-widest text-xs"
+                                        onClick={() => {
+                                            setSelectedTaskForExtension(selectedTaskForComments);
+                                            handleRequestExtension();
+                                        }}
+                                        disabled={!extensionDate || !extensionReason || isSubmittingExtension}
+                                    >
+                                        {isSubmittingExtension ? (
+                                            <RefreshCw className="w-5 h-5 animate-spin" />
+                                        ) : "Enviar para Aprovação"}
+                                    </Button>
                                 </div>
+                            ) : (
+                                <>
+                                    {selectedChecklistItemId && (
+                                        <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-2xl text-[11px] text-blue-700 font-bold">
+                                            ITEM: {selectedTaskForComments.checklist.find((i: any) => i.id === selectedChecklistItemId)?.text}
+                                        </div>
+                                    )}
+                                    <TaskComments 
+                                        taskId={selectedTaskForComments.id}
+                                        checklistItemId={selectedChecklistItemId}
+                                        fetchComments={fetchComments}
+                                        addComment={addComment}
+                                    />
+                                    
+                                    {!selectedChecklistItemId && selectedTaskForComments.status !== 'concluido' && (
+                                        <div className="mt-6 pt-4 border-t border-slate-50">
+                                            <Button 
+                                                variant="outline" 
+                                                className="w-full h-12 border-2 border-slate-100 rounded-2xl text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-50"
+                                                onClick={() => setIsRequestingExtensionInComments(true)}
+                                            >
+                                                🕒 Pedir Prorrogação de Prazo
+                                            </Button>
+                                        </div>
+                                    )}
+                                </>
                             )}
-                            <TaskComments 
-                                taskId={selectedTaskForComments.id}
-                                checklistItemId={selectedChecklistItemId}
-                                fetchComments={fetchComments}
-                                addComment={addComment}
-                            />
                         </div>
                     )}
-                    <DialogFooter className="mt-4">
-                        <Button variant="outline" onClick={() => setIsCommentsOpen(false)} className="w-full h-10">
-                            Fechar
-                        </Button>
-                    </DialogFooter>
+                    
+                    {!isRequestingExtensionInComments && (
+                        <DialogFooter className="mt-4">
+                            <Button variant="ghost" onClick={() => setIsCommentsOpen(false)} className="w-full h-12 text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                                Fechar
+                            </Button>
+                        </DialogFooter>
+                    )}
                 </DialogContent>
             </Dialog>
 

@@ -131,7 +131,7 @@ export function TaskCalendar({ tasks, onTaskClick }: TaskCalendarProps) {
         {/* Calendário Compacto */}
         <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
           <div className="grid grid-cols-7 mb-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {["D", "S", "T", "Q", "Q", "S", "S"].map(d => <span key={d}>{d}</span>)}
+            {["D", "S", "T", "Q", "Q", "S", "S"].map((d, idx) => <span key={`${d}-${idx}`}>{d}</span>)}
           </div>
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map((day) => {

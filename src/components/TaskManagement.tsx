@@ -79,8 +79,18 @@ export function TaskManagement() {
 
   const handleApproveExtension = async (task: Task) => {
     try {
-      await updateTask(task.id, { extension_status: 'approved' });
-      alert("Prorrogação aprovada!");
+      if (!task.suggested_due_date) {
+        alert("Erro: Não há data sugerida para aprovação.");
+        return;
+      }
+
+      await updateTask(task.id, { 
+        extension_status: 'approved',
+        due_date: task.suggested_due_date,
+        suggested_due_date: null, // Limpa após aprovar
+        extension_reason: null     // Limpa após aprovar
+      });
+      alert(`Prorrogação aprovada! Novo prazo: ${formatDueDate(task.suggested_due_date)}`);
     } catch (error) { console.error(error); }
   };
 
@@ -644,9 +654,54 @@ Abrir caixa"
         
         <TabsContent value="solicitacoes" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {extensionRequests.map(t => (
-            <Card key={t.id} className="border-l-4 border-l-orange-500">
-              <CardHeader><CardTitle className="text-base">{t.title}</CardTitle><p className="text-xs text-muted-foreground">{t.assignee_name} solicitou prorrogação</p></CardHeader>
-              <CardContent className="flex gap-2"><Button size="sm" onClick={() => handleApproveExtension(t)}>Aprovar</Button><Button variant="outline" size="sm" onClick={() => handleRejectExtension(t)}>Rejeitar</Button></CardContent>
+            <Card key={t.id} className="border-l-4 border-l-orange-500 overflow-hidden shadow-md">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-bold flex justify-between items-start">
+                  <span>{t.title}</span>
+                  <Badge variant="outline" className="text-[10px] text-orange-600 bg-orange-50 border-orange-100 uppercase font-black">Pendente</Badge>
+                </CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500">
+                    {t.assignee_name?.[0] || "?"}
+                  </div>
+                  <p className="text-xs font-bold text-slate-600">{t.assignee_name}</p>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-2">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <span>Prazo Atual</span>
+                    <span>Novo Sugerido</span>
+                  </div>
+                  <div className="flex justify-between items-center font-bold text-xs">
+                    <span className="text-slate-400 line-through">{formatDueDate(t.due_date)}</span>
+                    <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{formatDueDate(t.suggested_due_date)}</span>
+                  </div>
+                </div>
+                
+                {t.extension_reason && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase text-slate-400">Motivo:</span>
+                    <p className="text-xs text-slate-600 leading-relaxed italic border-l-2 border-slate-200 pl-2">{t.extension_reason}</p>
+                  </div>
+                )}
+                
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-10 rounded-xl"
+                    onClick={() => handleApproveExtension(t)}
+                  >
+                    Aprovar
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 border-2 border-slate-100 text-slate-500 font-bold h-10 rounded-xl hover:bg-slate-50"
+                    onClick={() => handleRejectExtension(t)}
+                  >
+                    Rejeitar
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
           ))}
         </TabsContent>
@@ -659,11 +714,28 @@ Abrir caixa"
               <DialogHeader><div className="flex justify-between items-center pr-10"><DialogTitle className="text-xl">{selectedTask.title}</DialogTitle><Badge variant="outline" className={getStatusColor(selectedTask.status)}>{selectedTask.status}</Badge></div></DialogHeader>
               <div className="space-y-6 py-4">
                 <div className="flex justify-between p-3 bg-slate-50 rounded-lg border text-sm"><span>Responsável: {selectedTask.assignee_name || "N/A"}</span><span>Prazo: {formatDueDate(selectedTask.due_date)}</span></div>
-                <div className="space-y-1"><Label className="text-xs font-semibold uppercase text-blue-700">Projeto</Label>
-                  <Select value={selectedTask.project_id || "none"} onValueChange={(val) => updateTask(selectedTask.id, { project_id: val === "none" ? null : val })}>
-                    <SelectTrigger className="bg-white"><SelectValue placeholder="-" /></SelectTrigger>
-                    <SelectContent><SelectItem value="none">Nenhum</SelectItem>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold uppercase text-blue-700">Projeto</Label>
+                    <Select value={selectedTask.project_id || "none"} onValueChange={(val) => updateTask(selectedTask.id, { project_id: val === "none" ? null : val })}>
+                      <SelectTrigger className="bg-white"><SelectValue placeholder="-" /></SelectTrigger>
+                      <SelectContent><SelectItem value="none">Nenhum</SelectItem>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold uppercase text-blue-700">Status da Tarefa</Label>
+                    <Select value={selectedTask.status} onValueChange={(val) => updateTask(selectedTask.id, { status: val as any })}>
+                      <SelectTrigger className="bg-white"><SelectValue placeholder="Selecionar status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pendente">Pendente</SelectItem>
+                        <SelectItem value="andamento">Em Andamento</SelectItem>
+                        <SelectItem value="concluido">Concluído</SelectItem>
+                        <SelectItem value="atrasada">Atrasada</SelectItem>
+                        <SelectItem value="cancelada">Cancelada</SelectItem>
+                        <SelectItem value="não feito">Não Feito</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-2"><Label className="font-semibold">Descrição</Label><div className="p-3 bg-slate-50 border rounded text-sm">{selectedTask.description || "Sem descrição."}</div></div>
                 <div className="space-y-3"><div className="flex justify-between items-center"><Label className="font-semibold">Checklist</Label><Badge variant="secondary">{selectedTask.progress}%</Badge></div>

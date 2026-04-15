@@ -160,30 +160,6 @@ export default function CollaboratorTime({
                         </p>
                     </div>
 
-                    {skipTimeTracking && (
-                        <div className="bg-white/10 border border-white/20 rounded-xl p-3 mb-4 flex items-start gap-3 text-left">
-                            <AlertCircle className="w-5 h-5 text-blue-200 shrink-0" />
-                            <div>
-                                <p className="text-sm font-semibold">Você é isento de ponto</p>
-                                <p className="text-[10px] text-blue-100">Não é obrigatório registrar suas batidas, mas você pode usar o botão abaixo se desejar manter um controle pessoal.</p>
-                            </div>
-                        </div>
-                    )}
-
-                    <Button 
-                        size="lg" 
-                        className="w-full bg-white text-blue-700 hover:bg-blue-50 h-16 rounded-2xl shadow-xl transition-all active:scale-95 group"
-                        onClick={handlePunchClock}
-                        disabled={isPunching}
-                    >
-                        {isPunching ? (
-                            <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-                        ) : (
-                            <Play className="w-6 h-6 mr-2 fill-current group-hover:scale-110 transition-transform" />
-                        )}
-                        <span className="text-xl font-bold">BATER PONTO</span>
-                    </Button>
-
                     <div className="grid grid-cols-4 gap-1 pt-2">
                         <div className="flex flex-col items-center">
                             <span className="text-[10px] text-blue-200 uppercase">E1</span>

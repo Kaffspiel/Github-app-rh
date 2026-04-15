@@ -28,6 +28,8 @@ export interface CollaboratorTask {
   project_id?: string | null;
   project_name?: string | null;
   project_color?: string | null;
+  suggested_due_date?: string | null;
+  extension_reason?: string | null;
 }
 
 export interface TaskComment {
@@ -46,6 +48,7 @@ export function useCollaboratorTasks() {
   const [employeeName, setEmployeeName] = useState<string>('');
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [skipTimeTracking, setSkipTimeTracking] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const { user } = useAuth();
@@ -164,14 +167,13 @@ export function useCollaboratorTasks() {
       }
 
       // Outro check para mudar status para 'atrasada' se já foi notificado há mais de 10 min
-      const checkedTasks = (finalTasksData: any[]) => finalTasksData.map(task => {
+      const processedTasks = (tasksData || []).map(task => {
         if (task.status !== 'concluido' && task.due_date && new Date(task.due_date) < now) {
             if (task.status !== 'atrasada' && task.overdue_notified_at) {
               const notifiedAt = new Date(task.overdue_notified_at);
               const tenMinutesInMs = 10 * 60 * 1000;
 
               if (now.getTime() - notifiedAt.getTime() > tenMinutesInMs) {
-                // Not using await here to not block the main list mapping, but triggering the update
                 supabase
                   .from('tasks')
                   .update({ status: 'atrasada' })
@@ -183,8 +185,6 @@ export function useCollaboratorTasks() {
         }
         return task;
       });
-
-      const processedTasks = checkedTasks(tasksData || []);
 
       // Map tasks with checklists
       const enrichedTasks: CollaboratorTask[] = processedTasks.map((task: any) => {
@@ -211,7 +211,9 @@ export function useCollaboratorTasks() {
           updated_at: task.updated_at,
           project_id: task.project_id,
           project_name: task.project?.name,
-          project_color: task.project?.color
+          project_color: task.project?.color,
+          suggested_due_date: task.suggested_due_date,
+          extension_reason: task.extension_reason
         };
       });
 
@@ -310,7 +312,10 @@ export function useCollaboratorTasks() {
   }, [tasks, employeeId, employeeName, companyId, fetchMyTasks, toast, logTaskProgress, notifyChecklistItemCompleted]);
 
   const updateTaskStatus = useCallback(async (taskId: string, status: string): Promise<boolean> => {
+    if (isUpdatingStatus) return false;
+    
     try {
+      setIsUpdatingStatus(true);
       // Optimistic update
       setTasks(prev => prev.map(t => 
         t.id === taskId ? { ...t, status: status as any } : t
@@ -374,8 +379,10 @@ export function useCollaboratorTasks() {
         variant: 'destructive',
       });
       return false;
+    } finally {
+      setIsUpdatingStatus(false);
     }
-  }, [tasks, employeeId, employeeName, companyId, fetchMyTasks, toast, logTaskProgress, notifyTaskCompleted]);
+  }, [tasks, employeeId, employeeName, companyId, fetchMyTasks, toast, logTaskProgress, notifyTaskCompleted, isUpdatingStatus]);
 
   const updateTaskProgress = useCallback(async (taskId: string, progress: number): Promise<boolean> => {
     try {
@@ -581,6 +588,66 @@ export function useCollaboratorTasks() {
     createTask,
     updateTask,
     fetchComments,
-    addComment
+    addComment,
+    addChecklistItem: async (taskId: string, text: string): Promise<boolean> => {
+      try {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return false;
+
+        const { data, error } = await supabase
+          .from('task_checklist_items')
+          .insert({
+            task_id: taskId,
+            text,
+            completed: false,
+            sort_order: task.checklist.length
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Sync local state
+        setTasks(prev => prev.map(t => {
+          if (t.id !== taskId) return t;
+          
+          const updatedChecklist = [...t.checklist, {
+            id: data.id,
+            text: data.text,
+            completed: data.completed,
+            sort_order: data.sort_order
+          }];
+          
+          // Recalculate progress
+          const completedCount = updatedChecklist.filter(c => c.completed).length;
+          const progress = Math.round((completedCount / updatedChecklist.length) * 100);
+
+          // Update progress in DB as well
+          supabase.from('tasks').update({ progress }).eq('id', taskId).then();
+
+          return {
+            ...t,
+            progress,
+            checklist: updatedChecklist
+          };
+        }));
+
+        toast({
+          title: 'Item adicionado',
+          description: 'Novo item incluído no seu checklist.',
+        });
+
+        return true;
+      } catch (err: any) {
+        console.error('Error adding checklist item:', err);
+        toast({
+          title: 'Erro ao adicionar item',
+          description: err.message,
+          variant: 'destructive',
+        });
+        return false;
+      }
+    },
+    isUpdatingStatus
   };
 }

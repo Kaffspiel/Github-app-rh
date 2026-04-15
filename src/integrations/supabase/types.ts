@@ -937,6 +937,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           due_date: string | null
+          extension_reason: string | null
           extension_status: string | null
           id: string
           is_daily_routine: boolean
@@ -945,6 +946,7 @@ export type Database = {
           progress: number
           project_id: string | null
           status: string
+          suggested_due_date: string | null
           title: string
           updated_at: string
         }
@@ -955,6 +957,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          extension_reason?: string | null
           extension_status?: string | null
           id?: string
           is_daily_routine?: boolean
@@ -963,6 +966,7 @@ export type Database = {
           progress?: number
           project_id?: string | null
           status?: string
+          suggested_due_date?: string | null
           title: string
           updated_at?: string
         }
@@ -973,6 +977,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          extension_reason?: string | null
           extension_status?: string | null
           id?: string
           is_daily_routine?: boolean
@@ -981,6 +986,7 @@ export type Database = {
           progress?: number
           project_id?: string | null
           status?: string
+          suggested_due_date?: string | null
           title?: string
           updated_at?: string
         }

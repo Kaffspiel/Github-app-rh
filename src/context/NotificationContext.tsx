@@ -233,7 +233,14 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
   // Gera ID único
   const generateId = useCallback(() => {
-    return crypto.randomUUID();
+    try {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'notif-' + Date.now() + '-' + Math.random().toString(36).substring(2, 11);
+    } catch (e) {
+      return 'notif-' + Date.now() + '-' + Math.random().toString(36).substring(2, 11);
+    }
   }, []);
 
   // Busca colaborador por ID

@@ -44,6 +44,8 @@ export interface Task {
   project_name?: string;
   project_color?: string;
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
+  suggested_due_date?: string | null;
+  extension_reason?: string | null;
   _isNew?: boolean; // transient flag for animation
 }
 
@@ -68,6 +70,8 @@ export interface UpdateTaskInput {
   progress?: number;
   is_daily_routine?: boolean;
   extension_status?: 'none' | 'pending' | 'approved' | 'rejected';
+  suggested_due_date?: string | null;
+  extension_reason?: string | null;
 }
 
 export function useTasks() {

@@ -294,98 +294,101 @@ export default function CollaboratorMobileApp() {
     { id: "profile" as MobileView, name: "Perfil", icon: User },
   ];
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Bom dia";
+    if (hour < 18) return "Boa tarde";
+    return "Boa noite";
+  };
+
   const renderHomeView = () => (
     <div className="p-4 space-y-4">
       {/* Welcome Card */}
-      <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-none">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-white/30">
-              <AvatarFallback className="bg-blue-500 text-white text-xl">
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 p-8 text-white shadow-2xl shadow-blue-200">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl" />
+        
+        <div className="relative flex items-center gap-5">
+          <div className="relative">
+            <Avatar className="h-16 w-16 border-2 border-white/30 shadow-xl">
+              <AvatarFallback className="bg-white/20 text-white text-xl backdrop-blur-md font-black">
                 {profile?.name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h2 className="text-xl font-semibold">
-                Olá, {profile?.name?.split(" ")[0] || "Colaborador"}!
-              </h2>
-              <p className="text-blue-100 text-sm">
-                {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
-              </p>
-            </div>
+            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-white bg-emerald-500 shadow-sm" />
           </div>
-        </CardContent>
-      </Card>
+          <div className="space-y-0.5">
+            <h2 className="text-2xl font-black tracking-tight leading-none">
+              {getGreeting()}, {profile?.name?.split(" ")[0] || "Colaborador"}!
+            </h2>
+            <p className="text-blue-100/80 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5">
+              <span className="h-1 w-1 rounded-full bg-blue-300" />
+              {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Today's Punches */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center justify-between">
+      <Card className="border-2 border-slate-50 rounded-[2.5rem] shadow-sm overflow-hidden">
+        <CardHeader className="pb-4 bg-slate-50/50 border-b border-slate-100">
+          <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              Ponto de Hoje
+              <Clock className="w-3.5 h-3.5 text-blue-600" />
+              Jornada de Hoje
             </span>
             {todayRecord && (
-              <Badge className={getStatusColor(todayRecord.status)}>
-                {getStatusLabel(todayRecord.status)}
+              <Badge className={`rounded-lg font-black text-[9px] px-2.5 py-1 ${getStatusColor(todayRecord.status)}`}>
+                {getStatusLabel(todayRecord.status).toUpperCase()}
               </Badge>
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div className="p-3 bg-green-50 rounded-lg">
-              <p className="text-xs text-gray-500">Entrada 1</p>
-              <p className="text-lg font-bold text-green-600">
-                {formatTime(todayRecord?.entry_1)}
-              </p>
-            </div>
-            <div className="p-3 bg-orange-50 rounded-lg">
-              <p className="text-xs text-gray-500">Saída 1</p>
-              <p className="text-lg font-bold text-orange-600">
-                {formatTime(todayRecord?.exit_1)}
-              </p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <p className="text-xs text-gray-500">Entrada 2</p>
-              <p className="text-lg font-bold text-blue-600">
-                {formatTime(todayRecord?.entry_2)}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-50 rounded-lg">
-              <p className="text-xs text-gray-500">Saída 2</p>
-              <p className="text-lg font-bold text-purple-600">
-                {formatTime(todayRecord?.exit_2)}
-              </p>
-            </div>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-4 gap-3 text-center">
+            {[
+              { label: 'ENT 1', time: todayRecord?.entry_1, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+              { label: 'SAÍ 1', time: todayRecord?.exit_1, bg: 'bg-orange-50', text: 'text-orange-700' },
+              { label: 'ENT 2', time: todayRecord?.entry_2, bg: 'bg-indigo-50', text: 'text-indigo-700' },
+              { label: 'SAÍ 2', time: todayRecord?.exit_2, bg: 'bg-rose-50', text: 'text-rose-700' }
+            ].map((item, i) => (
+              <div key={i} className={`${item.bg} ${item.text} p-3 rounded-2xl flex flex-col items-center justify-center transition-transform active:scale-95`}>
+                <p className="text-[9px] font-black opacity-60 mb-1">{item.label}</p>
+                <p className="text-sm font-black tracking-tight">
+                  {formatTime(item.time)}
+                </p>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="bg-green-500 rounded-full p-2">
-              <Trophy className="w-5 h-5 text-white" />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="group relative overflow-hidden rounded-[2rem] bg-emerald-50 p-5 transition-all hover:shadow-lg hover:shadow-emerald-100 border-2 border-emerald-100/20">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-emerald-100/50 blur-xl" />
+          <div className="relative flex flex-col gap-2">
+            <div className="bg-emerald-500 w-fit rounded-xl p-2 shadow-lg shadow-emerald-200">
+              <Trophy className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-700">{stats.monthlyPresence}%</p>
-              <p className="text-xs text-green-600">Presença Mensal</p>
+              <p className="text-2xl font-black text-emerald-900 leading-none">{stats.monthlyPresence}%</p>
+              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">Presença</p>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="bg-orange-500 rounded-full p-2">
-              <Flame className="w-5 h-5 text-white" />
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden rounded-[2rem] bg-orange-50 p-5 transition-all hover:shadow-lg hover:shadow-orange-100 border-2 border-orange-100/20">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-orange-100/50 blur-xl" />
+          <div className="relative flex flex-col gap-2">
+            <div className="bg-orange-500 w-fit rounded-xl p-2 shadow-lg shadow-orange-200">
+              <Flame className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-orange-700">{stats.streak}</p>
-              <p className="text-xs text-orange-600">Dias Consecutivos</p>
+              <p className="text-2xl font-black text-orange-900 leading-none">{stats.streak}</p>
+              <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mt-1">Sequência</p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Tasks Summary */}
