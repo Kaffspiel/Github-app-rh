@@ -471,7 +471,32 @@ export default function CollaboratorMobileApp() {
   );
 
   const renderPointsView = () => (
-    <CollaboratorOccurrences />
+    <div className="flex flex-col items-center justify-center p-8 text-center h-[70vh] space-y-6">
+      <div className="relative">
+        <div className="absolute -inset-4 bg-blue-500/10 rounded-full blur-2xl animate-pulse" />
+        <div className="relative bg-white p-6 rounded-[2.5rem] shadow-2xl shadow-blue-100 border-2 border-slate-50">
+          <Trophy className="w-16 h-16 text-blue-600 animate-bounce" />
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
+          Ranking & Gamificação
+        </h2>
+        <div className="flex items-center justify-center gap-2">
+          <Badge variant="secondary" className="bg-orange-100 text-orange-600 border-none font-black text-[10px] uppercase tracking-widest px-3">
+            Em Construção
+          </Badge>
+          <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-none font-black text-[10px] uppercase tracking-widest px-3">
+            Em Breve
+          </Badge>
+        </div>
+      </div>
+
+      <p className="text-slate-500 text-sm max-w-[240px] leading-relaxed font-medium italic">
+        Estamos preparando um sistema incrível de reconhecimento e prêmios para você.
+      </p>
+    </div>
   );
 
   const renderProfileView = () => (
