@@ -216,6 +216,23 @@ export function useCollaboratorTasks() {
 
   const toggleChecklistItem = useCallback(async (itemId: string, completed: boolean): Promise<boolean> => {
     try {
+      // Optimistic update
+      setTasks(prev => prev.map(t => {
+        if (!t.checklist.some(c => c.id === itemId)) return t;
+        
+        const updatedChecklist = t.checklist.map(c =>
+          c.id === itemId ? { ...c, completed } : c
+        );
+        const completedCount = updatedChecklist.filter(c => c.completed).length;
+        const progress = Math.round((completedCount / updatedChecklist.length) * 100);
+
+        return {
+          ...t,
+          progress,
+          checklist: updatedChecklist
+        };
+      }));
+
       const { error } = await supabase
         .from('task_checklist_items')
         .update({ completed })
@@ -237,8 +254,6 @@ export function useCollaboratorTasks() {
           checklistItemText: checklistItem?.text,
         });
 
-        // Notify manager each time a checklist item is completed
-        // Only for routines as requested ("rotina")
         if (companyId && task.is_daily_routine) {
           notifyChecklistItemCompleted({
             taskId: task.id,
@@ -251,9 +266,10 @@ export function useCollaboratorTasks() {
         }
       }
 
-      // Recalculate task progress
-      if (task && task.checklist.length > 0) {
-        const updatedChecklist = task.checklist.map(c =>
+      // Sync progress to DB
+      const taskToUpdate = tasks.find(t => t.checklist.some(c => c.id === itemId));
+      if (taskToUpdate && taskToUpdate.checklist.length > 0) {
+        const updatedChecklist = taskToUpdate.checklist.map(c =>
           c.id === itemId ? { ...c, completed } : c
         );
         const completedCount = updatedChecklist.filter(c => c.completed).length;
@@ -262,10 +278,11 @@ export function useCollaboratorTasks() {
         await supabase
           .from('tasks')
           .update({ progress })
-          .eq('id', task.id);
+          .eq('id', taskToUpdate.id);
       }
 
-      await fetchMyTasks();
+      // No full refetch needed if optimistic update worked, but we can do it in background
+      fetchMyTasks();
       return true;
     } catch (err: any) {
       console.error('Error toggling checklist item:', err);
@@ -280,6 +297,11 @@ export function useCollaboratorTasks() {
 
   const updateTaskStatus = useCallback(async (taskId: string, status: string): Promise<boolean> => {
     try {
+      // Optimistic update
+      setTasks(prev => prev.map(t => 
+        t.id === taskId ? { ...t, status: status as any } : t
+      ));
+
       const { data: updatedData, error } = await supabase
         .from('tasks')
         .update({ status })
@@ -327,7 +349,8 @@ export function useCollaboratorTasks() {
         description: status === 'concluido' ? 'Tarefa concluída!' : 'Status da tarefa atualizado.',
       });
 
-      await fetchMyTasks();
+      // Fetch in background for sync
+      fetchMyTasks();
       return true;
     } catch (err: any) {
       console.error('Error updating task status:', err);

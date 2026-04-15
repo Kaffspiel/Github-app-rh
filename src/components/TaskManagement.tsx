@@ -57,6 +57,7 @@ export function TaskManagement() {
   const [newProjectIsDaily, setNewProjectIsDaily] = useState(false);
   const [routineTasksInput, setRoutineTasksInput] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -120,7 +121,7 @@ export function TaskManagement() {
         ...selectedProjectManagers.map(id => ({ employee_id: id, role: 'manager' as const })),
         ...selectedProjectParticipants.map(id => ({ employee_id: id, role: 'participant' as const }))
       ];
-      await createProject({ 
+      const project = await createProject({ 
         name: newProjectName, 
         description: newProjectDescription,
         due_date: newProjectDueDate || undefined,
@@ -131,9 +132,13 @@ export function TaskManagement() {
       if (project && newProjectIsDaily && routineTasksInput.trim()) {
         const taskTitles = routineTasksInput.split('\n').map(t => t.trim()).filter(t => t);
         if (taskTitles.length > 0) {
+          // Atribuir as tarefas de rotina ao primeiro gestor selecionado ou ao próprio criador
+          const primaryAssigneeId = selectedProjectManagers[0] || currentEmployee?.id;
+          
           const batchTasks = taskTitles.map(title => ({
             title,
             project_id: project.id,
+            assignee_id: primaryAssigneeId,
             is_daily_routine: true,
             priority: 'média' as const,
           }));
@@ -150,6 +155,57 @@ export function TaskManagement() {
       setSelectedProjectManagers([]);
       setSelectedProjectParticipants([]);
     } finally { setIsCreatingProject(false); }
+  };
+
+  const handleMigrateLegacyRoutines = async () => {
+    const legacyRoutines = tasks.filter(t => t.is_daily_routine && !t.project_id);
+    if (legacyRoutines.length === 0) return;
+
+    setIsMigrating(true);
+    try {
+      // Group by assignee
+      const routinesByAssignee: Record<string, Task[]> = {};
+      legacyRoutines.forEach(t => {
+        const key = t.assignee_id || 'unassigned';
+        if (!routinesByAssignee[key]) routinesByAssignee[key] = [];
+        routinesByAssignee[key].push(t);
+      });
+
+      for (const [assigneeId, routines] of Object.entries(routinesByAssignee)) {
+        const employee = employees.find(e => e.id === assigneeId);
+        const projectName = `Rotina Diária - ${employee?.name || 'Geral'}`;
+        
+        const project = await createProject({
+          name: projectName,
+          description: "Projeto de rotina auto-migrado",
+          is_daily_routine: true,
+          members: assigneeId !== 'unassigned' ? [{ employee_id: assigneeId, role: 'manager' }] : []
+        });
+
+        if (project) {
+          const batchTasks = routines.map(r => ({
+            title: r.title,
+            description: r.description,
+            priority: r.priority,
+            assignee_id: assigneeId !== 'unassigned' ? assigneeId : undefined,
+            project_id: project.id,
+            is_daily_routine: true
+          }));
+          await createTasksBatch(batchTasks);
+
+          // Cleanup old tasks
+          for (const r of routines) {
+            await deleteTask(r.id);
+          }
+        }
+      }
+      notify("Sucesso", "Todas as rotinas foram transformadas em projetos!");
+    } catch (err) {
+      console.error(err);
+      notify("Erro", "Falha ao migrar rotinas.");
+    } finally {
+      setIsMigrating(false);
+    }
   };
 
   const handleChecklistToggle = async (taskId: string, itemId: string, currentValue: boolean) => {
@@ -477,6 +533,27 @@ Abrir caixa"
           {filteredTeamTasks.length > 0 ? filteredTeamTasks.map(t => <TaskCard key={t.id} task={t} />) : <div className="col-span-full py-12 text-center text-gray-400">Nenhuma tarefa encontrada.</div>}
         </TabsContent>
         <TabsContent value="projetos" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {tasks.filter(t => t.is_daily_routine && !t.project_id).length > 0 && (
+            <Card className="col-span-full border-blue-200 bg-blue-50/50 shadow-sm">
+              <CardContent className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-600 p-3 rounded-full text-white shadow-lg"><Clock className="w-6 h-6" /></div>
+                  <div>
+                    <h4 className="font-bold text-blue-900">Transformação de Rotinas</h4>
+                    <p className="text-sm text-blue-700">Existem itens no modelo antigo que precisam ser transformados em Projetos.</p>
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleMigrateLegacyRoutines} 
+                  disabled={isMigrating} 
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 px-6 rounded-xl shadow-blue-200 shadow-xl transition-all active:scale-95"
+                >
+                  {isMigrating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                  MIGRAR AGORA
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           {projects.length > 0 ? projects.map(p => <ProjectCard key={p.id} project={p} />) : <div className="col-span-full py-12 text-center text-gray-400">Nenhum projeto cadastrado.</div>}
         </TabsContent>
         <TabsContent value="calendario"><TaskCalendar tasks={tasks} onTaskClick={setSelectedTask} /></TabsContent>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockup Collaborator App v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .tab-active { background-color: #2563eb; color: white; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2); }
+    </style>
+</head>
+<body class="max-w-md mx-auto shadow-2xl min-h-screen bg-white overflow-x-hidden">
+    <!-- Header -->
+    <div class="bg-gradient-to-br from-blue-700 to-indigo-900 p-6 pt-8 rounded-b-[40px] text-white shadow-xl relative overflow-hidden">
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-white/20 rounded-full border border-white/30 flex items-center justify-center">👤</div>
+                <div>
+                    <p class="text-[10px] text-blue-200 uppercase font-black tracking-widest">Olá, Gabriel</p>
+                    <p class="text-xs font-bold">Quarta, 15 de Abril</p>
+                </div>
+            </div>
+            <div class="w-8 h-8 glass rounded-full flex items-center justify-center">🔔</div>
+        </div>
+
+        <!-- Timer Card -->
+        <div class="glass p-4 rounded-3xl flex justify-between items-center shadow-inner">
+            <div>
+                <p class="text-[9px] text-blue-100 font-black uppercase tracking-widest mb-1">Jornada</p>
+                <p class="text-3xl font-mono font-black tracking-tighter">00:45:22</p>
+            </div>
+            <div class="w-12 h-12 bg-red-500 rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/20">
+                ⏸️
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Chips -->
+    <div class="flex gap-3 overflow-x-auto p-5 scrollbar-hide py-6 sticky top-0 bg-white/80 backdrop-blur-md z-10">
+        <button class="px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest tab-active">Tudo</button>
+        <button class="px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-50 text-gray-400 border border-gray-100">Rotinas</button>
+        <button class="px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-50 text-gray-400 border border-gray-100">Tarefas</button>
+        <button class="px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-50 text-gray-400 border border-gray-100 text-emerald-500">Feito</button>
+    </div>
+
+    <!-- Task List -->
+    <div class="px-5 space-y-6 pb-24">
+        
+        <!-- Section: Rotinas -->
+        <div>
+            <div class="flex justify-between items-end mb-4">
+                <h3 class="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] border-l-4 border-blue-600 pl-2">Projetos Diários</h3>
+                <span class="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">2 ATIVOS</span>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Task Card Proposed -->
+                <div class="bg-white border-2 border-slate-50 rounded-[30px] p-5 shadow-sm hover:shadow-md transition-all">
+                    <div class="flex items-start gap-4">
+                        <!-- Checkmark Area -->
+                        <div class="w-12 h-12 rounded-2xl bg-gray-50 border-2 border-gray-100 flex items-center justify-center shrink-0 cursor-pointer hover:bg-emerald-50 hover:border-emerald-200 group">
+                            <div class="w-5 h-5 rounded-md border-2 border-gray-300 group-hover:border-emerald-500"></div>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between mb-1">
+                                <span class="text-[9px] font-black text-blue-600 border border-blue-100 px-1.5 rounded bg-blue-50/50">LIMPEZA</span>
+                                <span class="text-[8px] font-black text-red-500">🔥 URGENTE</span>
+                            </div>
+                            <h4 class="text-sm font-black text-gray-800 leading-snug mb-2">Verificar Estoque de Materiais de Limpeza da Copa</h4>
+                            <div class="flex items-center gap-3">
+                                <div class="h-1 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                                    <div class="w-1/3 h-full bg-blue-600"></div>
+                                </div>
+                                <span class="text-[10px] font-black text-gray-400">33%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Bar -->
+                    <div class="flex gap-2 mt-5 pt-4 border-t border-dashed border-gray-100">
+                        <button class="flex-1 bg-gray-50 hover:bg-gray-100 text-[10px] font-black py-2.5 rounded-2xl flex items-center justify-center gap-2 mb-1">
+                            📂 TRATAR
+                        </button>
+                        <button class="flex-1 bg-gray-50 hover:bg-gray-100 text-[10px] font-black py-2.5 rounded-2xl flex items-center justify-center gap-2 mb-1">
+                            📅 AGENDA
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white border-2 border-slate-50 rounded-[30px] p-5 shadow-sm opacity-60">
+                    <div class="flex items-start gap-4">
+                         <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                            ✓
+                        </div>
+                        <div class="flex-1">
+                             <h4 class="text-sm font-black text-gray-400 line-through">Limpeza do Balcão Principal</h4>
+                             <p class="text-[9px] font-black text-emerald-500 uppercase mt-1">Concluído</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section: Extras -->
+        <div>
+            <h3 class="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] border-l-4 border-orange-500 pl-2 mb-4">Tarefas Extra</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-orange-50/30 border-2 border-orange-50 p-4 rounded-3xl">
+                    <h5 class="text-xs font-black text-gray-800 mb-2">Enviar relatório semanal</h5>
+                    <button class="w-full bg-orange-500 text-white text-[9px] font-black py-2 rounded-xl">INICIAR</button>
+                </div>
+                <div class="bg-white border-2 border-gray-50 p-4 rounded-3xl">
+                    <h5 class="text-xs font-black text-gray-800 mb-2">Ajustar monitor 3</h5>
+                    <button class="w-full bg-blue-600 text-white text-[9px] font-black py-2 rounded-xl">INICIAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Dial -->
+    <div class="fixed bottom-6 right-6 w-14 h-14 bg-emerald-500 rounded-full shadow-xl flex items-center justify-center text-2xl border-2 border-white">
+        💬
+    </div>
+</body>
+</html>
