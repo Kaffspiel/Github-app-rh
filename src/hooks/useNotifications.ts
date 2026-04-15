@@ -47,6 +47,10 @@ interface NotifyClockParams {
   };
 }
 
+// Cache global para desduplicação de notificações (Cooldown de 10 segundos)
+// Chave: `${recipientId}-${type}-${entityId}`
+const notificationCooldownCache = new Map<string, number>();
+
 export const useNotifications = () => {
   const {
     createNotification,
@@ -144,6 +148,19 @@ export const useNotifications = () => {
 
       // Se WhatsApp está habilitado, prepara payload para n8n
       if (channels.includes("whatsapp") && employee.whatsapp.isVerified) {
+        // --- Lógica de Desduplicação (Cooldown) ---
+        const entityId = params.relatedEntity?.id || "general";
+        const cooldownKey = `${params.recipientId}-${params.type}-${entityId}`;
+        const lastSent = notificationCooldownCache.get(cooldownKey) || 0;
+        const now = Date.now();
+
+        if (now - lastSent < 10000) { // 10 segundos de cooldown
+          console.log(`[Cooldown] Notificação duplicada bloqueada: ${cooldownKey}`);
+          return notification; 
+        }
+        notificationCooldownCache.set(cooldownKey, now);
+        // ------------------------------------------
+
         const payload = {
           ...notificationService.prepareEvolutionPayload({
             instanceName: evolutionInstance,

@@ -3,18 +3,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
-import { User, MessageSquare, Clock, MapPin, Play, Pause, ChevronRight, Bell, ClipboardList, AlertTriangle, Loader2 } from "lucide-react";
+import { User, MessageSquare, Clock, MapPin, Play, Pause, ChevronRight, Bell, ClipboardList, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useCollaboratorTasks, CollaboratorTask } from "@/hooks/useCollaboratorTasks";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 export function CollaboratorApp() {
   const { tasks, employeeName, isLoading, toggleChecklistItem, updateTaskStatus, skipTimeTracking, projects } = useCollaboratorTasks();
   const [workStatus, setWorkStatus] = useState<"working" | "break" | "off">("off");
   const [elapsedTime, setElapsedTime] = useState(0);
   const [activeTab, setActiveTab] = useState<"all" | "rotinas" | "tarefas" | "concluidas">("all");
+  const { toast } = useToast();
 
   const routineProjects = projects.filter(p => p.is_daily_routine);
   const standaloneRoutineTasks = tasks.filter(t => t.is_daily_routine && (!t.project_id || !projects.find(p => p.id === t.project_id)?.is_daily_routine));

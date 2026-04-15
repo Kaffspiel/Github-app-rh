@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -51,6 +51,7 @@ export function useCollaboratorTasks() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { logTaskProgress, notifyTaskCompleted, notifyChecklistItemCompleted, notifyTaskOverdue } = useTaskNotifications();
+  const isProcessingOverdueRef = useRef<boolean>(false);
 
   const fetchMyTasks = useCallback(async () => {
     if (!user?.id) {
@@ -123,57 +124,70 @@ export function useCollaboratorTasks() {
 
       // Check for overdue tasks
       const now = new Date();
-      const updatesPromises = (tasksData || []).map(async (task) => {
-        if (task.status !== 'concluido' && task.due_date) {
-          const dueDate = new Date(task.due_date);
+      
+      // Filtramos as tarefas que precisam ser processadas para evitar concorrência no loop
+      const tasksToProcess = (tasksData || []).filter(task => 
+        task.status !== 'concluido' && 
+        task.due_date && 
+        new Date(task.due_date) < now && 
+        !task.overdue_notified_at
+      );
 
-          if (dueDate < now) {
-            // Se ainda não foi notificada como vencida
-            if (!task.overdue_notified_at) {
-              // 1. Notificar gestor e colaborador
-              if (employee.company_id) {
-                notifyTaskOverdue({
-                  taskId: task.id,
-                  taskTitle: task.title,
-                  employeeName: employee.name,
-                  assigneeId: employee.id, // Responsável
-                  companyId: employee.company_id,
-                  dueDate: task.due_date
-                });
-              }
-
-              // 2. Marcar como notificada
-              await supabase
-                .from('tasks')
-                .update({ overdue_notified_at: now.toISOString() })
-                .eq('id', task.id);
-
-              return { ...task, overdue_notified_at: now.toISOString() };
+      if (tasksToProcess.length > 0 && !isProcessingOverdueRef.current) {
+        isProcessingOverdueRef.current = true;
+        try {
+          for (const task of tasksToProcess) {
+            // Notificar gestor e colaborador
+            if (employee.company_id) {
+              await notifyTaskOverdue({
+                taskId: task.id,
+                taskTitle: task.title,
+                employeeName: employee.name,
+                assigneeId: employee.id,
+                companyId: employee.company_id,
+                dueDate: task.due_date
+              });
             }
 
-            // Se já foi notificada, verificar se passaram 10 minutos para mudar status para 'atrasada'
-            if (task.status !== 'atrasada') {
+            // Marcar como notificada no banco
+            await supabase
+              .from('tasks')
+              .update({ overdue_notified_at: now.toISOString() })
+              .eq('id', task.id);
+            
+            // Atualizar o objeto localmente para o map abaixo
+            task.overdue_notified_at = now.toISOString();
+          }
+        } finally {
+          isProcessingOverdueRef.current = false;
+        }
+      }
+
+      // Outro check para mudar status para 'atrasada' se já foi notificado há mais de 10 min
+      const checkedTasks = (finalTasksData: any[]) => finalTasksData.map(task => {
+        if (task.status !== 'concluido' && task.due_date && new Date(task.due_date) < now) {
+            if (task.status !== 'atrasada' && task.overdue_notified_at) {
               const notifiedAt = new Date(task.overdue_notified_at);
               const tenMinutesInMs = 10 * 60 * 1000;
 
               if (now.getTime() - notifiedAt.getTime() > tenMinutesInMs) {
-                await supabase
+                // Not using await here to not block the main list mapping, but triggering the update
+                supabase
                   .from('tasks')
                   .update({ status: 'atrasada' })
-                  .eq('id', task.id);
+                  .eq('id', task.id).then();
 
                 return { ...task, status: 'atrasada' };
               }
             }
-          }
         }
         return task;
       });
 
-      const checkedTasks = await Promise.all(updatesPromises);
+      const processedTasks = checkedTasks(tasksData || []);
 
       // Map tasks with checklists
-      const enrichedTasks: CollaboratorTask[] = checkedTasks.map((task: any) => {
+      const enrichedTasks: CollaboratorTask[] = processedTasks.map((task: any) => {
         const taskChecklists = checklistsData.filter(c => c.task_id === task.id);
 
         return {

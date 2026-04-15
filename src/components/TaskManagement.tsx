@@ -11,13 +11,14 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Trash2, Loader2, XCircle, MinusCircle, Copy } from "lucide-react";
+import { Plus, Search, Filter, User, Calendar, ArrowUpDown, MessageSquare, CheckCircle2, Circle, Clock, AlertCircle, FileText, Trash2, Loader2, XCircle, MinusCircle, Copy, Pencil } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTasks, Task } from "@/hooks/useTasks";
 import { useEmployeesList } from "@/hooks/useEmployeesList";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useTaskNotifications } from "@/hooks/useTaskNotifications";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { format, addDays, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -30,9 +31,10 @@ import { cn } from "@/lib/utils";
 export function TaskManagement() {
   const { tasks, isLoading, createTask, updateTask, deleteTask, toggleChecklistItem, addChecklistItem, fetchComments, addComment, createTasksBatch } = useTasks();
   const { employees } = useEmployeesList();
-  const { projects, createProject, deleteProject } = useProjects();
+  const { projects, createProject, updateProject, deleteProject } = useProjects();
   const { notifyExtensionRequest, notifyTaskCancelled, logTaskProgress } = useTaskNotifications();
   const { user, currentRole } = useAuth();
+  const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("todas");
@@ -58,6 +60,10 @@ export function TaskManagement() {
   const [routineTasksInput, setRoutineTasksInput] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
+  
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [isEditProjectDialogOpen, setIsEditProjectDialogOpen] = useState(false);
+  const [isUpdatingProject, setIsUpdatingProject] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -95,7 +101,7 @@ export function TaskManagement() {
   };
 
   const handleCreateTask = async () => {
-    if (!newTaskTitle) return;
+    if (!newTaskTitle || isCreating) return;
     setIsCreating(true);
     try {
       await createTask({
@@ -156,6 +162,73 @@ export function TaskManagement() {
       setSelectedProjectParticipants([]);
     } finally { setIsCreatingProject(false); }
   };
+  
+  const handleEditProject = (project: Project) => {
+    setEditingProject(project);
+    setNewProjectName(project.name);
+    setNewProjectDescription(project.description || "");
+    setNewProjectDueDate(project.due_date || "");
+    setNewProjectIsDaily(project.is_daily_routine || false);
+    
+    // Set members
+    const managers = (project.project_members || [])
+      .filter(m => m.role === 'manager')
+      .map(m => m.employee_id);
+    const participants = (project.project_members || [])
+      .filter(m => m.role === 'participant')
+      .map(m => m.employee_id);
+      
+    setSelectedProjectManagers(managers);
+    setSelectedProjectParticipants(participants);
+    setIsEditProjectDialogOpen(true);
+  };
+  
+  const handleUpdateProject = async () => {
+    if (!editingProject) return;
+    
+    if (!newProjectName.trim()) {
+      toast({
+        title: "Campo obrigatório",
+        description: "O nome do projeto não pode estar vazio.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUpdatingProject(true);
+    try {
+      const members = [
+        ...selectedProjectManagers.map(id => ({ employee_id: id, role: 'manager' as const })),
+        ...selectedProjectParticipants.map(id => ({ employee_id: id, role: 'participant' as const }))
+      ];
+      
+      const success = await updateProject(editingProject.id, {
+        name: newProjectName,
+        description: newProjectDescription,
+        due_date: newProjectDueDate || undefined,
+        is_daily_routine: newProjectIsDaily,
+        members
+      });
+      
+      if (success) {
+        setIsEditProjectDialogOpen(false);
+        setEditingProject(null);
+        setNewProjectName("");
+        setNewProjectDescription("");
+        setNewProjectDueDate("");
+        setNewProjectIsDaily(false);
+        setSelectedProjectManagers([]);
+        setSelectedProjectParticipants([]);
+      }
+    } catch (err) {
+      console.error("Erro detalhado ao atualizar projeto:", err);
+      toast({
+        title: "Erro técnico ao atualizar",
+        description: (err as any)?.message || "Ocorreu um problema inesperado ao salvar as alterações.",
+        variant: "destructive"
+      });
+    } finally { setIsUpdatingProject(false); }
+  };
 
   const handleMigrateLegacyRoutines = async () => {
     const legacyRoutines = tasks.filter(t => t.is_daily_routine && !t.project_id);
@@ -199,10 +272,17 @@ export function TaskManagement() {
           }
         }
       }
-      notify("Sucesso", "Todas as rotinas foram transformadas em projetos!");
+      toast({
+        title: "Sucesso",
+        description: "Todas as rotinas foram transformadas em projetos!",
+      });
     } catch (err) {
       console.error(err);
-      notify("Erro", "Falha ao migrar rotinas.");
+      toast({
+        title: "Erro",
+        description: "Falha ao migrar rotinas.",
+        variant: "destructive",
+      });
     } finally {
       setIsMigrating(false);
     }
@@ -401,6 +481,9 @@ export function TaskManagement() {
               }}
             >
               Ver Tarefas
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEditProject(project)}>
+              <Pencil className="w-4 h-4 text-gray-500" />
             </Button>
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => deleteProject(project.id)}>
               <Trash2 className="w-4 h-4 text-red-500" />
@@ -601,6 +684,38 @@ Abrir caixa"
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Diálogo de Edição de Projeto */}
+      <Dialog open={isEditProjectDialogOpen} onOpenChange={setIsEditProjectDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Editar Projeto</DialogTitle><DialogDescription>Atualize os detalhes e equipe do projeto.</DialogDescription></DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Nome do Projeto</Label><Input placeholder="..." value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Descrição</Label><Textarea placeholder="..." value={newProjectDescription} onChange={(e) => setNewProjectDescription(e.target.value)} /></div>
+              <SimplifiedDatePicker label="Prazo Final (Projeto)" value={newProjectDueDate} onChange={setNewProjectDueDate} />
+              <div className="flex items-center space-x-2 pt-2">
+                <Switch id="edit-is-routine" checked={newProjectIsDaily} onCheckedChange={setNewProjectIsDaily} />
+                <Label htmlFor="edit-is-routine">Projeto de Rotina Diária</Label>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <MultiSelector label="Responsáveis (Managers)" options={employees} selected={selectedProjectManagers} onSelect={setSelectedProjectManagers} />
+              <MultiSelector label="Participantes" options={employees} selected={selectedProjectParticipants} onSelect={setSelectedProjectParticipants} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              onClick={handleUpdateProject} 
+              disabled={isUpdatingProject}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isUpdatingProject && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

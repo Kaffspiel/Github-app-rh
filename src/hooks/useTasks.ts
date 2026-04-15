@@ -80,6 +80,7 @@ export function useTasks() {
   const { notifyTaskAssigned, notifyTaskCreated, notifyTaskUpdated, notifyTaskCompleted } = useTaskNotifications();
 
   const hasFetchedOnce = useRef(false);
+  const recentlyCreatedTasks = useRef<Set<string>>(new Set());
 
   const fetchTasks = useCallback(async () => {
     if (!companyId) {
@@ -278,33 +279,37 @@ export function useTasks() {
           .eq('user_id', user?.id)
           .maybeSingle();
 
-        // Notify managers about the new task (in-app)
-        notifyTaskCreated({
-          taskId: data.id,
-          taskTitle: input.title,
-          companyId: companyId,
-          senderName: currentEmployee?.name,
-        });
+        // Avoid duplicate notifications for the same task in the same session
+        if (!recentlyCreatedTasks.current.has(data.id)) {
+          recentlyCreatedTasks.current.add(data.id);
+          
+          // Notify managers about the new task (in-app)
+          notifyTaskCreated({
+            taskId: data.id,
+            taskTitle: input.title,
+            companyId: companyId,
+            senderName: currentEmployee?.name,
+          });
 
-        // Notify assignee if specific employee was assigned
-        if (input.assignee_id) {
-          const { data: assignee } = await supabase
-            .from('employees')
-            .select('name')
-            .eq('id', input.assignee_id)
-            .single();
+          // Notify assignee if specific employee was assigned
+          if (input.assignee_id) {
+            const { data: assignee } = await supabase
+              .from('employees')
+              .select('name')
+              .eq('id', input.assignee_id)
+              .single();
 
-          if (assignee) {
-            // Notification (in-app + WhatsApp via queue) — single path to avoid duplicates
-            notifyTaskAssigned({
-              taskId: data.id,
-              taskTitle: input.title,
-              assigneeId: input.assignee_id,
-              assigneeName: assignee.name,
-              dueDate: input.due_date,
-              priority: input.priority,
-              senderName: currentEmployee?.name,
-            });
+            if (assignee) {
+              notifyTaskAssigned({
+                taskId: data.id,
+                taskTitle: input.title,
+                assigneeId: input.assignee_id,
+                assigneeName: assignee.name,
+                dueDate: input.due_date,
+                priority: input.priority,
+                senderName: currentEmployee?.name,
+              });
+            }
           }
         }
       }

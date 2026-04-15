@@ -207,13 +207,103 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
 
 
 
-    // Filter tasks for Tabs
-    const activeTasksList = tasks.filter(t => t.status !== 'concluido' && t.status !== 'cancelada');
+    const dailyRoutines = tasks.filter(t => t.is_daily_routine);
+    const extraTasks = tasks.filter(t => !t.is_daily_routine);
     const completedTasks = tasks.filter(t => t.status === 'concluido');
     const cancelledTasks = tasks.filter(t => t.status === 'cancelada');
 
-    const dailyRoutines = activeTasksList.filter(t => t.is_daily_routine);
-    const extraTasks = activeTasksList.filter(t => !t.is_daily_routine);
+    // Get unique projects from tasks
+    const projectNames = Array.from(new Set(tasks.map(t => t.project_name || 'Geral')));
+
+    const TaskCardV2 = ({ task, isRoutine = false }: { task: any, isRoutine?: boolean }) => (
+        <Card className={`overflow-hidden border-2 border-slate-50 rounded-[2rem] shadow-sm hover:shadow-md transition-all`}>
+            {/* Priority Strip */}
+            {!isRoutine && <div className={`h-1.5 ${getPriorityColor(task.priority)}`} />}
+            
+            <CardContent className="p-5">
+                <div className="flex items-center gap-4 mb-4">
+                    {/* Quick Check Action */}
+                    <div 
+                        onClick={() => updateTaskStatus(task.id, task.status === 'concluido' ? 'pendente' : 'concluido')}
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer transition-all ${
+                            task.status === 'concluido' 
+                            ? 'bg-emerald-500 shadow-lg shadow-emerald-100 border-none' 
+                            : 'bg-slate-50 border-2 border-slate-100'
+                        }`}
+                    >
+                        {task.status === 'concluido' ? (
+                            <CheckCircle2 className="w-6 h-6 text-white" />
+                        ) : (
+                            <div className="w-6 h-6 rounded-md border-2 border-slate-200" />
+                        )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-1">
+                            <h4 className={`text-[13px] font-black text-gray-800 leading-tight line-clamp-2 ${task.status === 'concluido' ? 'line-through opacity-50' : ''}`}>
+                                {task.title}
+                            </h4>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider">
+                                {task.project_name || (isRoutine ? 'ROTINA' : 'TAREFA')}
+                             </span>
+                             {task.status === 'atrasada' && (
+                                <Badge variant="destructive" className="text-[8px] h-4 py-0 font-black">ATRASADA</Badge>
+                             )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Progress / Checklist Summary */}
+                <div className="space-y-2 mb-5 px-1">
+                    <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        <span>Progresso</span>
+                        <span>{task.progress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
+                        <div 
+                            className={`h-full rounded-full transition-all duration-500 ${task.status === 'concluido' ? 'bg-emerald-500' : 'bg-blue-600'}`} 
+                            style={{ width: `${task.progress}%` }} 
+                        />
+                    </div>
+                </div>
+
+                {/* Mobile Action Bar */}
+                <div className="flex gap-2">
+                    <Button 
+                        variant="secondary" 
+                        size="sm"
+                        className="flex-1 bg-slate-50 hover:bg-slate-100 text-[10px] font-black py-5 rounded-2xl border-none uppercase tracking-tighter"
+                        onClick={() => openCommentsDialog(task)}
+                    >
+                        📂 TRATAR
+                    </Button>
+                    <div className="flex-1">
+                        {task.due_date ? (
+                            <GoogleCalendarButton
+                                title={task.title}
+                                description={task.description || ""}
+                                dueDate={task.due_date}
+                                size="sm"
+                                showText={true}
+                                className="w-full h-11 bg-slate-50 hover:bg-slate-100 text-[10px] font-black rounded-2xl border-none text-slate-800"
+                            />
+                        ) : (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full h-11 bg-slate-50 opacity-40 text-[10px] font-black rounded-2xl border-none text-slate-400"
+                                disabled
+                            >
+                                📅 AGENDA
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
 
     return (
         <div className="p-4 space-y-6">
@@ -228,268 +318,97 @@ export default function CollaboratorTasks({ onBack }: CollaboratorTasksProps) {
             )}
 
             <Tabs defaultValue="tasks" className="w-full flex-1 flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="tasks">Tarefas</TabsTrigger>
-                        <TabsTrigger value="calendar">Calendário</TabsTrigger>
-                        <TabsTrigger value="history">Concluídas</TabsTrigger>
-                        <TabsTrigger value="cancelled">Canceladas</TabsTrigger>
+                <div className="flex items-center justify-between mb-6">
+                    <TabsList className="flex bg-transparent p-0 gap-6 w-auto">
+                        <TabsTrigger 
+                            value="tasks" 
+                            className="bg-transparent border-none p-0 text-[10px] uppercase font-bold tracking-widest text-gray-400 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none pb-2"
+                        >
+                            Tarefas
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="calendar"
+                            className="bg-transparent border-none p-0 text-[10px] uppercase font-bold tracking-widest text-gray-400 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none pb-2"
+                        >
+                            Calendário
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="history"
+                            className="bg-transparent border-none p-0 text-[10px] uppercase font-bold tracking-widest text-gray-400 data-[state=active]:text-blue-600 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none pb-2"
+                        >
+                            Concluídas
+                        </TabsTrigger>
                     </TabsList>
-                    <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading}>
-                        <RefreshCw className={`w-4 h-4 ${tasksLoading ? 'animate-spin' : ''}`} />
+                    <Button variant="ghost" size="sm" onClick={refetchTasks} disabled={tasksLoading} className="rounded-xl border border-gray-100 h-8">
+                        <RefreshCw className={`w-3.5 h-3.5 ${tasksLoading ? 'animate-spin' : ''}`} />
                     </Button>
                 </div>
 
                 <TabsContent value="tasks" className="space-y-6">
                     {/* Daily Routines Section */}
                     <section>
-                        <div className="flex items-center gap-2 mb-3">
-                            <ClipboardList className="w-4 h-4 text-blue-600" />
-                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                                Rotinas Diárias
-                            </h3>
+                        <div className="flex items-center justify-between mb-5">
+                            <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
+                                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
+                                    Rotinas Diárias
+                                </h3>
+                            </div>
                             {dailyRoutines.length > 0 && (
-                                <Badge className="bg-blue-100 text-blue-700 text-[10px]">
-                                    {dailyRoutines.length}
+                                <Badge className="bg-blue-50 text-blue-700 text-[10px] font-black border-none px-2.5">
+                                    {dailyRoutines.length} ATIVAS
                                 </Badge>
                             )}
                         </div>
 
                         {dailyRoutines.length > 0 ? (
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 {dailyRoutines.map(routine => (
-                                    <Card key={routine.id} className="border-l-4 border-l-blue-500">
-                                        <CardContent className="p-4">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-semibold text-gray-900">
-                                                    <span>{routine.title}</span>
-                                                </h4>
-                                                <div className="flex gap-1 items-center">
-                                                    {routine.due_date && (
-                                                        <GoogleCalendarButton
-                                                            title={routine.title}
-                                                            description={routine.description || ""}
-                                                            dueDate={routine.due_date}
-                                                            size="icon"
-                                                            showText={false}
-                                                            className="h-6 w-6"
-                                                        />
-                                                    )}
-                                                    <Badge variant="outline" className="text-[10px] uppercase">
-                                                        {routine.priority}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                            {routine.description && (
-                                                <p className="text-sm text-gray-500 mb-3">
-                                                    <span>{routine.description}</span>
-                                                </p>
-                                            )}
-                                            <div className="max-h-60 overflow-y-auto pr-1 space-y-2">
-                                                    {routine.checklist.length > 0 ? (
-                                                        routine.checklist.map(item => (
-                                                            <div key={item.id} className="flex items-center gap-2 group">
-                                                                <Checkbox
-                                                                    id={`routine-${routine.id}-item-${item.id}`}
-                                                                    checked={item.completed}
-                                                                    onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
-                                                                />
-                                                                <label 
-                                                                    htmlFor={`routine-${routine.id}-item-${item.id}`}
-                                                                    className={`text-sm flex-1 ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
-                                                                >
-                                                                    {item.text}
-                                                                </label>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6 text-gray-400"
-                                                                    onClick={() => openCommentsDialog(routine, item.id)}
-                                                                >
-                                                                    <MessageSquare className="w-3.5 h-3.5" />
-                                                                </Button>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="text-sm text-gray-500 italic py-2">
-                                                            Checklist vazio (sem itens)
-                                                        </div>
-                                                    )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
+                                    <TaskCardV2 key={routine.id} task={routine} isRoutine={true} />
                                 ))}
                             </div>
                         ) : (
-                            <Card>
-                                <CardContent className="py-6 text-center">
-                                    <p className="text-gray-400 text-sm">Nenhuma rotina diária pendente</p>
+                            <Card className="border-dashed border-2 border-slate-100 bg-slate-50/50 rounded-[2rem]">
+                                <CardContent className="py-10 text-center">
+                                    <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">Tudo limpo por aqui!</p>
                                 </CardContent>
                             </Card>
                         )}
-                    </section>
-
-                    {/* Extra Tasks Section */}
+                                {/* Extra Tasks Section */}
                     <section>
-                        <div className="flex items-center gap-2 mb-3">
-                            <AlertCircle className="w-4 h-4 text-orange-500" />
-                            <div className="flex justify-between items-center mb-4 w-full">
-                                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                                    Tarefas Extra
+                         <div className="flex items-center justify-between mb-5">
+                            <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+                                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
+                                    Tarefas Extras
                                 </h3>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs"
-                                    onClick={() => setIsNewTaskOpen(true)}
-                                >
-                                    <ClipboardList className="w-3 h-3 mr-1" />
-                                    Nova Tarefa
-                                </Button>
                             </div>
-                            {extraTasks.length > 0 && (
-                                <Badge className="bg-orange-100 text-orange-700 text-[10px] mb-2">
-                                    {extraTasks.length} tarefas
-                                </Badge>
-                            )}
+                             <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[10px] font-black uppercase tracking-widest bg-orange-50 text-orange-600 border-orange-100 rounded-xl px-3"
+                                onClick={() => setIsNewTaskOpen(true)}
+                            >
+                                <Plus className="w-3 h-3 mr-1" />
+                                NOVA TAREFA
+                            </Button>
                         </div>
 
                         {extraTasks.length > 0 ? (
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 {extraTasks.map(task => (
-                                    <Card key={task.id} className="overflow-hidden">
-                                        <div className={`h-1 ${getPriorityColor(task.priority)}`} />
-                                        <CardContent className="p-4">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-semibold text-gray-900">
-                                                    <span>{task.title}</span>
-                                                </h4>
-                                                <div className="flex gap-1">
-                                                    {task.status === 'atrasada' && (
-                                                        <Badge variant="destructive" className="text-[10px] uppercase">
-                                                            Atrasada
-                                                        </Badge>
-                                                    )}
-                                                    {task.due_date && (
-                                                        <GoogleCalendarButton
-                                                            title={task.title}
-                                                            description={task.description || ""}
-                                                            dueDate={task.due_date}
-                                                            size="icon"
-                                                            showText={false}
-                                                            className="h-6 w-6"
-                                                        />
-                                                    )}
-                                                    <Badge variant="outline" className="text-[10px] uppercase">
-                                                        {task.priority}
-                                                    </Badge>
-                                                    {task.extension_status === 'pending' && (
-                                                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 text-[10px] gap-1">
-                                                            <Clock className="w-3 h-3" />
-                                                            Solicitação Pendente
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {task.description && (
-                                                <p className="text-sm text-gray-500 mb-3">{task.description}</p>
-                                            )}
-                                            <div className="space-y-3">
-                                                <div className="flex justify-between text-xs text-gray-500">
-                                                    <span>Progresso</span>
-                                                    <span>{task.progress}%</span>
-                                                </div>
-
-                                                {task.status === 'andamento' && (!task.checklist || task.checklist.length === 0) ? (
-                                                    <div className="py-2">
-                                                        <Slider
-                                                            defaultValue={[task.progress]}
-                                                            max={100}
-                                                            step={5}
-                                                            onValueCommit={(vals) => updateTaskProgress(task.id, vals[0])}
-                                                            className="w-full"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <Progress value={task.progress} className="h-2" />
-                                                )}
-
-                                                <div className="flex gap-2">
-                                                    {task.status === 'pendente' || task.status === 'atrasada' ? (
-                                                        <div key="action-start" className="flex gap-2 w-full">
-                                                            <Button
-                                                                size="sm"
-                                                                className="w-full bg-blue-600 hover:bg-blue-700"
-                                                                onClick={() => handleStartTask(task.id)}
-                                                            >
-                                                                <Play className="w-3 h-3 mr-1" />
-                                                                INICIAR
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="secondary"
-                                                                className="w-full bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200"
-                                                                onClick={() => openExtensionDialog(task)}
-                                                            >
-                                                                <Clock className="w-3 h-3 mr-1" />
-                                                                PRAZO
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <Button
-                                                            key="action-complete"
-                                                            size="sm"
-                                                            className="w-full bg-green-600 hover:bg-green-700"
-                                                            onClick={() => updateTaskStatus(task.id, 'concluido')}
-                                                        >
-                                                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                                                            CONCLUIR
-                                                        </Button>
-                                                    )}
-                                                </div>
-
-                                                {/* Show checklist progress if exists */}
-                                                {task.checklist && task.checklist.length > 0 && (
-                                                    <div className="mt-4 space-y-2 border-t pt-3">
-                                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Itens do Checklist</p>
-                                                        {task.checklist.map(item => (
-                                                            <div key={item.id} className="flex items-center gap-2 group">
-                                                                <Checkbox
-                                                                    id={`task-${task.id}-item-${item.id}`}
-                                                                    checked={item.completed}
-                                                                    onCheckedChange={() => handleChecklistToggle(item.id, item.completed)}
-                                                                />
-                                                                <label 
-                                                                    htmlFor={`task-${task.id}-item-${item.id}`}
-                                                                    className={`text-xs flex-1 ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
-                                                                >
-                                                                    {item.text}
-                                                                </label>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6 text-gray-400"
-                                                                    onClick={() => openCommentsDialog(task, item.id)}
-                                                                >
-                                                                    <MessageSquare className="w-3.5 h-3.5" />
-                                                                </Button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
+                                    <TaskCardV2 key={task.id} task={task} />
                                 ))}
                             </div>
                         ) : (
-                            <Card>
-                                <CardContent className="py-6 text-center">
-                                    <p className="text-gray-400 text-sm">Nenhuma tarefa extra atribuída</p>
+                             <Card className="border-dashed border-2 border-slate-100 bg-slate-50/50 rounded-[2rem]">
+                                <CardContent className="py-10 text-center">
+                                    <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest italic">Sem tarefas extras atribuídas</p>
                                 </CardContent>
                             </Card>
                         )}
                     </section>
+             </section>
                 </TabsContent>
 
                 <TabsContent value="calendar" className="mt-4 px-0 flex-1 min-h-[60vh]">
