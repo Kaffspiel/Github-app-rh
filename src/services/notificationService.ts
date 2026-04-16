@@ -12,8 +12,8 @@ import type { EvolutionSendMessagePayload } from "@/types/evolution-api";
 import { truncateButtonTitle, EVOLUTION_LIMITS } from "@/types/evolution-api";
 // URLs dos webhooks n8n (configurar conforme ambiente)
 const N8N_WEBHOOKS = {
-  send: import.meta.env.VITE_N8N_WEBHOOK_SEND || "https://n8n.kaffspiel.cloud/webhook/opscontrol-send",
-  status: import.meta.env.VITE_N8N_WEBHOOK_STATUS || "https://n8n.kaffspiel.cloud/webhook/opscontrol-status",
+  send: import.meta.env.VITE_N8N_WEBHOOK_SEND || "https://n8n.kaffspiel.com.br/webhook/opscontrol-send-vps",
+  status: import.meta.env.VITE_N8N_WEBHOOK_STATUS || "https://n8n.kaffspiel.com.br/webhook/opscontrol-status",
 };
 
 interface ValidationResult {

@@ -311,7 +311,7 @@ export function EmployeeManagement() {
 
     try {
       // Usando n8n Standalone em vez de Edge Function
-      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-send";
+      const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_SEND || "https://n8n.kaffspiel.com.br/webhook/opscontrol-send-vps";
 
       const response = await fetch(n8nWebhookUrl, {
         method: "POST",
@@ -414,7 +414,7 @@ export function EmployeeManagement() {
     setResettingPassword(true);
 
     try {
-      const n8nWebhookUrl = "https://n8n.kaffspiel.cloud/webhook/opscontrol-reset-password";
+      const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_RESET || "https://n8n.kaffspiel.com.br/webhook/opscontrol-reset-password";
 
       const response = await fetch(n8nWebhookUrl, {
         method: "POST",
